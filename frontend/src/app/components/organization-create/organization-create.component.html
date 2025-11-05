@@ -103,6 +103,9 @@
             placeholder="e.g., john.smith"
             [class.error]="organizationForm.get('superAdminUsername')?.touched && organizationForm.get('superAdminUsername')?.invalid"
           />
+          <span class="field-info">
+            ℹ️ An organization prefix will be automatically added to the username for login (e.g., orgXXXXXXXX_john.smith)
+          </span>
           <span class="field-error" *ngIf="getFieldError('superAdminUsername')">
             {{ getFieldError('superAdminUsername') }}
           </span>

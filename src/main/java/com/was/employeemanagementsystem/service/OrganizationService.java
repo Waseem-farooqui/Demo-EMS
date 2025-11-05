@@ -110,9 +110,17 @@ public class OrganizationService {
             log.info("🔐 Using provided password for SUPER_ADMIN");
         }
 
+        // Create organization-prefixed username for easier identification
+        // Format: orgXXX_username (using first 8 chars of UUID)
+        String orgPrefix = savedOrganization.getOrganizationUuid().substring(0, 8);
+        String prefixedUsername = orgPrefix + "_" + request.getSuperAdminUsername();
+
+        log.info("🏷️ Original username: {} → Prefixed username: {}",
+                request.getSuperAdminUsername(), prefixedUsername);
+
         // Create SUPER_ADMIN user
         User superAdmin = new User();
-        superAdmin.setUsername(request.getSuperAdminUsername());
+        superAdmin.setUsername(prefixedUsername);  // Use prefixed username
         superAdmin.setEmail(request.getSuperAdminEmail());
         superAdmin.setPassword(passwordEncoder.encode(plainPassword));
         superAdmin.setOrganizationId(savedOrganization.getId());
@@ -131,13 +139,13 @@ public class OrganizationService {
         log.info("✅ SUPER_ADMIN user created with ID: {} for organization UUID: {}",
                 savedUser.getId(), savedOrganization.getOrganizationUuid());
 
-        // Send welcome email with credentials
+        // Send welcome email with credentials (use prefixed username for login)
         try {
             emailService.sendOrganizationCreatedEmail(
                 request.getSuperAdminEmail(),
                 request.getSuperAdminFullName(),
                 savedOrganization.getName(),
-                request.getSuperAdminUsername(),
+                prefixedUsername,  // Send prefixed username in email
                 plainPassword,
                 isGeneratedPassword
             );
