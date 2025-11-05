@@ -8,7 +8,10 @@ import javax.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "departments")
+@Table(name = "departments", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"code", "organization_id"}),
+    @UniqueConstraint(columnNames = {"name", "organization_id"})
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,13 +21,13 @@ public class Department {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false, unique = true)
+    @Column(name = "name", nullable = false)
     private String name;
 
     @Column(name = "description", length = 500)
     private String description;
 
-    @Column(name = "code", unique = true)
+    @Column(name = "code")
     private String code; // e.g., IT, HR, FIN
 
     @ManyToOne(fetch = FetchType.LAZY)
