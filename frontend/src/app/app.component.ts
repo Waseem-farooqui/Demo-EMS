@@ -52,16 +52,16 @@ export class AppComponent implements OnInit {
         isRoot: this.isRoot,
         isSuperAdmin: this.isSuperAdmin,
         isAdmin: this.isAdmin,
-        organizationId: user?.organizationId,
+        organizationUuid: user?.organizationUuid,
         username: user?.username
       });
 
       // Load organization info for non-ROOT users
-      if (!this.isRoot && user?.organizationId) {
+      if (!this.isRoot && user?.organizationUuid) {
         console.log('📋 Loading organization info...');
         this.loadOrganizationInfo();
-      } else if (!this.isRoot && !user?.organizationId) {
-        console.warn('⚠️ Non-ROOT user has no organizationId');
+      } else if (!this.isRoot && !user?.organizationUuid) {
+        console.warn('⚠️ Non-ROOT user has no organizationUuid');
       }
     }
   }
