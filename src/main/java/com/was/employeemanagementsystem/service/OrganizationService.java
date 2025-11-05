@@ -18,15 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,7 +37,6 @@ public class OrganizationService {
     private final SecurityUtils securityUtils;
     private final EmailService emailService;
 
-    private final String logoUploadDir = "uploads/organization-logos/";
 
     public OrganizationService(OrganizationRepository organizationRepository,
                               UserRepository userRepository,
@@ -58,13 +52,6 @@ public class OrganizationService {
         this.passwordEncoder = passwordEncoder;
         this.securityUtils = securityUtils;
         this.emailService = emailService;
-
-        // Create logo upload directory if it doesn't exist
-        try {
-            Files.createDirectories(Paths.get(logoUploadDir));
-        } catch (IOException e) {
-            log.error("Could not create logo upload directory: {}", e.getMessage());
-        }
     }
 
     /**
@@ -221,24 +208,8 @@ public class OrganizationService {
             throw new RuntimeException("Logo file size must be less than 5MB");
         }
 
-        // Save file to disk
-        String fileName = "org_" + organizationId + "_" + UUID.randomUUID() + "_" + file.getOriginalFilename();
-        Path filePath = Paths.get(logoUploadDir + fileName);
-        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-        // Store file data in database
+        // Store logo data in database as BLOB
         byte[] logoData = file.getBytes();
-
-        // Delete old logo file if exists
-        if (organization.getLogoPath() != null) {
-            try {
-                Files.deleteIfExists(Paths.get(organization.getLogoPath()));
-            } catch (IOException e) {
-                log.warn("Could not delete old logo file: {}", e.getMessage());
-            }
-        }
-
-        organization.setLogoPath(filePath.toString());
         organization.setLogoData(logoData);
 
         Organization updated = organizationRepository.save(organization);
@@ -369,7 +340,7 @@ public class OrganizationService {
         dto.setCreatedAt(organization.getCreatedAt());
         dto.setUpdatedAt(organization.getUpdatedAt());
 
-        if (organization.getLogoPath() != null) {
+        if (organization.getLogoData() != null && organization.getLogoData().length > 0) {
             dto.setLogoUrl("/api/organizations/" + organization.getId() + "/logo");
         }
 
