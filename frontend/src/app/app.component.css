@@ -120,62 +120,42 @@ body {
   padding: 0.625rem 1rem;
   border-radius: 0.5rem;
   text-decoration: none;
-  color: var(--text-secondary);
+  color: #1f2937 !important;
+  background-color: transparent;
   font-weight: 500;
   transition: var(--transition);
   white-space: nowrap;
   outline: none;
 }
 
+.nav-link .nav-icon {
+  color: #1f2937 !important;
+}
+
 .nav-link:hover {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
+  background-color: #f3f4f6;
+  color: #1f2937 !important;
 }
 
-/* Active link styles with maximum specificity */
-:host .nav-link.active,
-.navbar .nav-link.active,
-a.nav-link.active[routerlinkactive="active"] {
-  background-color: var(--primary-color) !important;
+.nav-link:hover .nav-icon {
+  color: #1f2937 !important;
+}
+
+.nav-link.active {
+  background-color: #6b7280 !important;
   color: #ffffff !important;
 }
 
-:host .nav-link.active .nav-icon,
-.navbar .nav-link.active .nav-icon,
-a.nav-link.active[routerlinkactive="active"] .nav-icon {
+.nav-link.active .nav-icon {
   color: #ffffff !important;
 }
 
-:host .nav-link.active:hover,
-.navbar .nav-link.active:hover,
-a.nav-link.active[routerlinkactive="active"]:hover {
-  background-color: var(--primary-dark) !important;
+.nav-link.active:hover {
+  background-color: #4b5563 !important;
   color: #ffffff !important;
 }
 
-:host .nav-link.active:hover .nav-icon,
-.navbar .nav-link.active:hover .nav-icon,
-a.nav-link.active[routerlinkactive="active"]:hover .nav-icon {
-  color: #ffffff !important;
-}
-
-:host .nav-link.active:focus,
-:host .nav-link.active:active,
-.navbar .nav-link.active:focus,
-.navbar .nav-link.active:active,
-a.nav-link.active[routerlinkactive="active"]:focus,
-a.nav-link.active[routerlinkactive="active"]:active {
-  background-color: var(--primary-color) !important;
-  color: #ffffff !important;
-  outline: none !important;
-}
-
-:host .nav-link.active:focus .nav-icon,
-:host .nav-link.active:active .nav-icon,
-.navbar .nav-link.active:focus .nav-icon,
-.navbar .nav-link.active:active .nav-icon,
-a.nav-link.active[routerlinkactive="active"]:focus .nav-icon,
-a.nav-link.active[routerlinkactive="active"]:active .nav-icon {
+.nav-link.active:hover .nav-icon {
   color: #ffffff !important;
 }
 
@@ -341,7 +321,8 @@ a.nav-link.active[routerlinkactive="active"]:active .nav-icon {
   gap: 0.75rem;
   padding: 1rem 1.5rem;
   text-decoration: none;
-  color: var(--text-secondary);
+  color: #1f2937 !important;
+  background-color: transparent;
   font-weight: 500;
   transition: var(--transition);
   border-bottom: 1px solid var(--border-color);
@@ -349,27 +330,21 @@ a.nav-link.active[routerlinkactive="active"]:active .nav-icon {
 }
 
 .mobile-nav-link:hover {
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
+  background-color: #f9fafb;
+  color: #1f2937 !important;
 }
 
 .mobile-nav-link.active {
-  background-color: var(--primary-color) !important;
+  background-color: #6b7280 !important;
   color: #ffffff !important;
-  border-left: 4px solid var(--primary-dark);
+  border-left: 4px solid #4b5563;
 }
 
 .mobile-nav-link.active:hover {
-  background-color: var(--primary-dark) !important;
+  background-color: #4b5563 !important;
   color: #ffffff !important;
 }
 
-.mobile-nav-link.active:focus,
-.mobile-nav-link.active:active {
-  background-color: var(--primary-color) !important;
-  color: #ffffff !important;
-  outline: none !important;
-}
 
 .mobile-logout {
   display: flex;
