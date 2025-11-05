@@ -96,7 +96,9 @@ public class OrganizationController {
     @GetMapping("/my-organization")
     public ResponseEntity<?> getMyOrganization() {
         try {
+            log.info("📋 Getting current user's organization");
             OrganizationDTO organization = organizationService.getCurrentUserOrganization();
+            log.info("✅ Successfully retrieved organization: {}", organization.getName());
             return ResponseEntity.ok(organization);
         } catch (RuntimeException e) {
             log.error("❌ Failed to get user organization: {}", e.getMessage());

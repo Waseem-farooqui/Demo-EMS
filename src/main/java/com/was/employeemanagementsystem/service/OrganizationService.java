@@ -278,6 +278,8 @@ public class OrganizationService {
      */
     public OrganizationDTO getCurrentUserOrganization() {
         User currentUser = securityUtils.getCurrentUser();
+        log.info("🔍 getCurrentUserOrganization - Current user: {}", currentUser != null ? currentUser.getUsername() : "null");
+
         if (currentUser == null) {
             throw new RuntimeException("Authentication required");
         }
@@ -287,6 +289,8 @@ public class OrganizationService {
         }
 
         Long organizationId = currentUser.getOrganizationId();
+        log.info("🔍 User's organization ID: {}", organizationId);
+
         if (organizationId == null) {
             throw new RuntimeException("User does not belong to any organization");
         }
@@ -294,6 +298,7 @@ public class OrganizationService {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new RuntimeException("Organization not found"));
 
+        log.info("✅ Found organization: {} (ID: {})", organization.getName(), organization.getId());
         return convertToDTO(organization);
     }
 
