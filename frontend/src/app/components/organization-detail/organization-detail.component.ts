@@ -58,6 +58,12 @@ export class OrganizationDetailComponent implements OnInit {
       next: (data) => {
         console.log('✅ Organization details loaded:', data);
         this.organization = data;
+
+        // Fix logo URL - prepend API base URL if it's a relative path
+        if (this.organization.logoUrl && !this.organization.logoUrl.startsWith('http')) {
+          this.organization.logoUrl = `http://localhost:8080${this.organization.logoUrl}`;
+        }
+
         this.loading = false;
       },
       error: (err) => {
