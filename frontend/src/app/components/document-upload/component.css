@@ -1,0 +1,27 @@
+.form-text {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #666;
+}
+
+.field-error {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #dc3545;
+  font-weight: 500;
+}
+
+/* Invalid field styling */
+.form-control.ng-invalid.ng-touched,
+input.ng-invalid.ng-touched,
+select.ng-invalid.ng-touched {
+  border-color: #dc3545 !important;
+  background-color: #fff5f5;
+}
+
+.form-control.ng-invalid.ng-touched:focus {
+  border-color: #dc3545 !important;
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}

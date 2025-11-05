@@ -1,0 +1,118 @@
+<div class="organization-detail">
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading">
+    <div class="spinner"></div>
+    <p>Loading organization details...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error && !loading" class="error-container">
+    <div class="error-icon">❌</div>
+    <h2>Error Loading Organization</h2>
+    <p>{{ error }}</p>
+    <button (click)="goBack()" class="btn btn-secondary">← Back to Dashboard</button>
+  </div>
+
+  <!-- Organization Details -->
+  <div *ngIf="organization && !loading" class="detail-container">
+    <!-- Header -->
+    <div class="detail-header">
+      <div class="header-left">
+        <h1>🏢 {{ organization.name }}</h1>
+        <span class="status-badge" [class.active]="organization.isActive" [class.inactive]="!organization.isActive">
+          {{ organization.isActive ? '✅ Active' : '⏸️ Inactive' }}
+        </span>
+      </div>
+      <div class="header-actions">
+        <button (click)="goBack()" class="btn btn-secondary">← Back to Dashboard</button>
+        <button
+          *ngIf="organization.isActive"
+          (click)="deactivateOrganization()"
+          class="btn btn-warning">
+          ⏸️ Deactivate
+        </button>
+        <button
+          *ngIf="!organization.isActive"
+          (click)="activateOrganization()"
+          class="btn btn-success">
+          ✅ Activate
+        </button>
+      </div>
+    </div>
+
+    <!-- Organization Information -->
+    <div class="info-grid">
+      <!-- Basic Information Card -->
+      <div class="info-card">
+        <h2>📋 Basic Information</h2>
+        <div class="info-row">
+          <span class="label">Organization ID:</span>
+          <span class="value">{{ organization.id }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Organization UUID:</span>
+          <span class="value uuid">{{ organization.organizationUuid }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Organization Name:</span>
+          <span class="value">{{ organization.name }}</span>
+        </div>
+        <div class="info-row" *ngIf="organization.description">
+          <span class="label">Description:</span>
+          <span class="value">{{ organization.description }}</span>
+        </div>
+      </div>
+
+      <!-- Contact Information Card -->
+      <div class="info-card">
+        <h2>📞 Contact Information</h2>
+        <div class="info-row" *ngIf="organization.contactEmail">
+          <span class="label">Email:</span>
+          <span class="value">
+            <a [href]="'mailto:' + organization.contactEmail">{{ organization.contactEmail }}</a>
+          </span>
+        </div>
+        <div class="info-row" *ngIf="organization.contactPhone">
+          <span class="label">Phone:</span>
+          <span class="value">
+            <a [href]="'tel:' + organization.contactPhone">{{ organization.contactPhone }}</a>
+          </span>
+        </div>
+        <div class="info-row" *ngIf="organization.address">
+          <span class="label">Address:</span>
+          <span class="value">{{ organization.address }}</span>
+        </div>
+      </div>
+
+      <!-- Status Information Card -->
+      <div class="info-card">
+        <h2>📊 Status Information</h2>
+        <div class="info-row">
+          <span class="label">Status:</span>
+          <span class="value">
+            <span class="status-badge" [class.active]="organization.isActive" [class.inactive]="!organization.isActive">
+              {{ organization.isActive ? '✅ Active' : '⏸️ Inactive' }}
+            </span>
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="label">Created:</span>
+          <span class="value">{{ formatDate(organization.createdAt) }}</span>
+        </div>
+        <div class="info-row" *ngIf="organization.updatedAt">
+          <span class="label">Last Updated:</span>
+          <span class="value">{{ formatDate(organization.updatedAt) }}</span>
+        </div>
+      </div>
+
+      <!-- Logo Card (if available) -->
+      <div class="info-card" *ngIf="organization.logoUrl">
+        <h2>🖼️ Organization Logo</h2>
+        <div class="logo-container">
+          <img [src]="organization.logoUrl" [alt]="organization.name + ' Logo'" class="org-logo">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

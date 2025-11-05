@@ -1,0 +1,338 @@
+<div class="employee-list-container">
+  <div class="page-header">
+    <h2>Employees</h2>
+    <div class="header-actions">
+      <a routerLink="/users/create" class="btn btn-success" *ngIf="currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('SUPER_ADMIN')">
+        <span>👤</span> Create User
+      </a>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading">Loading employees...</div>
+
+  <div *ngIf="error" class="error-message">{{ error }}</div>
+
+  <div *ngIf="!loading && employees.length === 0" class="no-data">
+    No employees found. Click "Create User" to get started.
+  </div>
+
+  <table *ngIf="!loading && employees.length > 0" class="employee-table">
+    <thead>
+      <tr>
+        <th>Full Name</th>
+        <th>Job Title</th>
+        <th>Department</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let employee of employees">
+        <td>
+          <div class="employee-name">
+            <span class="name-icon">👤</span>
+            <strong>{{ employee.fullName }}</strong>
+          </div>
+        </td>
+        <td>{{ employee.jobTitle || '-' }}</td>
+        <td>
+          <span class="department-badge" *ngIf="employee.departmentName">
+            {{ employee.departmentName }}
+          </span>
+          <span *ngIf="!employee.departmentName">-</span>
+        </td>
+        <td class="actions">
+          <button (click)="viewEmployeeDetails(employee.id!)" class="btn btn-details" title="View Full Details">
+            👁️ Details
+          </button>
+          <a [routerLink]="['/employees/edit', employee.id]" class="btn btn-edit" title="Edit Employee">
+            ✏️ Edit
+          </a>
+          <button (click)="deleteEmployee(employee.id)" class="btn btn-delete" title="Delete Employee">
+            🗑️ Delete
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Employee Details Modal -->
+  <div *ngIf="showDetailsModal" class="modal-overlay" (click)="closeDetailsModal()">
+    <div class="modal-content employee-details-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>👤 Employee Complete Details</h3>
+        <button class="modal-close" (click)="closeDetailsModal()">×</button>
+      </div>
+
+      <div *ngIf="loadingDetails" class="modal-loading">
+        <div class="spinner"></div>
+        <p>Loading employee details...</p>
+      </div>
+
+      <div *ngIf="!loadingDetails && selectedEmployee" class="modal-body">
+        <!-- Personal Information Section -->
+        <div class="details-section">
+          <h4 class="section-title">📋 Personal Information</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Full Name:</span>
+              <span class="info-value">{{ selectedEmployee.fullName }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Person Type:</span>
+              <span class="info-value">{{ selectedEmployee.personType }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Work Email:</span>
+              <span class="info-value">{{ selectedEmployee.workEmail }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Personal Email:</span>
+              <span class="info-value">{{ selectedEmployee.personalEmail || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Phone:</span>
+              <span class="info-value">{{ selectedEmployee.phoneNumber || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Date of Birth:</span>
+              <span class="info-value">{{ selectedEmployee.dateOfBirth | date:'mediumDate' || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Nationality:</span>
+              <span class="info-value">{{ selectedEmployee.nationality || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Address:</span>
+              <span class="info-value">{{ selectedEmployee.address || '-' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Employment Information Section -->
+        <div class="details-section">
+          <h4 class="section-title">💼 Employment Information</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Job Title:</span>
+              <span class="info-value">{{ selectedEmployee.jobTitle }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Department:</span>
+              <span class="info-value">
+                <span class="department-badge" *ngIf="selectedEmployee.departmentName">
+                  {{ selectedEmployee.departmentName }}
+                </span>
+                <span *ngIf="!selectedEmployee.departmentName">-</span>
+              </span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Reference:</span>
+              <span class="info-value">{{ selectedEmployee.reference || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Date of Joining:</span>
+              <span class="info-value">{{ selectedEmployee.dateOfJoining | date:'mediumDate' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Employment Status:</span>
+              <span class="info-value">{{ selectedEmployee.employmentStatus || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Contract Type:</span>
+              <span class="info-value">{{ selectedEmployee.contractType || '-' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Working Hours Section -->
+        <div class="details-section" *ngIf="employeeWorkSummary">
+          <h4 class="section-title">⏰ Working Hours Summary</h4>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">📅</div>
+              <div class="stat-label">This Week</div>
+              <div class="stat-value">{{ employeeWorkSummary.totalHoursThisWeek || 0 }} hrs</div>
+              <div class="stat-subtext">{{ employeeWorkSummary.daysWorkedThisWeek || 0 }} days worked</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">📊</div>
+              <div class="stat-label">This Month</div>
+              <div class="stat-value">{{ employeeWorkSummary.totalHoursThisMonth || 0 }} hrs</div>
+              <div class="stat-subtext">{{ employeeWorkSummary.daysWorkedThisMonth || 0 }} days worked</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🎯</div>
+              <div class="stat-label">Current Status</div>
+              <div class="stat-value status-badge" [class]="'status-' + (employeeWorkSummary.currentStatus || 'unknown').toLowerCase()">
+                {{ (employeeWorkSummary.currentStatus || 'Unknown').replace('_', ' ') }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Weekly Attendance -->
+          <div class="weekly-attendance" *ngIf="employeeWorkSummary.weeklyAttendance && employeeWorkSummary.weeklyAttendance.length > 0">
+            <h5>📅 This Week's Attendance</h5>
+            <div class="attendance-list">
+              <div *ngFor="let attendance of employeeWorkSummary.weeklyAttendance" class="attendance-row">
+                <div class="attendance-date">
+                  <span class="day">{{ attendance.workDate | date:'EEE' }}</span>
+                  <span class="date">{{ attendance.workDate | date:'MMM d' }}</span>
+                </div>
+                <div class="attendance-location">
+                  <span class="location-icon">📍</span>
+                  {{ attendance.workLocationDisplay }}
+                </div>
+                <div class="attendance-hours">
+                  <span *ngIf="attendance.hoursWorked" class="hours-badge">
+                    {{ attendance.hoursWorked.toFixed(2) }} hrs
+                  </span>
+                  <span *ngIf="!attendance.hoursWorked" class="in-progress-badge">
+                    In Progress
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROTA Schedule Section -->
+        <div class="details-section" *ngIf="employeeRotaSchedule && employeeRotaSchedule.length > 0">
+          <h4 class="section-title">📋 Current Week ROTA Schedule</h4>
+          <div class="rota-timeline">
+            <div *ngFor="let schedule of employeeRotaSchedule" class="rota-day" [class]="getDutyClass(schedule.duty)">
+              <div class="rota-day-header">
+                <span class="day-name">{{ schedule.dayOfWeek }}</span>
+                <span class="day-date">{{ schedule.scheduleDate | date:'MMM d' }}</span>
+              </div>
+              <div class="rota-day-body">
+                <div class="duty-name">{{ schedule.duty || 'No duty' }}</div>
+                <div class="duty-time" *ngIf="schedule.startTime && schedule.endTime">
+                  {{ schedule.startTime }} - {{ schedule.endTime }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Documents Section -->
+        <div class="details-section">
+          <h4 class="section-title">📄 Documents</h4>
+
+          <!-- Document List -->
+          <div *ngIf="employeeDocuments && employeeDocuments.length > 0" class="documents-section">
+            <div class="documents-list">
+              <div *ngFor="let doc of employeeDocuments"
+                   class="document-item"
+                   [class.selected]="selectedDocumentId === doc.id"
+                   (click)="viewDocument(doc.id, doc.documentType)">
+                <div class="document-icon">
+                  <span *ngIf="doc.documentType === 'PASSPORT'">🛂</span>
+                  <span *ngIf="doc.documentType === 'VISA'">📋</span>
+                  <span *ngIf="doc.documentType === 'ID_CARD'">🪪</span>
+                  <span *ngIf="doc.documentType === 'DRIVING_LICENSE'">🚗</span>
+                  <span *ngIf="doc.documentType === 'CONTRACT'">📝</span>
+                  <span *ngIf="!['PASSPORT', 'VISA', 'ID_CARD', 'DRIVING_LICENSE', 'CONTRACT'].includes(doc.documentType)">📎</span>
+                </div>
+                <div class="document-info">
+                  <div class="document-name">{{ doc.fileName }}</div>
+                  <div class="document-meta">
+                    <span class="document-type">{{ doc.documentType }}</span>
+                    <span class="document-date">{{ doc.uploadedDate | date:'short' }}</span>
+                  </div>
+
+                  <!-- Show Full Name for Passport -->
+                  <div class="document-extracted-info" *ngIf="doc.documentType === 'PASSPORT' && doc.fullName">
+                    <span class="doc-info-label">👤 Name:</span>
+                    <span class="doc-info-value">{{ doc.fullName }}</span>
+                  </div>
+
+
+                  <div class="document-details" *ngIf="doc.documentNumber || doc.referenceNumber || doc.issueDate || doc.expiryDate || doc.dateOfCheck">
+                    <span *ngIf="doc.documentNumber" class="doc-number">No: {{ doc.documentNumber }}</span>
+                    <span *ngIf="doc.referenceNumber" class="doc-number">Ref: {{ doc.referenceNumber }}</span>
+                    <span *ngIf="doc.expiryDate" class="doc-expiry">Exp: {{ doc.expiryDate | date:'mediumDate' }}</span>
+                    <span *ngIf="doc.dateOfCheck" class="doc-check">Check: {{ doc.dateOfCheck | date:'mediumDate' }}</span>
+                  </div>
+                </div>
+                <div class="document-actions">
+                  <button (click)="viewDocument(doc.id, doc.documentType); $event.stopPropagation()"
+                          class="btn-icon"
+                          title="View Document"
+                          [class.active]="selectedDocumentId === doc.id">
+                    👁️
+                  </button>
+                  <button (click)="downloadDocument(doc.id); $event.stopPropagation()"
+                          class="btn-icon"
+                          title="Download">
+                    ⬇️
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Document Viewer -->
+            <div *ngIf="selectedDocumentId && selectedDocumentUrl" class="document-viewer">
+              <div class="viewer-header">
+                <h5>📄 Document Preview</h5>
+                <button (click)="closeDocumentViewer()" class="btn-close-viewer" title="Close Viewer">×</button>
+              </div>
+              <div class="viewer-content">
+                <!-- PDF Viewer for CONTRACT and RESUME -->
+                <object *ngIf="selectedDocumentType === 'CONTRACT' || selectedDocumentType === 'RESUME'"
+                        [data]="selectedDocumentUrl"
+                        type="application/pdf"
+                        class="document-pdf">
+                  <div class="pdf-fallback">
+                    <p>Unable to display PDF in browser.</p>
+                    <p>The document is a {{ selectedDocumentType }}.</p>
+                  </div>
+                </object>
+
+                <!-- Image Viewer for PASSPORT and VISA -->
+                <img *ngIf="selectedDocumentType !== 'CONTRACT' && selectedDocumentType !== 'RESUME'"
+                     [src]="selectedDocumentUrl"
+                     alt="Document"
+                     class="document-image">
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="!employeeDocuments || employeeDocuments.length === 0" class="no-data-small">
+            📭 No documents uploaded yet
+          </div>
+
+          <button (click)="uploadDocument(selectedEmployee.id!)" class="btn btn-primary btn-sm" style="margin-top: 1rem;">
+            📤 Upload Document
+          </button>
+        </div>
+
+        <!-- Emergency Contact (if available) -->
+        <div class="details-section" *ngIf="selectedEmployee.emergencyContactName">
+          <h4 class="section-title">🚨 Emergency Contact</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Name:</span>
+              <span class="info-value">{{ selectedEmployee.emergencyContactName }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Phone:</span>
+              <span class="info-value">{{ selectedEmployee.emergencyContactPhone || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Relationship:</span>
+              <span class="info-value">{{ selectedEmployee.emergencyContactRelationship || '-' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeDetailsModal()" class="btn btn-secondary">Close</button>
+        <a [routerLink]="['/employees/edit', selectedEmployee?.id]" (click)="closeDetailsModal()" class="btn btn-primary">
+          ✏️ Edit Employee
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+

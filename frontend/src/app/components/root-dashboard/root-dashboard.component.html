@@ -1,0 +1,143 @@
+<div class="root-dashboard">
+  <!-- Header -->
+  <div class="dashboard-header">
+    <h1>👑 ROOT Dashboard</h1>
+    <p>System Administrator Panel</p>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading">
+    <div class="spinner"></div>
+    <p>Loading dashboard data...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error && !loading" class="error-message">
+    <p>{{ error }}</p>
+    <button (click)="loadDashboard()" class="btn btn-primary">Retry</button>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div *ngIf="dashboardData && !loading" class="dashboard-content">
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">🏢</div>
+        <div class="stat-details">
+          <h3>{{ dashboardData.totalOrganizations }}</h3>
+          <p>Total Organizations</p>
+        </div>
+      </div>
+
+      <div class="stat-card active">
+        <div class="stat-icon">✅</div>
+        <div class="stat-details">
+          <h3>{{ dashboardData.activeOrganizations }}</h3>
+          <p>Active Organizations</p>
+        </div>
+      </div>
+
+      <div class="stat-card inactive">
+        <div class="stat-icon">⏸️</div>
+        <div class="stat-details">
+          <h3>{{ dashboardData.inactiveOrganizations }}</h3>
+          <p>Inactive Organizations</p>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-details">
+          <h3>{{ dashboardData.totalSuperAdmins }}</h3>
+          <p>Super Admins</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Info -->
+    <div class="system-info">
+      <h2>📊 System Information</h2>
+      <div class="info-card">
+        <p><strong>System Start Date:</strong> {{ dashboardData.systemStartDate | date:'medium' }}</p>
+      </div>
+    </div>
+
+    <!-- Organizations Table -->
+    <div class="organizations-section">
+      <div class="section-header">
+        <h2>🏢 Organizations</h2>
+        <button (click)="createOrganization()" class="btn btn-primary">
+          ➕ Create Organization
+        </button>
+      </div>
+
+      <div class="organizations-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Organization Name</th>
+              <th>UUID</th>
+              <th>Super Admin</th>
+              <th>Onboarding Date</th>
+              <th>Days Active</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let org of dashboardData.recentOnboardings" [class.inactive]="!org.isActive">
+              <td>
+                <strong>{{ org.organizationName }}</strong>
+              </td>
+              <td>
+                <code class="uuid">{{ org.organizationUuid.substring(0, 8) }}...</code>
+              </td>
+              <td>
+                <div class="admin-info">
+                  <div>👤 {{ org.superAdminUsername }}</div>
+                  <small>{{ org.superAdminEmail }}</small>
+                </div>
+              </td>
+              <td>{{ org.onboardingDate | date:'short' }}</td>
+              <td>
+                <span class="badge">{{ org.daysActive }} days</span>
+              </td>
+              <td>
+                <span class="status-badge" [class.active]="org.isActive" [class.inactive]="!org.isActive">
+                  {{ org.isActive ? '✅ Active' : '⏸️ Inactive' }}
+                </span>
+              </td>
+              <td>
+                <div class="action-buttons">
+                  <button (click)="viewOrganizationDetails(org.organizationId)" class="btn btn-sm btn-info" title="View Details">
+                    👁️ View
+                  </button>
+                  <button
+                    *ngIf="org.isActive"
+                    (click)="deactivateOrganization(org.organizationId, org.organizationName)"
+                    class="btn btn-sm btn-warning"
+                    title="Deactivate Organization - Block all users">
+                    ⏸️ Deactivate
+                  </button>
+                  <button
+                    *ngIf="!org.isActive"
+                    (click)="activateOrganization(org.organizationId, org.organizationName)"
+                    class="btn btn-sm btn-success"
+                    title="Activate Organization - Restore access">
+                    ✅ Activate
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div *ngIf="dashboardData.recentOnboardings.length === 0" class="no-data">
+          <p>No organizations found</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

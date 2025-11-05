@@ -1,0 +1,338 @@
+<div class="user-create-container">
+  <div class="page-header">
+    <h2>👤 Create New User</h2>
+    <p class="subtitle">
+      {{ isSuperAdmin ? 'Create ADMIN or USER with department assignment' : 'Create USER in your department' }}
+    </p>
+  </div>
+
+  <!-- Success Alert with Credentials -->
+  <div *ngIf="showCredentials && createdCredentials" class="credentials-card">
+    <div class="credentials-header">
+      <div class="credentials-icon">✅</div>
+      <div>
+        <h3>User Created Successfully!</h3>
+        <p class="credentials-subtitle">
+          {{ createdCredentials.emailSent
+             ? 'Credentials sent via email. You can also share them manually:'
+             : '⚠️ Email failed - Please share these credentials manually:' }}
+        </p>
+      </div>
+    </div>
+
+    <div class="credentials-grid">
+      <div class="credential-item">
+        <label>Full Name:</label>
+        <div class="credential-value-row">
+          <span class="credential-value">{{ createdCredentials.fullName }}</span>
+        </div>
+      </div>
+
+      <div class="credential-item">
+        <label>Email:</label>
+        <div class="credential-value-row">
+          <span class="credential-value">{{ createdCredentials.email }}</span>
+          <button (click)="copyToClipboard(createdCredentials.email, 'Email')" class="btn-copy">
+            📋 Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="credential-item highlight">
+        <label>Username:</label>
+        <div class="credential-value-row">
+          <span class="credential-value">{{ createdCredentials.username }}</span>
+          <button (click)="copyToClipboard(createdCredentials.username, 'Username')" class="btn-copy">
+            📋 Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="credential-item highlight">
+        <label>Temporary Password:</label>
+        <div class="credential-value-row">
+          <span class="credential-value password">{{ createdCredentials.temporaryPassword }}</span>
+          <button (click)="copyToClipboard(createdCredentials.temporaryPassword, 'Password')" class="btn-copy">
+            📋 Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="credential-item">
+        <label>Role:</label>
+        <div class="credential-value-row">
+          <span class="role-badge" [class]="'role-' + createdCredentials.role.toLowerCase()">
+            {{ createdCredentials.role }}
+          </span>
+        </div>
+      </div>
+
+      <div class="credential-item">
+        <label>Department:</label>
+        <div class="credential-value-row">
+          <span class="credential-value">{{ createdCredentials.departmentName }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="credentials-warning">
+      <span class="warning-icon">⚠️</span>
+      <div>
+        <strong>Important:</strong> The temporary password is shown only once.
+        Please share it securely with the user. They will be required to change it on first login.
+      </div>
+    </div>
+
+    <div class="credentials-actions">
+      <button (click)="createAnother()" class="btn btn-secondary">
+        ➕ Create Another User
+      </button>
+      <button (click)="goToEmployees()" class="btn btn-primary">
+        👥 View All Employees
+      </button>
+    </div>
+  </div>
+
+  <!-- Error Alert -->
+  <div *ngIf="error && !showCredentials" class="alert alert-error">
+    <span class="alert-icon">⚠️</span>
+    {{ error }}
+  </div>
+
+  <!-- User Creation Form -->
+  <form *ngIf="!showCredentials" [formGroup]="userForm" (ngSubmit)="onSubmit()" class="user-form">
+
+    <!-- Personal Information Section -->
+    <div class="form-section">
+      <h3>📝 Personal Information</h3>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="fullName">Full Name *</label>
+          <input
+            type="text"
+            id="fullName"
+            formControlName="fullName"
+            class="form-control"
+            placeholder="Enter full name"
+          >
+          <div class="field-error" *ngIf="userForm.get('fullName')?.invalid && userForm.get('fullName')?.touched">
+            Full name is required (minimum 3 characters)
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email Address *</label>
+          <input
+            type="email"
+            id="email"
+            formControlName="email"
+            class="form-control"
+            placeholder="user@company.com"
+          >
+          <div class="field-error" *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched">
+            Valid email is required
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Work Information Section -->
+    <div class="form-section">
+      <h3>💼 Work Information</h3>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="jobTitle">Job Title *</label>
+          <input
+            type="text"
+            id="jobTitle"
+            formControlName="jobTitle"
+            class="form-control"
+            placeholder="e.g., Software Developer, Manager"
+          >
+          <div class="field-error" *ngIf="userForm.get('jobTitle')?.invalid && userForm.get('jobTitle')?.touched">
+            Job title is required
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="personType">Person Type *</label>
+          <select id="personType" formControlName="personType" class="form-control">
+            <option value="Employee">Employee</option>
+            <option value="Contractor">Contractor</option>
+            <option value="Intern">Intern</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="dateOfJoining">Date of Joining *</label>
+          <input
+            type="date"
+            id="dateOfJoining"
+            formControlName="dateOfJoining"
+            class="form-control"
+            [max]="maxDate"
+          >
+          <div class="field-error" *ngIf="userForm.get('dateOfJoining')?.invalid && userForm.get('dateOfJoining')?.touched">
+            <span *ngIf="userForm.get('dateOfJoining')?.errors?.['required']">Date of joining is required</span>
+            <span *ngIf="userForm.get('dateOfJoining')?.errors?.['futureDate']">Date of joining cannot be in the future</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="reference">Employee ID/Reference</label>
+          <input
+            type="text"
+            id="reference"
+            formControlName="reference"
+            class="form-control"
+            placeholder="e.g., EMP001"
+          >
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="employmentStatus">Employment Status *</label>
+          <select id="employmentStatus" formControlName="employmentStatus" class="form-control">
+            <option value="FULL_TIME">Full Time</option>
+            <option value="PART_TIME">Part Time</option>
+            <option value="CONTRACT">Contract</option>
+            <option value="TEMPORARY">Temporary</option>
+          </select>
+          <small class="form-hint">💡 Select whether the employee is full-time or part-time</small>
+        </div>
+
+        <div class="form-group">
+          <label for="contractType">Contract Type *</label>
+          <select id="contractType" formControlName="contractType" class="form-control">
+            <option value="PERMANENT">Permanent</option>
+            <option value="TEMPORARY">Temporary</option>
+            <option value="FIXED_TERM">Fixed Term</option>
+          </select>
+          <small class="form-hint">💡 Type of employment contract</small>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="workingTiming">Working Hours</label>
+          <input
+            type="text"
+            id="workingTiming"
+            formControlName="workingTiming"
+            class="form-control"
+            placeholder="9:00 AM - 5:00 PM"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="holidayAllowance">Annual Leave (Days) *</label>
+          <input
+            type="number"
+            id="holidayAllowance"
+            formControlName="holidayAllowance"
+            class="form-control"
+            min="0"
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Role & Department Section -->
+    <div class="form-section">
+      <h3>🔐 Role & Department</h3>
+
+      <div class="form-row">
+        <!-- Role Selection - SUPER_ADMIN can choose, ADMIN cannot -->
+        <div class="form-group">
+          <label for="role">User Role *</label>
+          <select
+            id="role"
+            formControlName="role"
+            class="form-control"
+            (change)="onRoleChange()">
+            <option value="USER">USER (Regular Employee)</option>
+            <option value="ADMIN">ADMIN (Department Manager)</option>
+          </select>
+          <small class="form-hint" *ngIf="isSuperAdmin">
+            💡 ADMINs can manage their department staff. Each department can only have ONE admin.
+          </small>
+          <small class="form-hint" *ngIf="!isSuperAdmin">
+            ⚠️ Department admins can only create regular users
+          </small>
+        </div>
+
+        <!-- Department Selection - SUPER_ADMIN can choose, ADMIN auto-assigned -->
+        <div class="form-group">
+          <label for="departmentId">Department *</label>
+          <select
+            id="departmentId"
+            formControlName="departmentId"
+            class="form-control"
+            (change)="onDepartmentChange($event)">
+            <option [value]="null" *ngIf="isSuperAdmin">Select Department</option>
+            <option
+              *ngFor="let dept of departments"
+              [value]="dept.id"
+              [disabled]="isDepartmentDisabled(dept)">
+              {{ getDepartmentDisplayName(dept) }}
+            </option>
+          </select>
+          <small class="form-hint" *ngIf="isSuperAdmin && userForm.get('role')?.value === 'ADMIN'">
+            ⚠️ Departments with existing admins cannot be selected
+          </small>
+          <small class="form-hint" *ngIf="isSuperAdmin && userForm.get('role')?.value !== 'ADMIN'">
+            💡 Select an existing department or create a custom one
+          </small>
+          <small class="form-hint" *ngIf="!isSuperAdmin">
+            ⚠️ User will be added to your department automatically
+          </small>
+          <div class="field-error" *ngIf="userForm.get('departmentId')?.invalid && userForm.get('departmentId')?.touched">
+            Department is required
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Department Name Field -->
+      <div class="form-row" *ngIf="showCustomDepartment">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label for="customDepartmentName">Custom Department Name *</label>
+          <input
+            type="text"
+            id="customDepartmentName"
+            formControlName="customDepartmentName"
+            class="form-control"
+            placeholder="Enter custom department name"
+          >
+          <small class="form-hint">
+            💡 This will create a new department in the system
+          </small>
+          <div class="field-error" *ngIf="userForm.get('customDepartmentName')?.invalid && userForm.get('customDepartmentName')?.touched">
+            Custom department name is required
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" (click)="router.navigate(['/employees'])" [disabled]="loading">
+        Cancel
+      </button>
+      <button type="submit" class="btn btn-primary" [disabled]="loading || userForm.invalid">
+        <span *ngIf="!loading">✅ Create User</span>
+        <span *ngIf="loading">Creating...</span>
+      </button>
+    </div>
+
+    <div class="form-note">
+      <strong>Note:</strong> A temporary password will be generated and sent via email.
+      The credentials will be displayed here for manual sharing if email fails.
+    </div>
+  </form>
+</div>
+

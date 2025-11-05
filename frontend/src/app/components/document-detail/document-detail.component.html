@@ -1,0 +1,411 @@
+<div class="document-detail-container">
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading">
+    <div class="spinner"></div>
+    <p>Loading document details...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error && !loading" class="error-message">
+    <i class="error-icon">⚠️</i>
+    <p>{{ error }}</p>
+    <button (click)="goBack()" class="btn-secondary">Go Back</button>
+  </div>
+
+  <!-- Document Details -->
+  <div *ngIf="document && !loading" class="document-details">
+    <!-- Header -->
+    <div class="detail-header">
+      <div class="header-left">
+        <button (click)="goBack()" class="btn-back">
+          <span>←</span> Back to Documents
+        </button>
+        <h2>{{ document.documentType === 'RESUME' ? 'Resume' :
+                document.documentType === 'SHARE_CODE' ? 'Share Code' :
+                document.documentType + ' Details' }}</h2>
+      </div>
+      <div class="header-actions">
+        <button *ngIf="(document.documentType === 'PASSPORT' || document.documentType === 'VISA') && !editMode && isDataIncomplete()" (click)="enableEditMode()" class="btn-edit">
+          <span>✏️</span> Complete Missing Data
+        </button>
+        <button *ngIf="(document.documentType === 'PASSPORT' || document.documentType === 'VISA') && !editMode && !isDataIncomplete()" (click)="enableEditMode()" class="btn-edit">
+          <span>✏️</span> Edit
+        </button>
+        <button (click)="deleteDocument()" class="btn-delete">
+          <span>🗑️</span> Delete
+        </button>
+      </div>
+    </div>
+
+    <!-- OCR Failure Alert - Only for PASSPORT and VISA -->
+    <div *ngIf="(document.documentType === 'PASSPORT' || document.documentType === 'VISA') && isDataIncomplete()" class="alert alert-warning">
+      <div class="alert-header">
+        <span class="alert-icon">⚠️</span>
+        <strong>OCR Extraction Incomplete</strong>
+      </div>
+      <p>The automatic text extraction was unable to read all fields from your document.</p>
+      <p><strong>Missing information:</strong> {{ getMissingFields().join(', ') }}</p>
+      <div class="alert-suggestion">
+        <p><strong>📝 Suggestions for better OCR results:</strong></p>
+        <ul>
+          <li>Ensure the document image is clear and well-lit</li>
+          <li>Make sure the document is not rotated (text should be horizontal)</li>
+          <li>Avoid glare or shadows on the document</li>
+          <li>Use a higher resolution image (300 DPI or higher)</li>
+          <li>Re-scan or re-photograph the document if possible</li>
+        </ul>
+        <p class="manual-entry-prompt">
+          <strong>You can manually enter the missing information below.</strong>
+          <span *ngIf="!editMode">Click "Complete Missing Data" button above to enter details.</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Success Message -->
+    <div *ngIf="saveSuccess" class="alert alert-success">
+      <span class="alert-icon">✓</span>
+      Document information updated successfully!
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="saveError" class="alert alert-error">
+      <span class="alert-icon">✗</span>
+      {{ saveError }}
+    </div>
+
+    <!-- Expiry Status Badge - Only for PASSPORT and VISA -->
+    <div *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'" class="expiry-badge" [ngClass]="'badge-' + getExpiryStatus(document.daysUntilExpiry)">
+      <span class="badge-icon">
+        {{ document.daysUntilExpiry && document.daysUntilExpiry < 0 ? '❌' :
+           document.daysUntilExpiry && document.daysUntilExpiry <= 30 ? '⚠️' :
+           document.daysUntilExpiry && document.daysUntilExpiry <= 90 ? '⏰' : '✅' }}
+      </span>
+      {{ getExpiryStatusText(document.daysUntilExpiry) }}
+    </div>
+
+    <!-- Document Information Grid - Not for RESUME and SHARE_CODE -->
+    <div *ngIf="document.documentType !== 'RESUME' && document.documentType !== 'SHARE_CODE'" class="info-grid">
+      <!-- Employee Information -->
+      <div class="info-section">
+        <h3><span class="section-icon">👤</span> Employee Information</h3>
+        <div class="info-item">
+          <label>Employee Name:</label>
+          <span class="value">{{ document.employeeName || 'Not available' }}</span>
+        </div>
+        <div class="info-item">
+          <label>Employee ID:</label>
+          <span class="value">{{ document.employeeId || 'Not available' }}</span>
+        </div>
+      </div>
+
+      <!-- Document Information -->
+      <div class="info-section">
+        <h3><span class="section-icon">📄</span> Document Information</h3>
+
+        <!-- Document Number - Only for PASSPORT and VISA -->
+        <div class="info-item" *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'" [ngClass]="{'missing-data': !document.documentNumber}">
+          <label>Document Number: <span class="required">*</span></label>
+          <span *ngIf="!editMode" class="value">
+            {{ document.documentNumber || '❌ Not extracted' }}
+          </span>
+          <input *ngIf="editMode"
+                 type="text"
+                 [(ngModel)]="manualDocumentNumber"
+                 placeholder="Enter document number"
+                 class="form-control"
+                 required>
+        </div>
+
+        <div class="info-item">
+          <label>Document Type:</label>
+          <span class="value badge-type">{{ document.documentType === 'SHARE_CODE' ? 'SHARE CODE' : document.documentType }}</span>
+        </div>
+
+        <!-- CONTRACT specific fields -->
+        <div class="info-item" *ngIf="document.documentType === 'CONTRACT' && document.contractDate">
+          <label>📅 Date of Employment:</label>
+          <span class="value highlight">{{ formatDate(document.contractDate) }}</span>
+        </div>
+
+        <div class="info-item" *ngIf="document.documentType === 'CONTRACT' && document.jobTitleContract">
+          <label>💼 Job Title:</label>
+          <span class="value">{{ document.jobTitleContract }}</span>
+        </div>
+
+        <div class="info-item" *ngIf="document.documentType === 'CONTRACT' && document.placeOfWork">
+          <label>📍 Place of Work:</label>
+          <span class="value">{{ document.placeOfWork }}</span>
+        </div>
+
+        <div class="info-item" *ngIf="document.documentType === 'CONTRACT' && document.contractBetween">
+          <label>📝 Contract Between:</label>
+          <span class="value">{{ document.contractBetween }}</span>
+        </div>
+
+        <!-- Issuing Country - Only for PASSPORT and VISA -->
+        <div class="info-item" *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'" [ngClass]="{'missing-data': !document.issuingCountry}">
+          <label>Issuing Country: <span class="required">*</span></label>
+          <span *ngIf="!editMode" class="value">
+            {{ document.issuingCountry || '❌ Not extracted' }}
+          </span>
+          <input *ngIf="editMode"
+                 type="text"
+                 [(ngModel)]="manualIssuingCountry"
+                 placeholder="Enter issuing country"
+                 class="form-control"
+                 required>
+        </div>
+
+        <div class="info-item" *ngIf="document.nationality">
+          <label>Nationality:</label>
+          <span class="value">{{ document.nationality || 'Not available' }}</span>
+        </div>
+      </div>
+
+      <!-- Personal Information -->
+      <div class="info-section" *ngIf="document.fullName || document.dateOfBirth">
+        <h3><span class="section-icon">ℹ️</span> Personal Information</h3>
+
+        <div class="info-item" *ngIf="document.fullName">
+          <label>Full Name:</label>
+          <span class="value">{{ document.fullName }}</span>
+        </div>
+
+        <div class="info-item" *ngIf="document.dateOfBirth">
+          <label>Date of Birth:</label>
+          <span class="value">{{ formatDate(document.dateOfBirth) }}</span>
+        </div>
+      </div>
+
+      <!-- Date Information - Only for PASSPORT and VISA -->
+      <div class="info-section" *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'">
+        <h3><span class="section-icon">📅</span> Important Dates</h3>
+
+        <div class="info-item" [ngClass]="{'missing-data': !document.issueDate}">
+          <label>Issue Date:</label>
+          <span *ngIf="!editMode" class="value">
+            {{ document.issueDate ? formatDate(document.issueDate) : '❌ Not extracted' }}
+          </span>
+          <input *ngIf="editMode"
+                 type="date"
+                 [(ngModel)]="manualIssueDate"
+                 class="form-control"
+                 [max]="maxDate">
+        </div>
+
+        <div class="info-item" [ngClass]="{'missing-data': !document.expiryDate}">
+          <label>Expiry Date: <span class="required">*</span></label>
+          <span *ngIf="!editMode" class="value"
+                [ngClass]="{'expired': document.daysUntilExpiry && document.daysUntilExpiry < 0}">
+            {{ document.expiryDate ? formatDate(document.expiryDate) : '❌ Not extracted' }}
+          </span>
+          <input *ngIf="editMode"
+                 type="date"
+                 [(ngModel)]="manualExpiryDate"
+                 class="form-control"
+                 required>
+        </div>
+
+        <div class="info-item" *ngIf="document.daysUntilExpiry">
+          <label>Days Until Expiry:</label>
+          <span class="value days-count" [ngClass]="getExpiryStatus(document.daysUntilExpiry)">
+            {{ document.daysUntilExpiry }} days
+          </span>
+        </div>
+
+        <div class="info-item">
+          <label>Upload Date:</label>
+          <span class="value">{{ formatDate(document.uploadedDate) }}</span>
+        </div>
+      </div>
+
+      <!-- Upload Date for CONTRACT documents -->
+      <div class="info-section" *ngIf="document.documentType === 'CONTRACT'">
+        <h3><span class="section-icon">📅</span> Important Dates</h3>
+
+        <div class="info-item" *ngIf="document.contractDate">
+          <label>Date of Employment (Contract Date):</label>
+          <span class="value highlight">{{ formatDate(document.contractDate) }}</span>
+        </div>
+
+        <div class="info-item">
+          <label>Upload Date:</label>
+          <span class="value">{{ formatDate(document.uploadedDate) }}</span>
+        </div>
+      </div>
+
+      <!-- Upload Information for RESUME and SHARE_CODE -->
+      <div class="info-section" *ngIf="document.documentType === 'RESUME' || document.documentType === 'SHARE_CODE'">
+        <h3><span class="section-icon">📅</span> Upload Information</h3>
+
+        <div class="info-item">
+          <label>Upload Date:</label>
+          <span class="value">{{ formatDate(document.uploadedDate) }}</span>
+        </div>
+      </div>
+
+      <!-- File Information -->
+      <div class="info-section">
+        <h3><span class="section-icon">📎</span> File Information</h3>
+
+        <div class="info-item">
+          <label>File Name:</label>
+          <span class="value">{{ document.fileName || 'Not available' }}</span>
+        </div>
+
+        <div class="info-item">
+          <label>File Type:</label>
+          <span class="value">{{ document.fileType || 'Not available' }}</span>
+        </div>
+      </div>
+
+      <!-- Alert Information -->
+      <div class="info-section" *ngIf="document.alertSentCount || document.lastAlertSent">
+        <h3><span class="section-icon">🔔</span> Alert History</h3>
+
+        <div class="info-item" *ngIf="document.alertSentCount">
+          <label>Alerts Sent:</label>
+          <span class="value">{{ document.alertSentCount }} time(s)</span>
+        </div>
+
+        <div class="info-item" *ngIf="document.lastAlertSent">
+          <label>Last Alert:</label>
+          <span class="value">{{ formatDate(document.lastAlertSent) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Document Preview -->
+    <div class="document-preview">
+      <!-- CONTRACT, RESUME (PDF), and SHARE_CODE documents: Show PDF viewer -->
+      <div *ngIf="(document.documentType === 'CONTRACT' || document.documentType === 'SHARE_CODE' || (document.documentType === 'RESUME' && isFilePdf())) && documentImageUrl">
+        <h3><span class="section-icon">📄</span>
+          {{ document.documentType === 'CONTRACT' ? 'Contract Document' :
+             document.documentType === 'SHARE_CODE' ? 'Share Code Document' :
+             'Resume Document (PDF)' }}
+        </h3>
+
+        <!-- Loading State -->
+        <div *ngIf="imageLoading" class="image-loading">
+          <div class="spinner"></div>
+          <p>Loading document...</p>
+        </div>
+
+        <!-- Error State -->
+        <div *ngIf="imageError && !imageLoading" class="image-error">
+          <span class="error-icon">⚠️</span>
+          <p>Unable to load document</p>
+        </div>
+
+        <!-- PDF Viewer -->
+        <div *ngIf="documentImageUrl && !imageLoading && !imageError" class="pdf-container">
+          <object [data]="documentImageUrl"
+                  type="application/pdf"
+                  class="pdf-viewer">
+            <div class="pdf-fallback">
+              <p>⚠️ Your browser cannot display PDF files inline.</p>
+              <p>Please use one of the options below:</p>
+              <div class="fallback-actions">
+                <button (click)="openPdfInNewTab()" class="btn-primary">
+                  <span>🔗</span> Open PDF in New Tab
+                </button>
+                <button (click)="downloadDocument()" class="btn-download">
+                  <span>⬇️</span> Download {{ document.documentType === 'CONTRACT' ? 'Contract' :
+                                              document.documentType === 'SHARE_CODE' ? 'Share Code' : 'Resume' }} PDF
+                </button>
+              </div>
+            </div>
+          </object>
+          <div class="image-actions">
+            <button (click)="openPdfInNewTab()" class="btn-primary">
+              <span>🔗</span> Open in New Tab
+            </button>
+            <button (click)="downloadDocument()" class="btn-download">
+              <span>⬇️</span> Download {{ document.documentType === 'CONTRACT' ? 'Contract' :
+                                          document.documentType === 'SHARE_CODE' ? 'Share Code' : 'Resume' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESUME (DOCX) documents: Show download option -->
+      <div *ngIf="document.documentType === 'RESUME' && !isFilePdf()">
+        <h3><span class="section-icon">📄</span> Resume Document (DOCX)</h3>
+
+        <div class="docx-container">
+          <div class="docx-info">
+            <span class="file-icon">📝</span>
+            <div class="file-details">
+              <p class="file-name">{{ document.fileName }}</p>
+              <p class="file-type">Microsoft Word Document</p>
+            </div>
+          </div>
+          <p class="docx-message">Word documents cannot be previewed in the browser.</p>
+          <div class="image-actions">
+            <button (click)="downloadDocument()" class="btn-download">
+              <span>⬇️</span> Download Resume
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASSPORT/VISA documents: Show Image Preview -->
+      <div *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'">
+        <h3><span class="section-icon">🖼️</span> Document Image</h3>
+
+        <!-- Loading State -->
+        <div *ngIf="imageLoading" class="image-loading">
+          <div class="spinner"></div>
+          <p>Loading document image...</p>
+        </div>
+
+        <!-- Error State -->
+        <div *ngIf="imageError && !imageLoading" class="image-error">
+          <span class="error-icon">⚠️</span>
+          <p>Unable to load document image</p>
+        </div>
+
+        <!-- Image Display -->
+        <div *ngIf="documentImageUrl && !imageLoading && !imageError" class="image-container">
+          <img [src]="documentImageUrl"
+               [alt]="document.fileName"
+               class="document-image"
+               (error)="imageError = true">
+          <div class="image-actions">
+            <button (click)="downloadDocument()" class="btn-download">
+              <span>⬇️</span> Download Original
+            </button>
+          </div>
+        </div>
+
+        <!-- No Image Available -->
+        <div *ngIf="!documentImageUrl && !imageLoading && !imageError" class="no-image">
+          <span class="no-image-icon">📄</span>
+          <p>No image preview available</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Mode Actions -->
+    <div *ngIf="editMode" class="edit-actions">
+      <p class="required-note"><span class="required">*</span> Required fields</p>
+      <div class="action-buttons">
+        <button (click)="cancelEdit()" class="btn-secondary" [disabled]="saving">
+          Cancel
+        </button>
+        <button (click)="saveManualEntry()" class="btn-primary" [disabled]="saving">
+          <span *ngIf="!saving">💾 Save Changes</span>
+          <span *ngIf="saving">Saving...</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Document Preview (Optional - for future implementation) -->
+    <!-- <div class="document-preview">
+      <h3>Document Preview</h3>
+      <img [src]="document.filePath" alt="Document preview" *ngIf="document.fileType?.startsWith('image/')">
+      <p *ngIf="!document.fileType?.startsWith('image/')">Preview not available for this file type</p>
+    </div> -->
+  </div>
+</div>
+

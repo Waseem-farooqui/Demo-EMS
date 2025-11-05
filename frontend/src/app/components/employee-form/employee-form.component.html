@@ -1,0 +1,200 @@
+<div class="form-container">
+  <h2>{{ isEditMode ? 'Edit Employee' : 'Add New Employee' }}</h2>
+
+  <div *ngIf="loading && isEditMode" class="loading">Loading employee data...</div>
+
+  <div *ngIf="error" class="error-message">{{ error }}</div>
+
+  <form [formGroup]="employeeForm" (ngSubmit)="onSubmit()" *ngIf="!loading || !isEditMode">
+    <div class="form-group">
+      <label for="fullName">Full Name <span class="required">*</span></label>
+      <input
+        type="text"
+        id="fullName"
+        formControlName="fullName"
+        [class.invalid]="isFieldInvalid('fullName')"
+      >
+      <div class="error" *ngIf="isFieldInvalid('fullName')">
+        Full name is required.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="personType">Person Type <span class="required">*</span></label>
+      <select
+        id="personType"
+        formControlName="personType"
+        [class.invalid]="isFieldInvalid('personType')"
+      >
+        <option value="">Select person type</option>
+        <option value="Full-time">Full-time</option>
+        <option value="Part-time">Part-time</option>
+        <option value="Contractor">Contractor</option>
+        <option value="Intern">Intern</option>
+      </select>
+      <div class="error" *ngIf="isFieldInvalid('personType')">
+        Person type is required.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="workEmail">Work Email <span class="required">*</span></label>
+      <input
+        type="email"
+        id="workEmail"
+        formControlName="workEmail"
+        [class.invalid]="isFieldInvalid('workEmail')"
+      >
+      <div class="error" *ngIf="isFieldInvalid('workEmail')">
+        Valid work email is required.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="personalEmail">Personal Email</label>
+      <input
+        type="email"
+        id="personalEmail"
+        formControlName="personalEmail"
+        [class.invalid]="isFieldInvalid('personalEmail')"
+      >
+      <div class="error" *ngIf="isFieldInvalid('personalEmail')">
+        Valid email is required.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="phoneNumber">Phone Number</label>
+      <input
+        type="tel"
+        id="phoneNumber"
+        formControlName="phoneNumber"
+        placeholder="e.g., +44 20 1234 5678"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="dateOfBirth">Date of Birth</label>
+      <input
+        type="date"
+        id="dateOfBirth"
+        formControlName="dateOfBirth"
+        [max]="maxDate"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="nationality">Nationality</label>
+      <input
+        type="text"
+        id="nationality"
+        formControlName="nationality"
+        placeholder="e.g., British, American"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="address">Address</label>
+      <textarea
+        id="address"
+        formControlName="address"
+        rows="3"
+        placeholder="Enter full address"
+      ></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="jobTitle">Job Title <span class="required">*</span></label>
+      <input
+        type="text"
+        id="jobTitle"
+        formControlName="jobTitle"
+        [class.invalid]="isFieldInvalid('jobTitle')"
+      >
+      <div class="error" *ngIf="isFieldInvalid('jobTitle')">
+        Job title is required.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="reference">Reference</label>
+      <input
+        type="text"
+        id="reference"
+        formControlName="reference"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="dateOfJoining">Date of Joining <span class="required">*</span></label>
+      <input
+        type="date"
+        id="dateOfJoining"
+        formControlName="dateOfJoining"
+        [class.invalid]="isFieldInvalid('dateOfJoining')"
+        [max]="maxDate"
+      >
+      <div class="error" *ngIf="isFieldInvalid('dateOfJoining')">
+        Date of joining is required.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="employmentStatus">Employment Status</label>
+      <select
+        id="employmentStatus"
+        formControlName="employmentStatus"
+      >
+        <option value="">Select employment status</option>
+        <option value="FULL_TIME">Full Time</option>
+        <option value="PART_TIME">Part Time</option>
+        <option value="CONTRACT">Contract</option>
+        <option value="TEMPORARY">Temporary</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="contractType">Contract Type</label>
+      <select
+        id="contractType"
+        formControlName="contractType"
+      >
+        <option value="">Select contract type</option>
+        <option value="PERMANENT">Permanent</option>
+        <option value="TEMPORARY">Temporary</option>
+        <option value="FIXED_TERM">Fixed Term</option>
+        <option value="ZERO_HOURS">Zero Hours</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="workingTiming">Working Timing</label>
+      <input
+        type="text"
+        id="workingTiming"
+        formControlName="workingTiming"
+        placeholder="e.g., 9 AM - 5 PM"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="holidayAllowance">Holiday Allowance (days)</label>
+      <input
+        type="number"
+        id="holidayAllowance"
+        formControlName="holidayAllowance"
+        min="0"
+      >
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" [disabled]="loading">
+        {{ loading ? 'Saving...' : (isEditMode ? 'Update' : 'Create') }}
+      </button>
+      <button type="button" class="btn btn-secondary" (click)="onCancel()" [disabled]="loading">
+        Cancel
+      </button>
+    </div>
+  </form>
+</div>
+

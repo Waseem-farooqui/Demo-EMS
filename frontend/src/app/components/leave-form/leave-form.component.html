@@ -1,0 +1,125 @@
+<div class="leave-form-container">
+  <div class="form-card">
+    <div class="form-header">
+      <h2>{{ isEditMode ? 'Edit Leave Request' : 'Apply for Leave' }}</h2>
+      <p class="subtitle">{{ isEditMode ? 'Update your leave details' : 'Submit a new leave request' }}</p>
+    </div>
+
+    <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+    <div *ngIf="success" class="alert alert-success">{{ success }}</div>
+
+    <form (ngSubmit)="onSubmit()" #leaveForm="ngForm">
+      <div class="form-group">
+        <label for="employee">Employee *</label>
+        <select
+          id="employee"
+          name="employee"
+          [(ngModel)]="leave.employeeId"
+          required
+          #employeeField="ngModel"
+          [disabled]="!isAdmin || isEditMode"
+          class="form-control">
+          <option value="0" disabled>Select Employee</option>
+          <option *ngFor="let emp of employees" [value]="emp.id">
+            {{ emp.fullName }} ({{ emp.jobTitle }})
+          </option>
+        </select>
+        <div class="field-error" *ngIf="employeeField.invalid && employeeField.touched">
+          Please select an employee
+        </div>
+        <small class="form-text" *ngIf="!isAdmin">You can only apply leave for yourself</small>
+      </div>
+
+      <div class="form-group">
+        <label for="leaveType">Leave Type *</label>
+        <select
+          id="leaveType"
+          name="leaveType"
+          [(ngModel)]="leave.leaveType"
+          required
+          #leaveTypeField="ngModel"
+          class="form-control">
+          <option value="" disabled>Select Leave Type</option>
+          <option *ngFor="let type of leaveTypes" [value]="type">{{ type }}</option>
+        </select>
+        <div class="field-error" *ngIf="leaveTypeField.invalid && leaveTypeField.touched">
+          Please select a leave type
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="startDate">Start Date *</label>
+          <input
+            type="date"
+            id="startDate"
+            name="startDate"
+            [(ngModel)]="leave.startDate"
+            required
+            #startDateField="ngModel"
+            class="form-control">
+          <div class="field-error" *ngIf="startDateField.invalid && startDateField.touched">
+            Start date is required
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="endDate">End Date *</label>
+          <input
+            type="date"
+            id="endDate"
+            name="endDate"
+            [(ngModel)]="leave.endDate"
+            required
+            #endDateField="ngModel"
+            class="form-control">
+          <div class="field-error" *ngIf="endDateField.invalid && endDateField.touched">
+            End date is required
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group" *ngIf="leave.startDate && leave.endDate">
+        <div class="days-info">
+          <span class="days-label">Total Days:</span>
+          <span class="days-value">{{ calculateDays() }} day(s)</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="reason">Reason for Leave *</label>
+        <textarea
+          id="reason"
+          name="reason"
+          [(ngModel)]="leave.reason"
+          required
+          #reasonField="ngModel"
+          rows="4"
+          placeholder="Please provide a detailed reason for your leave request"
+          class="form-control">
+        </textarea>
+        <div class="field-error" *ngIf="reasonField.invalid && reasonField.touched">
+          Reason is required
+        </div>
+        <small class="form-text">Maximum 500 characters</small>
+      </div>
+
+      <div class="form-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="!leaveForm.form.valid || loading">
+          <span *ngIf="loading">Processing...</span>
+          <span *ngIf="!loading">{{ isEditMode ? 'Update Leave' : 'Apply Leave' }}</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="cancel()"
+          [disabled]="loading">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

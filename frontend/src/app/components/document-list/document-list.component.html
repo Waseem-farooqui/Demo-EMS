@@ -1,0 +1,230 @@
+<div class="document-list-container">
+  <div class="page-header">
+    <h2>Documents</h2>
+    <div class="header-actions">
+      <button (click)="uploadNewDocument()" class="btn btn-primary">
+        <span>📤</span> Upload Document
+      </button>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <button
+      class="filter-btn"
+      [class.active]="filterType === 'ALL'"
+      (click)="filterByType('ALL')">
+      All Documents
+    </button>
+    <button
+      class="filter-btn filter-passport"
+      [class.active]="filterType === 'PASSPORT'"
+      (click)="filterByType('PASSPORT')">
+      Passports
+    </button>
+    <button
+      class="filter-btn filter-visa"
+      [class.active]="filterType === 'VISA'"
+      (click)="filterByType('VISA')">
+      Visas
+    </button>
+    <button
+      class="filter-btn filter-contract"
+      [class.active]="filterType === 'CONTRACT'"
+      (click)="filterByType('CONTRACT')">
+      Contracts
+    </button>
+    <button
+      class="filter-btn filter-resume"
+      [class.active]="filterType === 'RESUME'"
+      (click)="filterByType('RESUME')">
+      Resumes
+    </button>
+    <button
+      class="filter-btn filter-share-code"
+      [class.active]="filterType === 'SHARE_CODE'"
+      (click)="filterByType('SHARE_CODE')">
+      Share Codes
+    </button>
+  </div>
+
+  <!-- Expiry Filter Status -->
+  <div *ngIf="expiryFilter !== 'all'" class="expiry-filter-banner">
+    <span class="filter-icon">🔍</span>
+    <span class="filter-text">{{ getExpiryFilterLabel() }}</span>
+    <button class="clear-filter-btn" (click)="clearExpiryFilter()">
+      ✕ Clear Filter
+    </button>
+  </div>
+
+  <div *ngIf="error" class="error-message">{{ error }}</div>
+
+  <div *ngIf="loading" class="loading">Loading documents...</div>
+
+  <div *ngIf="!loading && filteredDocuments.length === 0" class="no-data">
+    <p>No documents found.</p>
+    <button (click)="uploadNewDocument()" class="btn btn-primary">Upload First Document</button>
+  </div>
+
+  <div *ngIf="!loading && filteredDocuments.length > 0" class="documents-grid">
+    <div *ngFor="let doc of filteredDocuments" class="document-card">
+      <div class="card-header">
+        <div class="doc-type" [class.type-passport]="doc.documentType === 'PASSPORT'"
+             [class.type-visa]="doc.documentType === 'VISA'"
+             [class.type-contract]="doc.documentType === 'CONTRACT'"
+             [class.type-resume]="doc.documentType === 'RESUME'"
+             [class.type-share-code]="doc.documentType === 'SHARE_CODE'">
+          {{ doc.documentType === 'SHARE_CODE' ? 'SHARE CODE' : doc.documentType }}
+        </div>
+        <!-- Only show expiry badge for PASSPORT and VISA -->
+        <div *ngIf="doc.documentType !== 'CONTRACT' && doc.documentType !== 'RESUME'"
+             class="expiry-badge"
+             [ngClass]="getExpiryStatus(doc.daysUntilExpiry)">
+          {{ getExpiryStatusText(doc.daysUntilExpiry) }}
+        </div>
+      </div>
+
+      <div class="card-body">
+        <h3>{{ doc.employeeName }}</h3>
+
+        <div class="doc-info">
+          <div class="info-row" *ngIf="doc.documentNumber">
+            <span class="label">Document No:</span>
+            <span class="value">{{ doc.documentNumber }}</span>
+          </div>
+
+          <div class="info-row" *ngIf="doc.expiryDate">
+            <span class="label">Expiry Date:</span>
+            <span class="value">{{ formatDate(doc.expiryDate) }}</span>
+          </div>
+
+          <div class="info-row" *ngIf="doc.nationality">
+            <span class="label">Nationality:</span>
+            <span class="value">{{ doc.nationality }}</span>
+          </div>
+
+          <div class="info-row">
+            <span class="label">Uploaded:</span>
+            <span class="value">{{ formatDate(doc.uploadedDate!) }}</span>
+          </div>
+
+          <div class="info-row" *ngIf="doc.lastViewedAt">
+            <span class="label">Last Viewed:</span>
+            <span class="value">{{ formatDateTime(doc.lastViewedAt) }}</span>
+          </div>
+
+          <div class="info-row" *ngIf="doc.lastViewedBy">
+            <span class="label">Viewed By:</span>
+            <span class="value">{{ doc.lastViewedBy }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button (click)="viewDetails(doc)" class="btn-action btn-view">View Details</button>
+        <button (click)="deleteDocument(doc)" class="btn-action btn-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document Details Modal -->
+  <div *ngIf="selectedDocument" class="modal-overlay" (click)="closeDetails()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Document Details</h3>
+        <button (click)="closeDetails()" class="btn-close">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="detail-section">
+          <h4>Document Information</h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Employee:</label>
+              <span>{{ selectedDocument.employeeName }}</span>
+            </div>
+            <div class="detail-item">
+              <label>Document Type:</label>
+              <span class="badge-type">{{ selectedDocument.documentType }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.documentType !== 'CONTRACT' && selectedDocument.documentNumber">
+              <label>Document Number:</label>
+              <span class="highlight">{{ selectedDocument.documentNumber }}</span>
+            </div>
+            <!-- CONTRACT specific fields -->
+            <div class="detail-item" *ngIf="selectedDocument.documentType === 'CONTRACT' && selectedDocument.contractDate">
+              <label>📅 Contract Date:</label>
+              <span class="highlight">{{ formatDate(selectedDocument.contractDate) }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.documentType === 'CONTRACT' && selectedDocument.jobTitleContract">
+              <label>💼 Job Title:</label>
+              <span class="highlight">{{ selectedDocument.jobTitleContract }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.documentType === 'CONTRACT' && selectedDocument.placeOfWork">
+              <label>📍 Place of Work:</label>
+              <span class="highlight">{{ selectedDocument.placeOfWork }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.documentType === 'CONTRACT' && selectedDocument.contractBetween">
+              <label>📝 Contract Between:</label>
+              <span class="highlight">{{ selectedDocument.contractBetween }}</span>
+            </div>
+            <div class="detail-item">
+              <label>File Name:</label>
+              <span>{{ selectedDocument.fileName }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedDocument.documentType !== 'CONTRACT' && (selectedDocument.issueDate || selectedDocument.expiryDate)">
+          <h4>Important Dates</h4>
+          <div class="detail-grid">
+            <div class="detail-item" *ngIf="selectedDocument.issueDate">
+              <label>Issue Date:</label>
+              <span>{{ formatDate(selectedDocument.issueDate) }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.expiryDate">
+              <label>Expiry Date:</label>
+              <span>{{ formatDate(selectedDocument.expiryDate) }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.daysUntilExpiry !== undefined">
+              <label>Days Until Expiry:</label>
+              <span [ngClass]="getExpiryStatus(selectedDocument.daysUntilExpiry)">
+                {{ selectedDocument.daysUntilExpiry }} days
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedDocument.fullName || selectedDocument.dateOfBirth">
+          <h4>Personal Information</h4>
+          <div class="detail-grid">
+            <div class="detail-item" *ngIf="selectedDocument.fullName">
+              <label>Full Name:</label>
+              <span>{{ selectedDocument.fullName }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.dateOfBirth">
+              <label>Date of Birth:</label>
+              <span>{{ formatDate(selectedDocument.dateOfBirth) }}</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedDocument.documentType !== 'CONTRACT' && selectedDocument.issuingCountry">
+              <label>Issuing Country:</label>
+              <span>{{ selectedDocument.issuingCountry }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedDocument.extractedText">
+          <h4>Extracted Text</h4>
+          <div class="extracted-text">
+            <pre>{{ selectedDocument.extractedText }}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="deleteDocument(selectedDocument)" class="btn btn-danger">Delete Document</button>
+        <button (click)="closeDetails()" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+

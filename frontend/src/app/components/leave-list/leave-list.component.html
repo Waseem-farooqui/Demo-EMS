@@ -1,0 +1,209 @@
+<div class="leave-list-container">
+  <div class="page-header">
+    <h2>Leave Management</h2>
+enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requests</p>
+    <div class="header-actions">
+      <!-- SUPER_ADMIN (CEO) doesn't apply for leaves -->
+      <a *ngIf="!isSuperAdmin" routerLink="/leaves/apply" class="btn btn-primary">
+        <span>📝</span> Apply Leave
+      </a>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <button
+      class="filter-btn"
+      [class.active]="filterStatus === 'ALL'"
+      (click)="filterByStatus('ALL')">
+      All Leaves
+    </button>
+    <button
+      class="filter-btn filter-pending"
+      [class.active]="filterStatus === 'PENDING'"
+      (click)="filterByStatus('PENDING')">
+      Pending
+    </button>
+    <button
+      class="filter-btn filter-approved"
+      [class.active]="filterStatus === 'APPROVED'"
+      (click)="filterByStatus('APPROVED')">
+      Approved
+    </button>
+    <button
+      class="filter-btn filter-rejected"
+      [class.active]="filterStatus === 'REJECTED'"
+      (click)="filterByStatus('REJECTED')">
+      Rejected
+    </button>
+  </div>
+
+  <div *ngIf="error" class="error-message">{{ error }}</div>
+
+  <div *ngIf="loading" class="loading">Loading leaves...</div>
+
+  <div *ngIf="!loading && leaves.length === 0" class="no-data">
+    <p>No leave requests found.</p>
+    <a routerLink="/leaves/apply" class="btn btn-primary">Apply for Leave</a>
+  </div>
+
+  <div *ngIf="!loading && leaves.length > 0" class="leave-table-container">
+    <table class="leave-table">
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Leave Type</th>
+          <th>Start Date</th>
+          <th>End Date</th>
+          <th>Days</th>
+          <th>Reason</th>
+          <th>Status</th>
+          <th>Applied Date</th>
+          <th *ngIf="isAdmin">Approved By</th>
+          <th *ngIf="isSuperAdmin">Remarks</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let leave of leaves">
+          <td>{{ leave.employeeName }}</td>
+          <td>{{ leave.leaveType }}</td>
+          <td>{{ leave.startDate | date: 'MMM dd, yyyy' }}</td>
+          <td>{{ leave.endDate | date: 'MMM dd, yyyy' }}</td>
+          <td class="text-center">{{ leave.numberOfDays }}</td>
+          <td class="reason-cell">{{ leave.reason }}</td>
+          <td>
+            <span class="status-badge" [ngClass]="getStatusClass(leave.status!)">
+              {{ leave.status }}
+            </span>
+          </td>
+          <td>{{ leave.appliedDate | date: 'MMM dd, yyyy' }}</td>
+          <td *ngIf="isAdmin">{{ leave.approvedBy || leave.rejectedBy || '-' }}</td>
+          <td *ngIf="isSuperAdmin" class="remarks-cell">
+            {{ leave.remarks || '-' }}
+          </td>
+          <td class="actions-cell">
+            <!-- SUPER_ADMIN actions -->
+            <div *ngIf="isSuperAdmin" class="action-buttons">
+              <button
+                *ngIf="leave.status === 'PENDING'"
+                (click)="openCommentModal(leave, 'APPROVE')"
+                class="btn btn-sm btn-approve"
+                title="Approve with Comments">
+                ✅ Approve
+              </button>
+              <button
+                *ngIf="leave.status === 'PENDING'"
+                (click)="openCommentModal(leave, 'REJECT')"
+                class="btn btn-sm btn-reject"
+                title="Reject with Comments">
+                ❌ Reject
+              </button>
+              <button
+                *ngIf="leave.status === 'PENDING'"
+                (click)="openCommentModal(leave, 'REQUEST_UPDATE')"
+                class="btn btn-sm btn-info"
+                title="Request Update">
+                🔄 Request Update
+              </button>
+              <button
+                (click)="openCommentModal(leave, 'COMMENT')"
+                class="btn btn-sm btn-comment"
+                title="Add Comment">
+                💬 Comment
+              </button>
+            </div>
+
+            <!-- Regular ADMIN actions -->
+            <div *ngIf="!isSuperAdmin">
+              <button
+                *ngIf="isAdmin && leave.status === 'PENDING'"
+                (click)="approveLeave(leave)"
+                class="btn btn-sm btn-approve"
+                title="Approve Leave">
+                Approve
+              </button>
+              <button
+                *ngIf="isAdmin && leave.status === 'PENDING'"
+                (click)="rejectLeave(leave)"
+                class="btn btn-sm btn-reject"
+                title="Reject Leave">
+                Reject
+              </button>
+              <button
+                *ngIf="canEdit(leave)"
+                (click)="editLeave(leave)"
+                class="btn btn-sm btn-edit"
+                title="Edit Leave">
+                Edit
+              </button>
+              <button
+                *ngIf="canDelete(leave)"
+                (click)="deleteLeave(leave)"
+                class="btn btn-sm btn-delete"
+                title="Delete Leave">
+                Delete
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Comment/Action Modal for SUPER_ADMIN -->
+  <div *ngIf="showCommentModal" class="modal-overlay" (click)="closeCommentModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>
+          <span *ngIf="actionType === 'APPROVE'">✅ Approve Leave Request</span>
+          <span *ngIf="actionType === 'REJECT'">❌ Reject Leave Request</span>
+          <span *ngIf="actionType === 'COMMENT'">💬 Add Comment</span>
+          <span *ngIf="actionType === 'REQUEST_UPDATE'">🔄 Request Update</span>
+        </h3>
+        <button class="btn-close" (click)="closeCommentModal()">×</button>
+      </div>
+
+      <div class="modal-body" *ngIf="selectedLeave">
+        <div class="leave-summary">
+          <p><strong>Employee:</strong> {{ selectedLeave.employeeName }}</p>
+          <p><strong>Leave Type:</strong> {{ selectedLeave.leaveType }}</p>
+          <p><strong>Duration:</strong> {{ selectedLeave.startDate | date: 'MMM dd, yyyy' }} - {{ selectedLeave.endDate | date: 'MMM dd, yyyy' }} ({{ selectedLeave.numberOfDays }} days)</p>
+          <p><strong>Reason:</strong> {{ selectedLeave.reason }}</p>
+        </div>
+
+        <div class="comment-section">
+          <label for="comment">
+            <span *ngIf="actionType === 'APPROVE'">Approval Comments:</span>
+            <span *ngIf="actionType === 'REJECT'">Rejection Reason:</span>
+            <span *ngIf="actionType === 'COMMENT'">Your Comment:</span>
+            <span *ngIf="actionType === 'REQUEST_UPDATE'">Request Details:</span>
+          </label>
+          <textarea
+            id="comment"
+            [(ngModel)]="commentText"
+            rows="5"
+            class="form-control"
+            [placeholder]="actionType === 'APPROVE' ? 'Enter approval comments...' :
+                        actionType === 'REJECT' ? 'Enter rejection reason...' :
+                        actionType === 'REQUEST_UPDATE' ? 'Explain what needs to be updated...' :
+                        'Enter your comment...'"
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeCommentModal()">Cancel</button>
+        <button
+          class="btn btn-primary"
+          [disabled]="!commentText.trim()"
+          (click)="submitComment()">
+          <span *ngIf="actionType === 'APPROVE'">✅ Approve</span>
+          <span *ngIf="actionType === 'REJECT'">❌ Reject</span>
+          <span *ngIf="actionType === 'COMMENT'">💬 Add Comment</span>
+          <span *ngIf="actionType === 'REQUEST_UPDATE'">🔄 Request Update</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+

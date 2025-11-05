@@ -1,0 +1,212 @@
+<div class="upload-container">
+  <div class="header">
+    <div class="header-left">
+      <h2>Upload Document</h2>
+      <p class="subtitle">Upload passport, visa, contract, resume, or share code documents</p>
+    </div>
+    <div class="header-right">
+      <button (click)="viewAllDocuments()" class="btn btn-secondary">View All Documents</button>
+      <a routerLink="/employees" class="btn btn-outline">Back to Employees</a>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="alert alert-error">
+    <span class="alert-icon">⚠</span>
+    {{ error }}
+  </div>
+
+  <div *ngIf="warning" class="alert alert-warning">
+    <span class="alert-icon">⚠</span>
+    <div [innerHTML]="warning"></div>
+  </div>
+
+  <div *ngIf="success && !uploadedDocument" class="alert alert-success">
+    <span class="alert-icon">✓</span>
+    {{ success }}
+  </div>
+
+  <!-- Upload Form -->
+  <div *ngIf="!uploadedDocument" class="upload-card">
+    <form (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="employee">Select Employee *</label>
+        <select
+          id="employee"
+          name="employee"
+          [(ngModel)]="selectedEmployeeId"
+          required
+          [disabled]="!isAdmin"
+          class="form-control">
+          <option value="0" disabled>Choose Employee</option>
+          <option *ngFor="let emp of employees" [value]="emp.id">
+            {{ emp.fullName }} - {{ emp.jobTitle }}
+          </option>
+        </select>
+        <small class="form-text" *ngIf="!isAdmin">You can only upload documents for yourself</small>
+      </div>
+
+      <div class="form-group">
+        <label for="documentType">Document Type *</label>
+        <select
+          id="documentType"
+          name="documentType"
+          [(ngModel)]="documentType"
+          required
+          class="form-control">
+          <option value="" disabled>Select Document Type</option>
+          <option *ngFor="let type of documentTypes" [value]="type">{{ type }}</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="fileInput">Upload Document *</label>
+        <div class="file-input-wrapper">
+          <input
+            type="file"
+            id="fileInput"
+            (change)="onFileSelected($event)"
+            accept="image/*,.pdf"
+            class="file-input"
+            required>
+          <button type="button" class="btn-file-select" onclick="document.getElementById('fileInput').click()">
+            Choose File
+          </button>
+          <span class="file-name">{{ fileName || 'No file chosen' }}</span>
+        </div>
+        <small class="form-text">Accepted formats: JPG, PNG, PDF (Max 10MB)</small>
+      </div>
+
+      <div class="form-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="uploading || !selectedFile || !documentType || !selectedEmployeeId">
+          <span *ngIf="uploading">Uploading & Extracting...</span>
+          <span *ngIf="!uploading">Upload Document</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="resetForm()"
+          [disabled]="uploading">
+          Reset
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Extracted Document Details -->
+  <div *ngIf="uploadedDocument" class="details-card">
+    <div class="details-header">
+      <h3>✓ Document Uploaded Successfully!</h3>
+      <div class="details-actions">
+        <button (click)="reuploadDocument()" class="btn btn-primary">Upload Another</button>
+        <button (click)="viewAllDocuments()" class="btn btn-secondary">View All Documents</button>
+      </div>
+    </div>
+
+    <div class="details-content">
+      <div class="section">
+        <h4>Document Information</h4>
+        <div class="info-grid">
+          <div class="info-item">
+            <label>Employee:</label>
+            <span>{{ uploadedDocument.employeeName }}</span>
+          </div>
+          <div class="info-item">
+            <label>Document Type:</label>
+            <span class="badge badge-info">{{ uploadedDocument.documentType === 'SHARE_CODE' ? 'SHARE CODE' : uploadedDocument.documentType }}</span>
+          </div>
+          <div class="info-item" *ngIf="uploadedDocument.documentType === 'PASSPORT' || uploadedDocument.documentType === 'VISA'">
+            <label>Document Number: *</label>
+            <span class="highlight">{{ uploadedDocument.documentNumber || '❌ Not extracted' }}</span>
+          </div>
+          <!-- CONTRACT specific fields -->
+          <div class="info-item" *ngIf="uploadedDocument.documentType === 'CONTRACT' && uploadedDocument.contractDate">
+            <label>Contract Date:</label>
+            <span class="highlight">{{ formatDate(uploadedDocument.contractDate) }}</span>
+          </div>
+          <div class="info-item" *ngIf="uploadedDocument.documentType === 'CONTRACT' && uploadedDocument.jobTitleContract">
+            <label>Job Title:</label>
+            <span class="highlight">{{ uploadedDocument.jobTitleContract }}</span>
+          </div>
+          <div class="info-item" *ngIf="uploadedDocument.documentType === 'CONTRACT' && uploadedDocument.placeOfWork">
+            <label>Place of Work:</label>
+            <span class="highlight">{{ uploadedDocument.placeOfWork }}</span>
+          </div>
+          <div class="info-item" *ngIf="uploadedDocument.documentType === 'CONTRACT' && uploadedDocument.contractBetween">
+            <label>Contract Between:</label>
+            <span class="highlight">{{ uploadedDocument.contractBetween }}</span>
+          </div>
+          <div class="info-item">
+            <label>File Name:</label>
+            <span>{{ uploadedDocument.fileName }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" *ngIf="(uploadedDocument.documentType === 'PASSPORT' || uploadedDocument.documentType === 'VISA') && (uploadedDocument.issueDate || uploadedDocument.expiryDate)">
+        <h4>Important Dates</h4>
+        <div class="info-grid">
+          <div class="info-item" *ngIf="uploadedDocument.issueDate">
+            <label>Issue Date:</label>
+            <span>{{ formatDate(uploadedDocument.issueDate) }}</span>
+          </div>
+          <div class="info-item" *ngIf="uploadedDocument.expiryDate">
+            <label>Expiry Date: *</label>
+            <span>{{ formatDate(uploadedDocument.expiryDate) || '❌ Not extracted' }}</span>
+          </div>
+          <div class="info-item" *ngIf="uploadedDocument.daysUntilExpiry !== undefined">
+            <label>Status:</label>
+            <span
+              class="expiry-status"
+              [ngClass]="getExpiryStatus(uploadedDocument.daysUntilExpiry)">
+              {{ getExpiryStatusText(uploadedDocument.daysUntilExpiry) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" *ngIf="uploadedDocument.fullName || uploadedDocument.dateOfBirth">
+        <h4>Personal Information</h4>
+        <div class="info-grid">
+          <div class="info-item" *ngIf="uploadedDocument.fullName">
+            <label>Full Name:</label>
+            <span>{{ uploadedDocument.fullName }}</span>
+          </div>
+          <div class="info-item" *ngIf="uploadedDocument.dateOfBirth">
+            <label>Date of Birth:</label>
+            <span>{{ formatDate(uploadedDocument.dateOfBirth) }}</span>
+          </div>
+          <div class="info-item" *ngIf="(uploadedDocument.documentType === 'PASSPORT' || uploadedDocument.documentType === 'VISA') && uploadedDocument.issuingCountry">
+            <label>Issuing Country: *</label>
+            <span>{{ uploadedDocument.issuingCountry || '❌ Not extracted' }}</span>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Duplicate Warning -->
+      <div *ngIf="duplicateDocument" class="section duplicate-warning">
+        <h4>⚠ Duplicate Document Detected</h4>
+        <p>A similar {{ duplicateDocument.documentType }} document already exists:</p>
+        <div class="duplicate-details">
+          <div class="info-item">
+            <label>Document Number:</label>
+            <span>{{ duplicateDocument.documentNumber }}</span>
+          </div>
+          <div class="info-item">
+            <label>Uploaded On:</label>
+            <span>{{ formatDate(duplicateDocument.uploadedDate!) }}</span>
+          </div>
+          <div class="info-item" *ngIf="duplicateDocument.expiryDate">
+            <label>Expiry Date:</label>
+            <span>{{ formatDate(duplicateDocument.expiryDate) }}</span>
+          </div>
+        </div>
+        <p class="warning-text">Please verify if you intended to upload a duplicate document.</p>
+      </div>
+    </div>
+  </div>
+</div>
+

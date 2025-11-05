@@ -1,0 +1,159 @@
+<div class="profile-create-container">
+  <div class="profile-card">
+    <div class="profile-header">
+      <div class="profile-icon">👤</div>
+      <h2>Create Your Profile</h2>
+      <p class="subtitle">Please fill in your information to get started</p>
+    </div>
+
+    <div *ngIf="success" class="alert alert-success">
+      <span class="alert-icon">✓</span>
+      {{ success }}
+    </div>
+
+    <div *ngIf="error" class="alert alert-error">
+      <div class="alert-header">
+        <span class="alert-icon">⚠️</span>
+        <span class="alert-title">Error Creating Profile</span>
+      </div>
+      <p class="alert-message">{{ error }}</p>
+      <div class="alert-suggestions" *ngIf="error.includes('already exists')">
+        <p class="suggestion-title">Suggestions:</p>
+        <ul>
+          <li *ngIf="error.includes('email')">Use a different email address</li>
+          <li *ngIf="error.includes('profile')">Contact your administrator for help</li>
+          <li>Check if you already have an account and try logging in</li>
+        </ul>
+      </div>
+    </div>
+
+    <form [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="profile-form">
+      <!-- Personal Information -->
+      <div class="form-section">
+        <h3>📝 Personal Information</h3>
+
+        <div class="form-group">
+          <label for="fullName">Full Name *</label>
+          <input
+            type="text"
+            id="fullName"
+            formControlName="fullName"
+            class="form-control"
+            placeholder="Enter your full name"
+          >
+          <div class="field-error" *ngIf="profileForm.get('fullName')?.invalid && profileForm.get('fullName')?.touched">
+            Full name is required (minimum 3 characters)
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="personType">Person Type *</label>
+          <select id="personType" formControlName="personType" class="form-control">
+            <option value="Employee">Employee</option>
+            <option value="Contractor">Contractor</option>
+            <option value="Intern">Intern</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Work Information -->
+      <div class="form-section">
+        <h3>💼 Work Information</h3>
+
+        <div class="form-group">
+          <label for="workEmail">Work Email *</label>
+          <input
+            type="email"
+            id="workEmail"
+            formControlName="workEmail"
+            class="form-control"
+            placeholder="your.email@company.com"
+          >
+          <div class="field-error" *ngIf="profileForm.get('workEmail')?.invalid && profileForm.get('workEmail')?.touched">
+            Valid email is required
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="jobTitle">Job Title *</label>
+          <input
+            type="text"
+            id="jobTitle"
+            formControlName="jobTitle"
+            class="form-control"
+            placeholder="e.g., Software Developer, Manager"
+          >
+          <div class="field-error" *ngIf="profileForm.get('jobTitle')?.invalid && profileForm.get('jobTitle')?.touched">
+            Job title is required
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="reference">Reference/Employee ID (Optional)</label>
+          <input
+            type="text"
+            id="reference"
+            formControlName="reference"
+            class="form-control"
+            placeholder="e.g., EMP001"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="dateOfJoining">Date of Joining *</label>
+          <input
+            type="date"
+            id="dateOfJoining"
+            formControlName="dateOfJoining"
+            class="form-control"
+            [max]="maxDate"
+          >
+          <div class="field-error" *ngIf="profileForm.get('dateOfJoining')?.invalid && profileForm.get('dateOfJoining')?.touched">
+            Date of joining is required
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="workingTiming">Working Hours</label>
+          <input
+            type="text"
+            id="workingTiming"
+            formControlName="workingTiming"
+            class="form-control"
+            placeholder="e.g., 9:00 AM - 5:00 PM"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="holidayAllowance">Annual Leave Allowance (Days) *</label>
+          <input
+            type="number"
+            id="holidayAllowance"
+            formControlName="holidayAllowance"
+            class="form-control"
+            min="0"
+            placeholder="20"
+          >
+          <div class="field-error" *ngIf="profileForm.get('holidayAllowance')?.invalid && profileForm.get('holidayAllowance')?.touched">
+            Holiday allowance must be 0 or greater
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <p class="required-note"><span class="required">*</span> Required fields</p>
+        <div class="button-group">
+          <button type="button" class="btn btn-secondary" (click)="authService.logout()" [disabled]="loading">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" [disabled]="loading || profileForm.invalid">
+            <span *ngIf="!loading">Create Profile</span>
+            <span *ngIf="loading">Creating...</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+

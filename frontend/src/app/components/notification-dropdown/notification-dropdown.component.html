@@ -1,0 +1,59 @@
+<div class="notification-container">
+  <!-- Bell Icon Button -->
+  <button class="notification-bell" (click)="toggleDropdown()" [class.has-notifications]="unreadCount > 0">
+    <span class="bell-icon">🔔</span>
+    <span class="notification-badge" *ngIf="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+  </button>
+
+  <!-- Notification Dropdown -->
+  <div class="notification-dropdown" *ngIf="isOpen" (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <div class="dropdown-header">
+      <h3>Notifications</h3>
+      <button class="mark-all-read" (click)="markAllAsRead()" *ngIf="unreadCount > 0">
+        Mark all as read
+      </button>
+    </div>
+
+    <!-- Notification List -->
+    <div class="notification-list">
+      <div
+        *ngFor="let notification of notifications"
+        class="notification-item"
+        [class.unread]="!notification.isRead"
+        (click)="markAsRead(notification)"
+      >
+        <div class="notification-icon">
+          {{ getNotificationIcon(notification.type) }}
+        </div>
+        <div class="notification-content">
+          <div class="notification-title">{{ notification.title }}</div>
+          <div class="notification-message">{{ notification.message }}</div>
+          <div class="notification-time">{{ getTimeAgo(notification.createdAt) }}</div>
+        </div>
+        <button
+          class="delete-notification"
+          (click)="deleteNotification($event, notification.id)"
+          title="Delete"
+        >
+          ×
+        </button>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" *ngIf="notifications.length === 0">
+        <span class="empty-icon">🔕</span>
+        <p>No notifications yet</p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="dropdown-footer" *ngIf="notifications.length > 0">
+      <a (click)="closeDropdown()" class="view-all">View all notifications</a>
+    </div>
+  </div>
+
+  <!-- Backdrop -->
+  <div class="notification-backdrop" *ngIf="isOpen" (click)="closeDropdown()"></div>
+</div>
+

@@ -1,0 +1,397 @@
+<div class="rota-upload-container">
+  <!-- Mode Selection Screen -->
+  <div *ngIf="uploadMode === 'select'" class="mode-selection">
+    <div class="page-header">
+      <h2>📋 Upload ROTA / Timesheet</h2>
+      <p class="subtitle">Choose how you want to add your ROTA schedule</p>
+    </div>
+
+    <div class="mode-cards">
+      <!-- Excel Upload Option -->
+      <div class="mode-card excel-card" (click)="selectMode('excel')">
+        <div class="mode-icon">📊</div>
+        <h3>Upload Excel File</h3>
+        <p class="mode-description">
+          Upload .xlsx file directly<br>
+          <strong>✅ 100% Accurate</strong><br>
+          <small>No OCR errors, perfect extraction</small>
+        </p>
+        <div class="mode-badge recommended">RECOMMENDED</div>
+      </div>
+
+      <!-- Image Upload Option -->
+      <div class="mode-card image-card" (click)="selectMode('image')">
+        <div class="mode-icon">🖼️</div>
+        <h3>Upload Image</h3>
+        <p class="mode-description">
+          Upload PNG/JPG screenshot<br>
+          <strong>⚠️ ~70% Accurate</strong><br>
+          <small>OCR-based, may need correction</small>
+        </p>
+        <div class="mode-badge">WITH VERIFICATION</div>
+      </div>
+
+      <!-- Manual Entry Option -->
+      <div class="mode-card manual-card" (click)="selectMode('manual')">
+        <div class="mode-icon">✏️</div>
+        <h3>Manual Entry</h3>
+        <p class="mode-description">
+          Fill form manually<br>
+          <strong>✅ 100% Control</strong><br>
+          <small>Enter schedules yourself</small>
+        </p>
+        <div class="mode-badge">FULL CONTROL</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Excel Upload Screen -->
+  <div *ngIf="uploadMode === 'excel'" class="upload-screen">
+    <div class="page-header">
+      <button class="btn-back" (click)="backToSelection()">← Back</button>
+      <h2>📊 Upload Excel ROTA</h2>
+      <p class="subtitle">100% accurate - no OCR needed!</p>
+    </div>
+
+    <div class="upload-card">
+      <div class="upload-instructions">
+        <h3>📝 Excel Format Requirements:</h3>
+        <ul>
+          <li>First row: Hotel name and department</li>
+          <li>Second row: Dates (10-Jun, 11-Jun, etc.)</li>
+          <li>Third row: Unit labels (Set-Ups, etc.)</li>
+          <li>Following rows: Employee names + their schedules</li>
+        </ul>
+      </div>
+
+      <div class="upload-section">
+        <div class="file-input-wrapper" *ngIf="!selectedFile">
+          <input
+            type="file"
+            id="excelFile"
+            (change)="onFileSelected($event, 'excel')"
+            accept=".xlsx"
+            class="file-input"
+          >
+          <label for="excelFile" class="file-input-label">
+            <div class="upload-icon">📊</div>
+            <div class="upload-text">
+              <strong>Click to select Excel file</strong>
+              <p>or drag and drop here</p>
+              <small>Supported: .xlsx (Max 10MB)</small>
+            </div>
+          </label>
+        </div>
+
+        <div class="file-preview" *ngIf="selectedFile">
+          <div class="preview-header">
+            <h4>Selected File:</h4>
+            <button class="btn-clear" (click)="clearSelection()">✕ Clear</button>
+          </div>
+          <div class="file-info">
+            <p class="file-name">📄 {{ fileName }}</p>
+            <p class="file-size">{{ (selectedFile.size / 1024).toFixed(2) }} KB</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button
+          class="btn btn-primary"
+          (click)="uploadExcel()"
+          [disabled]="!selectedFile || uploading"
+        >
+          <span *ngIf="!uploading">📤 Upload Excel</span>
+          <span *ngIf="uploading">
+            <span class="spinner"></span> Uploading...
+          </span>
+        </button>
+        <button class="btn btn-secondary" (click)="backToSelection()" [disabled]="uploading">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Upload Screen -->
+  <div *ngIf="uploadMode === 'image'" class="upload-screen">
+    <div class="page-header">
+      <button class="btn-back" (click)="backToSelection()">← Back</button>
+      <h2>🖼️ Upload Image ROTA</h2>
+      <p class="subtitle">Upload screenshot - you'll be able to verify and correct</p>
+    </div>
+
+    <div class="upload-card">
+      <div class="upload-section">
+        <div class="file-input-wrapper" *ngIf="!selectedFile">
+          <input
+            type="file"
+            id="imageFile"
+            (change)="onFileSelected($event, 'image')"
+            accept="image/*"
+            class="file-input"
+          >
+          <label for="imageFile" class="file-input-label">
+            <div class="upload-icon">🖼️</div>
+            <div class="upload-text">
+              <strong>Click to select image</strong>
+              <p>or drag and drop here</p>
+              <small>Supported: PNG, JPG, JPEG (Max 10MB)</small>
+            </div>
+          </label>
+        </div>
+
+        <div class="file-preview" *ngIf="selectedFile && !showManualCorrectionPrompt">
+          <div class="preview-header">
+            <h4>Selected Image:</h4>
+            <button class="btn-clear" (click)="clearSelection()">✕ Clear</button>
+          </div>
+          <div class="preview-content">
+            <img [src]="previewUrl" alt="ROTA Preview" class="preview-image">
+          </div>
+        </div>
+
+        <!-- Manual Correction Prompt -->
+        <div class="correction-prompt" *ngIf="showManualCorrectionPrompt">
+          <div class="alert alert-warning">
+            <h3>⚠️ OCR Processing Complete</h3>
+            <p *ngIf="imageUploadResult">
+              Image processed, but OCR may have errors due to colored cells.<br>
+              <strong>Found: {{ imageUploadResult.totalEmployees || 0 }} employees</strong>
+            </p>
+            <p *ngIf="!imageUploadResult">
+              OCR failed to extract data reliably.
+            </p>
+            <p><strong>What would you like to do?</strong></p>
+          </div>
+
+          <div class="correction-options">
+            <button class="btn btn-success" (click)="acceptImageResult()" *ngIf="imageUploadResult">
+              ✅ Accept As-Is
+              <small>Use the extracted data</small>
+            </button>
+            <button class="btn btn-primary" (click)="switchToManualEntry()">
+              ✏️ Manual Correction
+              <small>Enter/correct manually</small>
+            </button>
+            <button class="btn btn-secondary" (click)="backToSelection()">
+              ← Try Different Method
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions" *ngIf="selectedFile && !showManualCorrectionPrompt">
+        <button
+          class="btn btn-primary"
+          (click)="uploadImage()"
+          [disabled]="!selectedFile || uploading"
+        >
+          <span *ngIf="!uploading">📤 Process Image</span>
+          <span *ngIf="uploading">
+            <span class="spinner"></span> Processing...
+          </span>
+        </button>
+        <button class="btn btn-secondary" (click)="backToSelection()" [disabled]="uploading">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Excel Upload Preview Screen -->
+  <div *ngIf="uploadMode === 'preview' && excelPreview" class="preview-screen">
+    <div class="page-header">
+      <h2>📋 Review Uploaded ROTA</h2>
+      <p class="subtitle">Please review the extracted records before finalizing</p>
+    </div>
+
+    <div class="preview-card">
+      <!-- Summary Section -->
+      <div class="preview-summary">
+        <div class="summary-header">
+          <h3>📊 Upload Summary</h3>
+          <div class="summary-badges">
+            <span class="badge badge-success">✅ Uploaded</span>
+            <span class="badge badge-info">{{ excelPreview.totalEmployees }} Employees</span>
+            <span class="badge badge-info">{{ excelPreview.totalSchedules }} Schedules</span>
+          </div>
+        </div>
+
+        <div class="summary-details">
+          <div class="detail-row">
+            <span class="label">File Name:</span>
+            <span class="value">{{ excelPreview.fileName }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Hotel:</span>
+            <span class="value">{{ excelPreview.hotelName }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Department:</span>
+            <span class="value">{{ excelPreview.department }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Period:</span>
+            <span class="value">{{ excelPreview.startDate | date:'mediumDate' }} - {{ excelPreview.endDate | date:'mediumDate' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Uploaded By:</span>
+            <span class="value">{{ excelPreview.uploadedByName }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employee Schedules -->
+      <div class="employee-schedules">
+        <h3>👥 Employee Schedules</h3>
+        <div class="schedules-list">
+          <div *ngFor="let empSchedule of excelPreview.employeeSchedules" class="employee-schedule-card">
+            <div class="employee-header">
+              <h4>{{ empSchedule.employeeName }}</h4>
+              <div class="schedule-stats">
+                <span class="stat">📅 {{ empSchedule.totalDays }} days</span>
+                <span class="stat work">💼 {{ empSchedule.workDays }} work</span>
+                <span class="stat off">🏖️ {{ empSchedule.offDays }} off</span>
+              </div>
+            </div>
+
+            <div class="schedule-timeline">
+              <div *ngFor="let day of empSchedule.schedules" class="day-schedule"
+                   [class.off-day]="day.isOffDay"
+                   [class.work-day]="!day.isOffDay">
+                <div class="day-date">
+                  <span class="day-name">{{ day.dayOfWeek }}</span>
+                  <span class="date">{{ day.date | date:'d MMM' }}</span>
+                </div>
+                <div class="day-duty">
+                  <span class="duty-time" *ngIf="!day.isOffDay">{{ day.duty }}</span>
+                  <span class="off-label" *ngIf="day.isOffDay">OFF</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="preview-actions">
+        <div class="alert alert-info">
+          <strong>⚠️ What would you like to do?</strong>
+          <p>Review the extracted data above. If everything looks correct, click "Accept" to finalize. If you want to start over, click "Delete & Re-upload".</p>
+        </div>
+
+        <div class="action-buttons">
+          <button class="btn btn-success btn-lg" (click)="acceptExcelUpload()" [disabled]="uploading">
+            <span *ngIf="!uploading">✅ Accept & Finalize</span>
+            <span *ngIf="uploading">
+              <span class="spinner"></span> Processing...
+            </span>
+          </button>
+          <button class="btn btn-danger" (click)="deleteExcelUpload()" [disabled]="uploading">
+            🗑️ Delete & Re-upload
+          </button>
+          <button class="btn btn-secondary" (click)="backToSelection()" [disabled]="uploading">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Entry Screen -->
+  <div *ngIf="uploadMode === 'manual'" class="upload-screen">
+    <div class="page-header">
+      <button class="btn-back" (click)="backToSelection()">← Back</button>
+      <h2>✏️ Manual ROTA Entry</h2>
+      <p class="subtitle">Enter schedule details manually</p>
+    </div>
+
+    <div class="manual-form-card">
+      <form [formGroup]="manualForm" (ngSubmit)="submitManualForm()">
+        <!-- Basic Info -->
+        <div class="form-section">
+          <h3>Basic Information</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Hotel Name *</label>
+              <input type="text" formControlName="hotelName" placeholder="e.g. LANDMARK">
+            </div>
+            <div class="form-group">
+              <label>Department *</label>
+              <input type="text" formControlName="department" placeholder="e.g. CONFERENCE AND BANQUEETING">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Start Date *</label>
+              <input type="date" formControlName="startDate">
+            </div>
+            <div class="form-group">
+              <label>End Date *</label>
+              <input type="date" formControlName="endDate">
+            </div>
+          </div>
+        </div>
+
+        <!-- Employee Schedules -->
+        <div class="form-section">
+          <div class="section-header">
+            <h3>Employee Schedules</h3>
+            <button type="button" class="btn btn-sm btn-primary" (click)="addEmployeeSchedule()">
+              + Add Employee
+            </button>
+          </div>
+
+          <div formArrayName="schedules" class="schedules-container">
+            <div *ngFor="let schedule of schedules.controls; let i = index"
+                 [formGroupName]="i"
+                 class="schedule-row">
+              <div class="schedule-header">
+                <div class="form-group employee-select">
+                  <label>Employee</label>
+                  <select formControlName="employeeId">
+                    <option value="">Select Employee</option>
+                    <option *ngFor="let emp of employees" [value]="emp.id">
+                      {{ emp.fullName }}
+                    </option>
+                  </select>
+                </div>
+                <button type="button" class="btn-remove" (click)="removeEmployeeSchedule(i)">
+                  ✕ Remove
+                </button>
+              </div>
+
+              <div class="shifts-grid" formArrayName="shifts">
+                <div *ngFor="let shift of getShifts(i).controls; let j = index" class="shift-cell">
+                  <label>{{ getDayName(weekDates[j]) }} {{ formatDate(weekDates[j]) }}</label>
+                  <input
+                    type="text"
+                    [formControlName]="j"
+                    placeholder="e.g. 08:00-18:00 or OFF">
+                </div>
+              </div>
+            </div>
+
+            <div *ngIf="schedules.length === 0" class="empty-state">
+              <p>No employees added yet. Click "Add Employee" to start.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="manualForm.invalid || uploading">
+            <span *ngIf="!uploading">💾 Save ROTA</span>
+            <span *ngIf="uploading">
+              <span class="spinner"></span> Saving...
+            </span>
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="backToSelection()" [disabled]="uploading">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+

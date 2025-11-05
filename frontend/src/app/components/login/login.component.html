@@ -1,0 +1,85 @@
+t <div class="login-container">
+  <div class="login-background">
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+    <div class="shape shape-3"></div>
+  </div>
+
+  <div class="login-content">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="logo-container">
+          <span class="logo-icon">👥</span>
+          <h1 class="brand-name">EMS</h1>
+        </div>
+        <h2 class="login-title">Welcome Back</h2>
+        <p class="login-subtitle">Sign in to your account</p>
+      </div>
+
+      <div *ngIf="error" class="alert alert-error">
+        <span class="alert-icon">⚠️</span>
+        <span>{{ error }}</span>
+      </div>
+
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <div class="input-wrapper">
+            <span class="input-icon">👤</span>
+            <input
+              type="text"
+              id="username"
+              formControlName="username"
+              placeholder="Enter your username"
+              class="form-input"
+            >
+          </div>
+          <div *ngIf="loginForm.get('username')?.invalid && loginForm.get('username')?.touched"
+               class="field-error">
+            Username is required
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <div class="input-wrapper">
+            <span class="input-icon">🔒</span>
+            <input
+              type="password"
+              id="password"
+              formControlName="password"
+              placeholder="Enter your password"
+              class="form-input"
+            >
+          </div>
+          <div *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
+               class="field-error">
+            Password is required
+          </div>
+        </div>
+
+        <div class="forgot-password-link">
+          <a routerLink="/forgot-password" class="link-forgot">Forgot Password?</a>
+        </div>
+
+        <button type="submit"
+                class="btn btn-login"
+                [disabled]="loading || loginForm.invalid"
+                [class.loading]="loading">
+          <span *ngIf="!loading">Sign In</span>
+          <span *ngIf="loading" class="loading-spinner">
+            <span class="spinner"></span> Signing in...
+          </span>
+        </button>
+      </form>
+
+      <!-- Signup removed - Users are created by administrators -->
+
+      <div class="login-footer">
+        <p class="footer-text">Employee Management System © 2025</p>
+        <p class="footer-note">Contact your administrator for access</p>
+      </div>
+    </div>
+  </div>
+</div>
+

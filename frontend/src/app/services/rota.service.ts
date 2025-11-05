@@ -1,0 +1,107 @@
+import {Injectable} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {Observable} from 'rxjs';
+
+export interface Rota {
+  id: number;
+  hotelName: string;
+  department: string;
+  fileName: string;
+  startDate: string;
+  endDate: string;
+  uploadedDate: string;
+  uploadedByName: string;
+  totalEmployees: number;
+}
+
+export interface RotaSchedule {
+  employeeId: number;
+  employeeName: string;
+  schedules: {
+    [date: string]: {
+      dayOfWeek: string;
+      duty: string;
+      startTime: string | null;
+      endTime: string | null;
+      isOffDay: boolean;
+    } | undefined; // Make schedule entries optional
+  };
+}
+
+export interface RotaUploadPreview {
+  rotaId: number;
+  hotelName: string;
+  department: string;
+  fileName: string;
+  startDate: string;
+  endDate: string;
+  uploadedDate: string;
+  uploadedByName: string;
+  totalSchedules: number;
+  totalEmployees: number;
+  employeeSchedules: EmployeeSchedulePreview[];
+}
+
+export interface EmployeeSchedulePreview {
+  employeeId: number;
+  employeeName: string;
+  totalDays: number;
+  workDays: number;
+  offDays: number;
+  schedules: DaySchedulePreview[];
+}
+
+export interface DaySchedulePreview {
+  date: string;
+  dayOfWeek: string;
+  duty: string;
+  startTime: string | null;
+  endTime: string | null;
+  isOffDay: boolean;
+}
+
+@Injectable({
+  providedIn: 'root'
+})
+export class RotaService {
+  private apiUrl = 'http://localhost:8080/api/rota';
+
+  constructor(private http: HttpClient) {}
+
+  uploadRota(file: File): Observable<Rota> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<Rota>(`${this.apiUrl}/upload`, formData);
+  }
+
+  uploadExcelRota(file: File): Observable<RotaUploadPreview> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<RotaUploadPreview>(`${this.apiUrl}/upload-excel`, formData);
+  }
+
+  createManualRota(rotaData: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/manual`, rotaData);
+  }
+
+  getAllRotas(): Observable<Rota[]> {
+    return this.http.get<Rota[]>(this.apiUrl);
+  }
+
+  getRotaSchedules(rotaId: number): Observable<RotaSchedule[]> {
+    return this.http.get<RotaSchedule[]>(`${this.apiUrl}/${rotaId}/schedules`);
+  }
+
+  getEmployeeCurrentWeekSchedule(employeeId: number): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/employee/${employeeId}/current-week`);
+  }
+
+  getRotaPreview(rotaId: number): Observable<RotaUploadPreview> {
+    return this.http.get<RotaUploadPreview>(`${this.apiUrl}/${rotaId}/preview`);
+  }
+
+  deleteRota(rotaId: number): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/${rotaId}`);
+  }
+}
+

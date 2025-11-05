@@ -1,0 +1,135 @@
+<div class="organization-create">
+  <div class="form-container">
+    <!-- Header -->
+    <div class="form-header">
+      <h1>🏢 Create New Organization</h1>
+      <p>Set up a new organization with a Super Admin account</p>
+    </div>
+
+    <!-- Success Message -->
+    <div *ngIf="success" class="success-message">
+      <div class="success-icon">✅</div>
+      <h3>Organization Created Successfully!</h3>
+      <p>Redirecting to dashboard...</p>
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="error && !success" class="error-message">
+      <div class="error-icon">❌</div>
+      <p>{{ error }}</p>
+    </div>
+
+    <!-- Form -->
+    <form [formGroup]="organizationForm" (ngSubmit)="onSubmit()" *ngIf="!success">
+
+      <!-- Organization Details Section -->
+      <div class="form-section">
+        <h2>📋 Organization Details</h2>
+
+        <div class="form-group">
+          <label for="organizationName">Organization Name *</label>
+          <input
+            type="text"
+            id="organizationName"
+            formControlName="organizationName"
+            placeholder="e.g., Acme Corporation"
+            [class.error]="organizationForm.get('organizationName')?.touched && organizationForm.get('organizationName')?.invalid"
+          />
+          <span class="field-error" *ngIf="getFieldError('organizationName')">
+            {{ getFieldError('organizationName') }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Super Admin Details Section -->
+      <div class="form-section">
+        <h2>👤 Super Admin Account</h2>
+
+        <div class="form-group">
+          <label for="superAdminFullName">Full Name *</label>
+          <input
+            type="text"
+            id="superAdminFullName"
+            formControlName="superAdminFullName"
+            placeholder="e.g., John Smith"
+            [class.error]="organizationForm.get('superAdminFullName')?.touched && organizationForm.get('superAdminFullName')?.invalid"
+          />
+          <span class="field-error" *ngIf="getFieldError('superAdminFullName')">
+            {{ getFieldError('superAdminFullName') }}
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label for="superAdminUsername">Username *</label>
+          <input
+            type="text"
+            id="superAdminUsername"
+            formControlName="superAdminUsername"
+            placeholder="e.g., john.smith"
+            [class.error]="organizationForm.get('superAdminUsername')?.touched && organizationForm.get('superAdminUsername')?.invalid"
+          />
+          <span class="field-error" *ngIf="getFieldError('superAdminUsername')">
+            {{ getFieldError('superAdminUsername') }}
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label for="superAdminEmail">Email *</label>
+          <input
+            type="email"
+            id="superAdminEmail"
+            formControlName="superAdminEmail"
+            placeholder="e.g., john.smith@acme.com"
+            [class.error]="organizationForm.get('superAdminEmail')?.touched && organizationForm.get('superAdminEmail')?.invalid"
+          />
+          <span class="field-error" *ngIf="getFieldError('superAdminEmail')">
+            {{ getFieldError('superAdminEmail') }}
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password *</label>
+          <input
+            type="password"
+            id="password"
+            formControlName="password"
+            placeholder="Minimum 8 characters"
+            [class.error]="organizationForm.get('password')?.touched && organizationForm.get('password')?.invalid"
+          />
+          <span class="field-error" *ngIf="getFieldError('password')">
+            {{ getFieldError('password') }}
+          </span>
+          <small class="hint">Must be at least 8 characters long</small>
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">Confirm Password *</label>
+          <input
+            type="password"
+            id="confirmPassword"
+            formControlName="confirmPassword"
+            placeholder="Re-enter password"
+            [class.error]="organizationForm.get('confirmPassword')?.touched && organizationForm.get('confirmPassword')?.invalid"
+          />
+          <span class="field-error" *ngIf="getFieldError('confirmPassword')">
+            {{ getFieldError('confirmPassword') }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button type="button" class="btn btn-cancel" (click)="cancel()" [disabled]="loading">
+          Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="loading || organizationForm.invalid">
+          <span *ngIf="!loading">✅ Create Organization</span>
+          <span *ngIf="loading">
+            <span class="spinner"></span> Creating...
+          </span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

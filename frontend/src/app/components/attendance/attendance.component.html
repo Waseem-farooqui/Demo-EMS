@@ -1,0 +1,149 @@
+<div class="attendance-container">
+  <div class="page-header">
+    <h2>📍 Attendance & Check-in</h2>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loadingEmployee" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading employee profile...</p>
+  </div>
+
+  <!-- Main Content -->
+  <div *ngIf="!loadingEmployee && employeeId">
+    <!-- Current Status Card -->
+    <div class="status-card" [class.checked-in]="isCheckedIn">
+    <div class="status-header">
+      <div class="status-info">
+        <h3>{{ isCheckedIn ? '✅ Checked In' : '⭕ Not Checked In' }}</h3>
+        <p *ngIf="isCheckedIn && currentStatus" class="status-details">
+          <span class="location-badge">{{ currentStatus.workLocationDisplay }}</span>
+          <span class="time-info">Since {{ formatTime(currentStatus.checkInTime) }}</span>
+        </p>
+      </div>
+      <div *ngIf="isCheckedIn" class="elapsed-time">
+        <div class="time-display">{{ getElapsedTime() }}</div>
+        <div class="time-label">Elapsed</div>
+      </div>
+    </div>
+
+    <!-- Check-in Form -->
+    <div *ngIf="!isCheckedIn" class="check-in-form">
+      <div class="form-group">
+        <label for="location">Work Location *</label>
+        <select id="location" [(ngModel)]="selectedLocation" class="form-control" required>
+          <option value="">Select Location</option>
+          <option *ngFor="let location of workLocations" [value]="location.value">
+            {{ location.label }}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="checkInNotes">Notes (Optional)</label>
+        <textarea
+          id="checkInNotes"
+          [(ngModel)]="checkInNotes"
+          class="form-control"
+          rows="2"
+          placeholder="Add any notes about your work today..."></textarea>
+      </div>
+
+      <button (click)="checkIn()" class="btn btn-primary btn-large" [disabled]="loading || !selectedLocation">
+        <span *ngIf="!loading">🟢 Check In</span>
+        <span *ngIf="loading">Checking in...</span>
+      </button>
+    </div>
+
+    <!-- Check-out Form -->
+    <div *ngIf="isCheckedIn" class="check-out-form">
+      <div class="form-group">
+        <label for="checkOutNotes">Notes (Optional)</label>
+        <textarea
+          id="checkOutNotes"
+          [(ngModel)]="checkOutNotes"
+          class="form-control"
+          rows="2"
+          placeholder="Add any notes before checking out..."></textarea>
+      </div>
+
+      <button (click)="checkOut()" class="btn btn-danger btn-large" [disabled]="loading">
+        <span *ngIf="!loading">🔴 Check Out</span>
+        <span *ngIf="loading">Checking out...</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Attendance History -->
+  <div class="history-section" *ngIf="!loadingEmployee && employeeId">
+    <div class="history-header">
+      <h3>📊 Attendance History</h3>
+      <div class="date-filter">
+        <input
+          type="date"
+          [(ngModel)]="startDate"
+          (change)="loadAttendanceHistory()"
+          class="form-control date-input"
+          [max]="maxDate">
+        <span class="date-separator">to</span>
+        <input
+          type="date"
+          [(ngModel)]="endDate"
+          (change)="loadAttendanceHistory()"
+          class="form-control date-input"
+          [max]="maxDate">
+        <button (click)="loadAttendanceHistory()" class="btn btn-secondary">
+          🔍 Filter
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="attendanceHistory.length === 0" class="no-data">
+      <p>No attendance records found for the selected period.</p>
+    </div>
+
+    <div *ngIf="attendanceHistory.length > 0" class="history-grid">
+      <div *ngFor="let record of attendanceHistory" class="history-card">
+        <div class="history-date">
+          <div class="date-day">{{ record.workDate | date:'dd' }}</div>
+          <div class="date-month">{{ record.workDate | date:'MMM' }}</div>
+          <div class="date-year">{{ record.workDate | date:'yyyy' }}</div>
+        </div>
+        <div class="history-details">
+          <div class="history-location">
+            <span class="location-icon">📍</span>
+            {{ record.workLocationDisplay }}
+          </div>
+          <div class="history-times">
+            <div class="time-item">
+              <span class="time-label">In:</span>
+              <span class="time-value">{{ formatTime(record.checkInTime) }}</span>
+            </div>
+            <div class="time-item" *ngIf="record.checkOutTime">
+              <span class="time-label">Out:</span>
+              <span class="time-value">{{ formatTime(record.checkOutTime) }}</span>
+            </div>
+            <div class="time-item" *ngIf="!record.checkOutTime">
+              <span class="status-badge active">In Progress</span>
+            </div>
+          </div>
+          <div class="history-hours" *ngIf="record.hoursWorked">
+            <span class="hours-icon">⏱️</span>
+            <span class="hours-value">{{ record.hoursWorked.toFixed(2) }} hrs</span>
+          </div>
+          <div *ngIf="record.notes" class="history-notes">
+            <small>{{ record.notes }}</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- No Employee Profile Found -->
+  <div *ngIf="!loadingEmployee && !employeeId" class="error-state">
+    <div class="error-icon">⚠️</div>
+    <h3>Employee Profile Not Found</h3>
+    <p>Please contact your administrator to create your employee profile.</p>
+  </div>
+</div>
+

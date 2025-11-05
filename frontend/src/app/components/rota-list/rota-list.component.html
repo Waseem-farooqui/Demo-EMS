@@ -1,0 +1,123 @@
+<div class="rota-list-container">
+  <div class="page-header">
+    <div>
+      <h2>📋 ROTA / Timesheets</h2>
+      <p class="subtitle">View employee schedules and timings</p>
+    </div>
+    <button class="btn btn-primary" (click)="uploadNewRota()" *ngIf="isAdmin">
+      📤 Upload New ROTA
+    </button>
+  </div>
+
+  <div class="content-layout">
+    <!-- Sidebar - ROTA List -->
+    <div class="sidebar">
+      <h3>Available ROTAs</h3>
+
+      <div *ngIf="loading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading ROTAs...</p>
+      </div>
+
+      <div *ngIf="!loading && rotas.length === 0" class="empty-state">
+        <p>📭 No ROTAs available</p>
+        <button class="btn btn-primary btn-sm" (click)="uploadNewRota()" *ngIf="isAdmin">
+          Upload First ROTA
+        </button>
+      </div>
+
+      <div class="rota-list" *ngIf="!loading">
+        <div
+          *ngFor="let rota of rotas"
+          class="rota-item"
+          [class.active]="selectedRota?.id === rota.id"
+          (click)="viewRota(rota)"
+        >
+          <div class="rota-header">
+            <span class="rota-hotel">🏨 {{ rota.hotelName }}</span>
+            <div class="rota-actions">
+              <span class="rota-badge">{{ rota.totalEmployees }} emp</span>
+              <button
+                *ngIf="isAdmin"
+                class="btn-delete-rota"
+                (click)="deleteRota(rota, $event)"
+                title="Delete ROTA">
+                🗑️
+              </button>
+            </div>
+          </div>
+          <div class="rota-department">{{ rota.department }}</div>
+          <div class="rota-dates">
+            {{ formatDate(rota.startDate) }} - {{ formatDate(rota.endDate) }}
+          </div>
+          <div class="rota-meta">
+            <small>Uploaded by {{ rota.uploadedByName }}</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content - Schedule Table -->
+    <div class="main-content">
+      <div *ngIf="!selectedRota" class="empty-selection">
+        <div class="empty-icon">📅</div>
+        <h3>Select a ROTA to view schedules</h3>
+        <p>Choose a ROTA from the list on the left</p>
+      </div>
+
+      <div *ngIf="selectedRota" class="schedule-view">
+        <div class="schedule-header">
+          <div>
+            <h3>{{ selectedRota.hotelName }} - {{ selectedRota.department }}</h3>
+            <p class="schedule-period">
+              {{ formatDate(selectedRota.startDate) }} to {{ formatDate(selectedRota.endDate) }}
+            </p>
+          </div>
+          <div class="schedule-info">
+            <span class="info-badge">{{ selectedRota.totalEmployees }} Employees</span>
+          </div>
+        </div>
+
+        <div *ngIf="loadingSchedules" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading schedules...</p>
+        </div>
+
+        <div *ngIf="!loadingSchedules && schedules.length === 0" class="empty-state">
+          <p>📭 No schedules found for your team</p>
+        </div>
+
+        <div *ngIf="!loadingSchedules && schedules.length > 0" class="schedule-table-wrapper">
+          <table class="schedule-table">
+            <thead>
+              <tr>
+                <th class="employee-col">Employee</th>
+                <th *ngFor="let date of scheduleDates" class="date-col">
+                  <div class="date-header">
+                    {{ formatDateWithDay(date) }}
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let employee of schedules">
+                <td class="employee-name">
+                  <span class="name-badge">👤 {{ employee.employeeName }}</span>
+                </td>
+                <td *ngFor="let date of scheduleDates" [ngClass]="getDutyClass(employee.schedules[date]?.duty)">
+                  <div class="duty-cell">
+                    <span class="duty-text">{{ employee.schedules[date]?.duty || '-' }}</span>
+                    <span class="duty-time" *ngIf="employee.schedules[date]?.startTime && employee.schedules[date]?.endTime">
+                      {{ employee.schedules[date]?.startTime }} - {{ employee.schedules[date]?.endTime }}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

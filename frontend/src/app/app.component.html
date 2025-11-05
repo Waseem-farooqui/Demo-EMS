@@ -1,0 +1,130 @@
+<div class="app-container">
+  <!-- Toast Notifications -->
+  <app-toast></app-toast>
+
+  <!-- Modern Navigation Bar -->
+  <nav class="navbar" *ngIf="isLoggedIn">
+    <div class="nav-container">
+      <!-- Logo/Brand -->
+      <div class="nav-brand">
+        <a [routerLink]="isRoot ? '/root/dashboard' : '/dashboard'" class="brand-link">
+          <span class="brand-icon">{{ isRoot ? '👑' : '👥' }}</span>
+          <span class="brand-text">{{ isRoot ? 'ROOT' : 'EMS' }}</span>
+        </a>
+      </div>
+
+      <!-- Desktop Navigation -->
+      <div class="nav-menu">
+        <!-- ROOT Navigation -->
+        <a *ngIf="isRoot" routerLink="/root/dashboard" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">🏢</span>
+          <span>Organizations</span>
+        </a>
+
+        <!-- Employee Navigation (NOT for ROOT) -->
+        <a *ngIf="!isRoot && isAdmin" routerLink="/employees" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">👥</span>
+          <span>Employees</span>
+        </a>
+        <a *ngIf="!isRoot && !isAdmin" routerLink="/dashboard" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">🏠</span>
+          <span>Dashboard</span>
+        </a>
+        <!-- Attendance only for ADMIN and USER, not SUPER_ADMIN (CEO doesn't check in) -->
+        <a *ngIf="!isRoot && !isSuperAdmin" routerLink="/attendance" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">📍</span>
+          <span>Attendance</span>
+        </a>
+        <a *ngIf="!isRoot" routerLink="/rota" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">📋</span>
+          <span>ROTA</span>
+        </a>
+        <a *ngIf="!isRoot" routerLink="/documents" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">📄</span>
+          <span>Documents</span>
+        </a>
+        <a *ngIf="!isRoot" routerLink="/leaves" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">🏖️</span>
+          <span>Leaves</span>
+        </a>
+      </div>
+
+      <!-- User Menu -->
+      <div class="nav-actions">
+        <!-- Notification Bell (Only for non-ROOT users) -->
+        <app-notification-dropdown *ngIf="!isRoot"></app-notification-dropdown>
+
+        <div class="user-menu">
+          <span class="user-name">{{ userName }}</span>
+          <span class="user-badge root" *ngIf="isRoot">👑 ROOT</span>
+          <span class="user-badge" *ngIf="!isRoot && isAdmin">Admin</span>
+          <button class="btn-logout" (click)="logout()">
+            <span class="logout-icon">🚪</span>
+            <span class="logout-text">Logout</span>
+          </button>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" (click)="toggleMobileMenu()" *ngIf="isLoggedIn">
+          <span class="hamburger" [class.open]="isMobileMenuOpen">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Navigation -->
+    <div class="mobile-nav" [class.open]="isMobileMenuOpen">
+      <div class="mobile-nav-header">
+        <span class="mobile-user">{{ userName }}</span>
+        <span class="mobile-badge root" *ngIf="isRoot">👑 ROOT</span>
+        <span class="mobile-badge" *ngIf="!isRoot && isAdmin">Admin</span>
+      </div>
+
+      <!-- ROOT Mobile Navigation -->
+      <a *ngIf="isRoot" routerLink="/root/dashboard" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">🏢</span>
+        <span>Organizations</span>
+      </a>
+
+      <!-- Employee Mobile Navigation (NOT for ROOT) -->
+      <a *ngIf="!isRoot && isAdmin" routerLink="/employees" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">👥</span>
+        <span>Employees</span>
+      </a>
+      <a *ngIf="!isRoot && !isAdmin" routerLink="/dashboard" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">🏠</span>
+        <span>Dashboard</span>
+      </a>
+      <!-- Attendance only for ADMIN and USER, not SUPER_ADMIN (CEO doesn't check in) -->
+      <a *ngIf="!isRoot && !isSuperAdmin" routerLink="/attendance" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">📍</span>
+        <span>Attendance</span>
+      </a>
+      <a *ngIf="!isRoot" routerLink="/rota" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">📋</span>
+        <span>ROTA</span>
+      </a>
+      <a *ngIf="!isRoot" routerLink="/documents" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">📄</span>
+        <span>Documents</span>
+      </a>
+      <a *ngIf="!isRoot" routerLink="/leaves" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">🏖️</span>
+        <span>Leaves</span>
+      </a>
+      <button class="mobile-logout" (click)="logout()">
+        <span class="nav-icon">🚪</span>
+        <span>Logout</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content" [class.with-nav]="isLoggedIn">
+    <router-outlet></router-outlet>
+  </main>
+</div>
+

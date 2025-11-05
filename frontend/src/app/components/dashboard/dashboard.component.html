@@ -1,0 +1,277 @@
+<div class="dashboard-container">
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-screen">
+    <div class="spinner"></div>
+    <p>Loading your dashboard...</p>
+  </div>
+
+  <!-- SUPER_ADMIN Dashboard -->
+  <div *ngIf="!loading && isSuperAdmin && dashboardStats" class="super-admin-dashboard">
+    <div class="page-header">
+      <h2>📊 System Dashboard</h2>
+      <p class="subtitle">Overview of all employees, departments, and documents</p>
+    </div>
+
+    <!-- Quick Stats Summary -->
+    <div class="stats-summary">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ dashboardStats.totalEmployees }}</div>
+          <div class="stat-label">Total Employees</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ dashboardStats.employeesWorking }}</div>
+          <div class="stat-label">Working Today</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏖️</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ dashboardStats.employeesOnLeave }}</div>
+          <div class="stat-label">On Leave</div>
+        </div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ dashboardStats.documentsExpired }}</div>
+          <div class="stat-label">Expired Documents</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+      <!-- Department Distribution -->
+      <div class="chart-card">
+        <div class="chart-container">
+          <canvas id="departmentChart"></canvas>
+        </div>
+        <div class="chart-info">
+          <p class="chart-description">Distribution of employees across departments (Click to view employees)</p>
+        </div>
+      </div>
+
+      <!-- Work Location -->
+      <div class="chart-card">
+        <div class="chart-container">
+          <canvas id="workLocationChart"></canvas>
+        </div>
+        <div class="chart-info">
+          <p class="chart-description">Current work locations of checked-in employees</p>
+        </div>
+      </div>
+
+      <!-- Leave Status -->
+      <div class="chart-card">
+        <div class="chart-container">
+          <canvas id="leaveStatusChart"></canvas>
+        </div>
+        <div class="chart-info">
+          <p class="chart-description">Employees on leave vs working today</p>
+        </div>
+      </div>
+
+      <!-- Document Expiry -->
+      <div class="chart-card">
+        <div class="chart-container">
+          <canvas id="documentExpiryChart"></canvas>
+        </div>
+        <div class="chart-info">
+          <p class="chart-description">Documents expiring soon or already expired (Click to view documents)</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions-super">
+      <h3>Quick Actions</h3>
+      <div class="action-buttons">
+        <button class="action-btn" routerLink="/employees">
+          <span class="btn-icon">👥</span>
+          <span>View All Employees</span>
+        </button>
+        <button class="action-btn" routerLink="/users/create">
+          <span class="btn-icon">➕</span>
+          <span>Create New User</span>
+        </button>
+        <button class="action-btn" routerLink="/documents">
+          <span class="btn-icon">📄</span>
+          <span>View Documents</span>
+        </button>
+        <button class="action-btn" routerLink="/leaves">
+          <span class="btn-icon">🏖️</span>
+          <span>Manage Leaves</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- No Profile - Create Profile Prompt (USER only) -->
+  <div *ngIf="!loading && !isSuperAdmin && !hasProfile" class="welcome-screen">
+    <div class="welcome-card">
+      <div class="welcome-icon">👋</div>
+      <h1>Welcome to Employee Management System!</h1>
+      <p class="welcome-message">
+        To get started, please create your employee profile.
+      </p>
+
+      <div class="info-box">
+        <h3>What you'll need:</h3>
+        <ul>
+          <li>✓ Full Name</li>
+          <li>✓ Contact Information</li>
+          <li>✓ Job Details</li>
+          <li>✓ Personal Information</li>
+        </ul>
+      </div>
+
+      <button (click)="navigateToCreateProfile()" class="btn btn-primary btn-large">
+        <span>📝</span> Create Your Profile
+      </button>
+    </div>
+  </div>
+
+  <!-- Has Profile but No Documents (USER only) -->
+  <div *ngIf="!loading && !isSuperAdmin && hasProfile && !hasDocuments" class="dashboard-content">
+    <div class="page-header">
+      <h2>👋 Welcome, {{ employeeProfile?.fullName }}!</h2>
+      <p class="subtitle">Complete your profile by uploading required documents</p>
+    </div>
+
+    <div class="status-cards">
+      <div class="status-card success">
+        <div class="status-icon">✅</div>
+        <div class="status-info">
+          <h3>Profile Complete</h3>
+          <p>Your employee profile is set up</p>
+        </div>
+      </div>
+
+      <div class="status-card warning">
+        <div class="status-icon">⚠️</div>
+        <div class="status-info">
+          <h3>Documents Required</h3>
+          <p>Please upload your documents</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-card">
+      <div class="action-header">
+        <div class="action-icon">📄</div>
+        <div>
+          <h3>Upload Your Documents</h3>
+          <p>Upload passport, visa, or other required documents</p>
+        </div>
+      </div>
+
+      <div class="document-types">
+        <div class="doc-type-badge">Passport</div>
+        <div class="doc-type-badge">Visa</div>
+        <div class="doc-type-badge">Work Permit</div>
+        <div class="doc-type-badge">ID Card</div>
+      </div>
+
+      <button (click)="navigateToUploadDocument()" class="btn btn-primary btn-large">
+        <span>📤</span> Upload Documents
+      </button>
+    </div>
+  </div>
+
+  <!-- Has Profile and Documents - Main Dashboard (USER only) -->
+  <div *ngIf="!loading && !isSuperAdmin && hasProfile && hasDocuments" class="dashboard-content">
+    <div class="page-header">
+      <h2>👋 Welcome back, {{ employeeProfile?.fullName }}!</h2>
+      <p class="subtitle">{{ employeeProfile?.jobTitle }}</p>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="quick-stats">
+      <div class="stat-card" (click)="navigateToDocuments()">
+        <div class="stat-icon">📄</div>
+        <div class="stat-info">
+          <div class="stat-value">{{ documentCount }}</div>
+          <div class="stat-label">Documents</div>
+        </div>
+      </div>
+
+      <div class="stat-card" [class.checked-in]="isCheckedIn" (click)="navigateToAttendance()">
+        <div class="stat-icon">{{ isCheckedIn ? '✅' : '⭕' }}</div>
+        <div class="stat-info">
+          <div class="stat-value">{{ isCheckedIn ? 'Checked In' : 'Not Checked In' }}</div>
+          <div class="stat-label">Attendance Status</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <h3>Quick Actions</h3>
+      <div class="action-grid">
+        <button class="action-button" (click)="navigateToDocuments()">
+          <div class="action-icon">📄</div>
+          <div class="action-text">
+            <span class="action-title">My Documents</span>
+            <span class="action-desc">View all documents</span>
+          </div>
+        </button>
+
+        <button class="action-button" (click)="navigateToUploadDocument()">
+          <div class="action-icon">📤</div>
+          <div class="action-text">
+            <span class="action-title">Upload Document</span>
+            <span class="action-desc">Add new document</span>
+          </div>
+        </button>
+
+        <button class="action-button" (click)="navigateToAttendance()">
+          <div class="action-icon">📍</div>
+          <div class="action-text">
+            <span class="action-title">Attendance</span>
+            <span class="action-desc">Check in/out</span>
+          </div>
+        </button>
+
+        <button class="action-button" routerLink="/leaves">
+          <div class="action-icon">🏖️</div>
+          <div class="action-text">
+            <span class="action-title">Leave Requests</span>
+            <span class="action-desc">Manage leaves</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Recent Documents -->
+    <div class="recent-section" *ngIf="recentDocuments.length > 0">
+      <div class="section-header">
+        <h3>📄 Recent Documents</h3>
+        <a routerLink="/documents" class="view-all-link">View All →</a>
+      </div>
+
+      <div class="document-list">
+        <div *ngFor="let doc of recentDocuments" class="document-item">
+          <div class="doc-icon">📄</div>
+          <div class="doc-info">
+            <div class="doc-name">{{ doc.documentType }}</div>
+            <div class="doc-details">
+              <span class="doc-number">{{ doc.documentNumber || 'No number' }}</span>
+              <span class="doc-date">Uploaded: {{ doc.uploadedDate | date:'shortDate' }}</span>
+            </div>
+          </div>
+          <div class="doc-status" [class]="'status-' + (doc.daysUntilExpiry > 30 ? 'valid' : 'expiring')">
+            <span *ngIf="doc.expiryDate">
+              {{ doc.daysUntilExpiry > 0 ? doc.daysUntilExpiry + ' days left' : 'Expired' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
