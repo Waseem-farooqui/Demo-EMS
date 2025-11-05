@@ -99,6 +99,13 @@ body {
   font-size: 1.75rem;
 }
 
+.org-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
 .brand-text {
   font-weight: 700;
   letter-spacing: -0.5px;

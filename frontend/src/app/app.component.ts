@@ -61,12 +61,21 @@ export class AppComponent implements OnInit {
     this.http.get<any>(`http://localhost:8080/api/organizations/${organizationId}`).subscribe({
       next: (org) => {
         this.organizationName = org.name;
-        if (org.id) {
-          this.organizationLogoUrl = `http://localhost:8080/api/organizations/${org.id}/logo`;
+        if (org.logoUrl) {
+          // If logoUrl is relative, prepend the API base URL
+          this.organizationLogoUrl = org.logoUrl.startsWith('http')
+            ? org.logoUrl
+            : `http://localhost:8080${org.logoUrl}`;
+          console.log('Organization logo URL:', this.organizationLogoUrl);
+        } else {
+          this.organizationLogoUrl = '';
+          console.log('No organization logo available');
         }
       },
       error: (err) => {
         console.error('Failed to load organization info:', err);
+        this.organizationName = 'EMS';
+        this.organizationLogoUrl = '';
       }
     });
   }
