@@ -642,8 +642,14 @@ public class DocumentService {
             return true;
         }
 
-        // ADMIN can only access USER role employees in their department
+        // ADMIN can access USER role employees in their department AND their own documents
         if (securityUtils.isAdmin()) {
+            // First check if it's the admin's own document
+            if (employee.getUserId() != null && employee.getUserId().equals(currentUser.getId())) {
+                log.debug("ADMIN access granted for own documents: employee ID {}", employee.getId());
+                return true;
+            }
+
             // Get the admin's employee profile
             Employee adminEmployee = employeeRepository.findByUserId(currentUser.getId())
                     .orElse(null);
@@ -660,15 +666,15 @@ public class DocumentService {
                 return false;
             }
 
-            // Check if target employee has USER role (not ADMIN)
+            // Check if target employee has USER role (not another ADMIN)
             if (employee.getUserId() != null) {
                 Employee targetEmployee = employeeRepository.findById(employee.getId()).orElse(null);
                 if (targetEmployee != null && targetEmployee.getUserId() != null) {
                     // Get the user associated with the employee to check their role
-                    // ADMINs should not be able to view other ADMINs' documents
+                    // ADMINs should not be able to view other ADMINs' documents (except their own, which we already checked)
                     User targetUser = securityUtils.getUserById(employee.getUserId());
                     if (targetUser != null && targetUser.getRoles().contains("ADMIN")) {
-                        log.debug("ADMIN access denied: Target employee {} is also an ADMIN", employee.getId());
+                        log.debug("ADMIN access denied: Target employee {} is another ADMIN", employee.getId());
                         return false;
                     }
                 }
