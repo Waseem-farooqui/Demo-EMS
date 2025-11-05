@@ -4,6 +4,7 @@ import {CommonModule} from '@angular/common';
 import {AuthService} from './services/auth.service';
 import {ToastComponent} from './components/toast/toast.component';
 import {NotificationDropdownComponent} from './components/notification-dropdown/notification-dropdown.component';
+import {HttpClient} from '@angular/common/http';
 
 @Component({
   selector: 'app-root',
@@ -20,10 +21,13 @@ export class AppComponent implements OnInit {
   isRoot = false;
   userName = '';
   isMobileMenuOpen = false;
+  organizationName = '';
+  organizationLogoUrl = '';
 
   constructor(
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
@@ -45,7 +49,26 @@ export class AppComponent implements OnInit {
       this.userName = user?.name || user?.username || user?.email || 'User';
 
       console.log('Auth Status - ROOT:', this.isRoot, 'SUPER_ADMIN:', this.isSuperAdmin, 'ADMIN:', this.isAdmin);
+
+      // Load organization info for non-ROOT users
+      if (!this.isRoot && user?.organizationId) {
+        this.loadOrganizationInfo(user.organizationId);
+      }
     }
+  }
+
+  loadOrganizationInfo(organizationId: number): void {
+    this.http.get<any>(`http://localhost:8080/api/organizations/${organizationId}`).subscribe({
+      next: (org) => {
+        this.organizationName = org.name;
+        if (org.id) {
+          this.organizationLogoUrl = `http://localhost:8080/api/organizations/${org.id}/logo`;
+        }
+      },
+      error: (err) => {
+        console.error('Failed to load organization info:', err);
+      }
+    });
   }
 
   toggleMobileMenu(): void {

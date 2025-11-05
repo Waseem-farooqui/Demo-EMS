@@ -16,6 +16,8 @@ export class OrganizationCreateComponent {
   loading = false;
   error: string | null = null;
   success = false;
+  selectedLogo: File | null = null;
+  logoPreview: string | null = null;
 
   private apiUrl = 'http://localhost:8080/api/organizations';
 
@@ -55,23 +57,94 @@ export class OrganizationCreateComponent {
     this.error = null;
 
     const formData = { ...this.organizationForm.value };
-    delete formData.confirmPassword; // Don't send confirm password to backend
+    delete formData.confirmPassword;
 
     this.http.post<any>(this.apiUrl, formData).subscribe({
       next: (response) => {
         console.log('✅ Organization created successfully:', response);
-        this.success = true;
-        this.loading = false;
 
-        // Show success message for 2 seconds then redirect
-        setTimeout(() => {
-          this.router.navigate(['/root/dashboard']);
-        }, 2000);
+        // If logo is selected, upload it
+        if (this.selectedLogo && response.organization?.id) {
+          this.uploadLogo(response.organization.id);
+        } else {
+          this.success = true;
+          this.loading = false;
+          setTimeout(() => {
+            this.router.navigate(['/root/dashboard']);
+          }, 2000);
+        }
       },
       error: (err) => {
         console.error('❌ Error creating organization:', err);
         this.error = err.error?.message || err.error?.error || 'Failed to create organization';
         this.loading = false;
+      }
+    });
+  }
+
+  onLogoSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        this.error = 'Please select an image file';
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        this.error = 'Logo file size must be less than 5MB';
+        return;
+      }
+
+      this.selectedLogo = file;
+      this.error = null;
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.logoPreview = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  removeLogo(): void {
+    this.selectedLogo = null;
+    this.logoPreview = null;
+  }
+
+  private uploadLogo(organizationId: number): void {
+    if (!this.selectedLogo) {
+      this.success = true;
+      this.loading = false;
+      setTimeout(() => {
+        this.router.navigate(['/root/dashboard']);
+      }, 2000);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', this.selectedLogo);
+
+    this.http.post<any>(`${this.apiUrl}/${organizationId}/logo`, formData).subscribe({
+      next: () => {
+        console.log('✅ Logo uploaded successfully');
+        this.success = true;
+        this.loading = false;
+        setTimeout(() => {
+          this.router.navigate(['/root/dashboard']);
+        }, 2000);
+      },
+      error: (err) => {
+        console.error('❌ Error uploading logo:', err);
+        // Still show success for organization creation
+        this.success = true;
+        this.loading = false;
+        this.error = 'Organization created but logo upload failed';
+        setTimeout(() => {
+          this.router.navigate(['/root/dashboard']);
+        }, 2000);
       }
     });
   }

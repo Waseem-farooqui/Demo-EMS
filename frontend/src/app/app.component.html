@@ -5,11 +5,22 @@
   <!-- Modern Navigation Bar -->
   <nav class="navbar" *ngIf="isLoggedIn">
     <div class="nav-container">
-      <!-- Logo/Brand -->
+      <!-- Brand -->
       <div class="nav-brand">
-        <a [routerLink]="isRoot ? '/root/dashboard' : '/dashboard'" class="brand-link">
-          <span class="brand-icon">{{ isRoot ? '👑' : '👥' }}</span>
-          <span class="brand-text">{{ isRoot ? 'ROOT' : 'EMS' }}</span>
+        <a routerLink="/" class="brand-link">
+          <!-- Organization Logo for non-ROOT users -->
+          <img *ngIf="!isRoot && organizationLogoUrl"
+               [src]="organizationLogoUrl"
+               alt="Organization Logo"
+               class="org-logo"
+               (error)="organizationLogoUrl = ''">
+          <span *ngIf="!isRoot && !organizationLogoUrl" class="brand-icon">👥</span>
+
+          <!-- ROOT Icon -->
+          <span *ngIf="isRoot" class="brand-icon">👑</span>
+
+          <!-- Organization Name or ROOT/EMS -->
+          <span class="brand-text">{{ isRoot ? 'ROOT' : (organizationName || 'EMS') }}</span>
         </a>
       </div>
 
