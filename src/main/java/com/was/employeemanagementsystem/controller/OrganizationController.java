@@ -90,6 +90,22 @@ public class OrganizationController {
     }
 
     /**
+     * Get current user's organization info
+     * Accessible by SUPER_ADMIN, ADMIN, USER (not ROOT)
+     */
+    @GetMapping("/my-organization")
+    public ResponseEntity<?> getMyOrganization() {
+        try {
+            OrganizationDTO organization = organizationService.getCurrentUserOrganization();
+            return ResponseEntity.ok(organization);
+        } catch (RuntimeException e) {
+            log.error("❌ Failed to get user organization: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
      * Update organization
      */
     @PutMapping("/{id}")

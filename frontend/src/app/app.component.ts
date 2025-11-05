@@ -52,14 +52,16 @@ export class AppComponent implements OnInit {
 
       // Load organization info for non-ROOT users
       if (!this.isRoot && user?.organizationId) {
-        this.loadOrganizationInfo(user.organizationId);
+        this.loadOrganizationInfo();
       }
     }
   }
 
-  loadOrganizationInfo(organizationId: number): void {
-    this.http.get<any>(`http://localhost:8080/api/organizations/${organizationId}`).subscribe({
+  loadOrganizationInfo(): void {
+    // Use the /my-organization endpoint which doesn't require organization ID
+    this.http.get<any>(`http://localhost:8080/api/organizations/my-organization`).subscribe({
       next: (org) => {
+        console.log('✅ Organization info loaded:', org);
         this.organizationName = org.name;
         if (org.logoUrl) {
           // If logoUrl is relative, prepend the API base URL
@@ -73,7 +75,7 @@ export class AppComponent implements OnInit {
         }
       },
       error: (err) => {
-        console.error('Failed to load organization info:', err);
+        console.error('❌ Failed to load organization info:', err);
         this.organizationName = 'EMS';
         this.organizationLogoUrl = '';
       }

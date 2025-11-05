@@ -273,6 +273,31 @@ public class OrganizationService {
     }
 
     /**
+     * Get current user's organization
+     * Accessible by any authenticated user (except ROOT)
+     */
+    public OrganizationDTO getCurrentUserOrganization() {
+        User currentUser = securityUtils.getCurrentUser();
+        if (currentUser == null) {
+            throw new RuntimeException("Authentication required");
+        }
+
+        if (currentUser.getRoles().contains("ROOT")) {
+            throw new RuntimeException("ROOT user does not belong to any organization");
+        }
+
+        Long organizationId = currentUser.getOrganizationId();
+        if (organizationId == null) {
+            throw new RuntimeException("User does not belong to any organization");
+        }
+
+        Organization organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new RuntimeException("Organization not found"));
+
+        return convertToDTO(organization);
+    }
+
+    /**
      * Update organization details
      */
     public OrganizationDTO updateOrganization(Long id, OrganizationDTO dto) {
