@@ -9,7 +9,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"username", "organization_id"}),
+    @UniqueConstraint(columnNames = {"email", "organization_id"})
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,10 +22,10 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String username;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)

@@ -13,6 +13,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     Boolean existsByUsername(String username);
     Boolean existsByEmail(String email);
+    // Organization-aware methods for multi-tenancy
+    Optional<User> findByUsernameAndOrganizationId(String username, Long organizationId);
+    Optional<User> findByEmailAndOrganizationId(String email, Long organizationId);
+    Boolean existsByUsernameAndOrganizationId(String username, Long organizationId);
+    Boolean existsByEmailAndOrganizationId(String email, Long organizationId);
+
     List<User> findByOrganizationId(Long organizationId);
 }
 

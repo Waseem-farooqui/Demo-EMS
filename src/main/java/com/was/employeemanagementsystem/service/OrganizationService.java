@@ -72,15 +72,9 @@ public class OrganizationService {
             throw new RuntimeException("Organization with name '" + request.getOrganizationName() + "' already exists");
         }
 
-        // Check if super admin username already exists
-        if (userRepository.findByUsername(request.getSuperAdminUsername()).isPresent()) {
-            throw new RuntimeException("Username '" + request.getSuperAdminUsername() + "' is already taken");
-        }
-
-        // Check if super admin email already exists
-        if (userRepository.findByEmail(request.getSuperAdminEmail()).isPresent()) {
-            throw new RuntimeException("Email '" + request.getSuperAdminEmail() + "' is already registered");
-        }
+        // Note: We don't check for username/email here because they are now unique per organization
+        // Different organizations can have users with the same username/email
+        // The database unique constraint (username + organization_id) will enforce this
 
         // Create organization (INACTIVE until SUPER_ADMIN first login)
         Organization organization = new Organization();
