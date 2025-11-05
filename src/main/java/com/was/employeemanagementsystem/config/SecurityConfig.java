@@ -68,6 +68,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/api/auth/resend-verification").permitAll()
                 .antMatchers("/api/auth/forgot-password").permitAll()
                 .antMatchers("/api/auth/reset-password").permitAll()
+                // Public organization logo endpoint (no authentication required for images)
+                .antMatchers("/api/organizations/*/logo").permitAll()
                 // Protected auth endpoints (authentication required)
                 .antMatchers("/api/auth/change-password").authenticated()
                 .antMatchers("/api/auth/complete-profile").authenticated()

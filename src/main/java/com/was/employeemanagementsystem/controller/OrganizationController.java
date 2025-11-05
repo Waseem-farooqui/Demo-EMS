@@ -146,8 +146,22 @@ public class OrganizationController {
         try {
             byte[] logoData = organizationService.getOrganizationLogo(id);
 
+            // Detect image type from byte array
+            MediaType contentType = MediaType.IMAGE_JPEG; // Default
+            if (logoData.length > 2) {
+                // Check for PNG signature
+                if (logoData[0] == (byte) 0x89 && logoData[1] == (byte) 0x50) {
+                    contentType = MediaType.IMAGE_PNG;
+                }
+                // Check for GIF signature
+                else if (logoData[0] == (byte) 0x47 && logoData[1] == (byte) 0x49) {
+                    contentType = MediaType.IMAGE_GIF;
+                }
+            }
+
             return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_JPEG)
+                    .contentType(contentType)
+                    .cacheControl(org.springframework.http.CacheControl.maxAge(3600, java.util.concurrent.TimeUnit.SECONDS))
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"org_logo_" + id + ".jpg\"")
                     .body(logoData);
         } catch (RuntimeException e) {
