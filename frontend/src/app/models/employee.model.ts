@@ -16,6 +16,7 @@ export interface Employee {
   employmentStatus?: string;
   contractType?: string;
   userId?: number;
+  username?: string;  // Add username for display
   departmentId?: number;
   departmentName?: string;
   emergencyContactName?: string;

@@ -366,6 +366,13 @@ public class EmployeeService {
         dto.setHolidayAllowance(employee.getHolidayAllowance());
         dto.setUserId(employee.getUserId());
 
+        // Add username if user exists
+        if (employee.getUserId() != null) {
+            userRepository.findById(employee.getUserId()).ifPresent(user -> {
+                dto.setUsername(user.getUsername());
+            });
+        }
+
         // Add department info
         if (employee.getDepartment() != null) {
             dto.setDepartmentId(employee.getDepartment().getId());

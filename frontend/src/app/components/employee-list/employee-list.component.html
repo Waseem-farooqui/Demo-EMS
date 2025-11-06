@@ -20,6 +20,7 @@
     <thead>
       <tr>
         <th>Full Name</th>
+        <th>Username</th>
         <th>Job Title</th>
         <th>Department</th>
         <th>Actions</th>
@@ -32,6 +33,12 @@
             <span class="name-icon">👤</span>
             <strong>{{ employee.fullName }}</strong>
           </div>
+        </td>
+        <td>
+          <span class="username-badge" *ngIf="employee.username">
+            {{ employee.username }}
+          </span>
+          <span class="no-user" *ngIf="!employee.username">-</span>
         </td>
         <td>{{ employee.jobTitle || '-' }}</td>
         <td>

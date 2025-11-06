@@ -33,6 +33,7 @@ public class EmployeeDTO {
 
     // Relations
     private Long userId;
+    private String username;  // Add username for display
     private Long departmentId;
     private String departmentName;
 }
