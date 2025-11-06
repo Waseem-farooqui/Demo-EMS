@@ -155,7 +155,7 @@
             <input
               type="text"
               class="form-control"
-              [value]="getDocumentTypeLabel(editingConfig.documentType)"
+              [value]="getDocumentTypeLabel(editingConfig!.documentType)"
               disabled>
           </div>
 
@@ -164,7 +164,7 @@
             <input
               type="number"
               id="editAlertDays"
-              [(ngModel)]="editingConfig.alertDaysBefore"
+              [(ngModel)]="editingConfig!.alertDaysBefore"
               name="editAlertDays"
               class="form-control"
               min="1"
@@ -177,7 +177,7 @@
             <input
               type="email"
               id="editEmail"
-              [(ngModel)]="editingConfig.alertEmail"
+              [(ngModel)]="editingConfig!.alertEmail"
               name="editEmail"
               class="form-control"
               required>
@@ -187,7 +187,7 @@
             <label class="checkbox-label">
               <input
                 type="checkbox"
-                [(ngModel)]="editingConfig.enabled"
+                [(ngModel)]="editingConfig!.enabled"
                 name="editEnabled">
               <span>Enabled</span>
             </label>
