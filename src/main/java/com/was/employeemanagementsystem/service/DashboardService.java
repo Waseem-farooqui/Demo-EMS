@@ -86,7 +86,7 @@ public class DashboardService {
     /**
      * Count actual employees excluding SUPER_ADMIN users
      * SUPER_ADMINs are management/admin accounts, not employees
-     * ONLY counts employees from current user's organization
+0     * ONLY counts employees from current user's organization
      */
     private long countActualEmployees() {
         User currentUser = securityUtils.getCurrentUser();

@@ -218,22 +218,31 @@ public class UserManagementService {
     }
 
     private void checkDuplicates(String email) {
-        if (userRepository.existsByEmail(email)) {
-            throw new DuplicateResourceException("A user with email '" + email + "' already exists");
+        // Get current user's organization ID for multi-tenancy check
+        User currentUser = securityUtils.getCurrentUser();
+        Long organizationId = currentUser.getOrganizationId();
+
+        // Check if user with same email exists in SAME organization only
+        if (userRepository.existsByEmailAndOrganizationId(email, organizationId)) {
+            throw new DuplicateResourceException("A user with email '" + email + "' already exists in your organization");
         }
-        if (employeeRepository.existsByWorkEmail(email)) {
-            throw new DuplicateResourceException("An employee with email '" + email + "' already exists");
-        }
+
+        // Note: We don't check employeeRepository here because we're creating both user and employee together
+        // The employee will be created with the same organization ID
     }
 
     private String generateUsername(String email) {
+        // Get current user's organization ID for multi-tenancy check
+        User currentUser = securityUtils.getCurrentUser();
+        Long organizationId = currentUser.getOrganizationId();
+
         // Extract base username from email
         String baseUsername = email.split("@")[0].toLowerCase().replaceAll("[^a-z0-9]", "");
 
-        // Check for duplicates and add number if needed
+        // Check for duplicates within SAME organization only and add number if needed
         String username = baseUsername;
         int counter = 1;
-        while (userRepository.existsByUsername(username)) {
+        while (userRepository.existsByUsernameAndOrganizationId(username, organizationId)) {
             username = baseUsername + counter;
             counter++;
         }
