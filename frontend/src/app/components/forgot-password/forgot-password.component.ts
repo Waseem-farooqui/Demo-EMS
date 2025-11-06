@@ -1,9 +1,10 @@
 import {Component} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormBuilder, FormGroup, ReactiveFormsModule, Validators} from '@angular/forms';
-import {Router, RouterLink} from '@angular/router';
+import {RouterLink} from '@angular/router';
 import {HttpClient} from '@angular/common/http';
 import {ToastService} from '../../services/toast.service';
+import {environment} from '../../../environments/environment';
 
 @Component({
   selector: 'app-forgot-password',
@@ -36,7 +37,7 @@ export class ForgotPasswordComponent {
 
     this.loading = true;
 
-    this.http.post('http://localhost:8080/api/auth/forgot-password', this.forgotPasswordForm.value)
+    this.http.post(`${environment.apiUrl}/auth/forgot-password`, this.forgotPasswordForm.value)
       .subscribe({
         next: (response: any) => {
           this.submitted = true;
@@ -58,4 +59,3 @@ export class ForgotPasswordComponent {
     });
   }
 }
-

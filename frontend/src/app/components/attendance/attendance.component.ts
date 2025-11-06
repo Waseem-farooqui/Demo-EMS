@@ -7,6 +7,7 @@ import {AttendanceService} from '../../services/attendance.service';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
 import {Attendance, WorkLocationOption} from '../../models/attendance.model';
+import {environment} from '../../../environments/environment';
 
 @Component({
   selector: 'app-attendance',
@@ -72,7 +73,7 @@ export class AttendanceComponent implements OnInit {
     }
 
     // Fetch employee by work email
-    this.http.get<any[]>('http://localhost:8080/api/employees').subscribe({
+    this.http.get<any[]>(`${environment.apiUrl}/employees`).subscribe({
       next: (employees) => {
         const employee = employees.find(emp => emp.workEmail === userEmail);
         if (employee) {

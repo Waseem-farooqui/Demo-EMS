@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 
 interface Organization {
   id: number;
@@ -30,7 +31,7 @@ export class OrganizationDetailComponent implements OnInit {
   error: string | null = null;
   organizationId: number | null = null;
 
-  private apiUrl = 'http://localhost:8080/api/organizations';
+  private apiUrl = `${environment.apiUrl}/organizations`;
 
   constructor(
     private route: ActivatedRoute,
@@ -61,7 +62,7 @@ export class OrganizationDetailComponent implements OnInit {
 
         // Fix logo URL - prepend API base URL if it's a relative path
         if (this.organization.logoUrl && !this.organization.logoUrl.startsWith('http')) {
-          this.organization.logoUrl = `http://localhost:8080${this.organization.logoUrl}`;
+          this.organization.logoUrl = `${environment.apiBaseUrl}${this.organization.logoUrl}`;
         }
 
         this.loading = false;

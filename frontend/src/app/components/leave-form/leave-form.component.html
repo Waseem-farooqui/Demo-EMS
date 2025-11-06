@@ -5,16 +5,32 @@
       <p class="subtitle">{{ isEditMode ? 'Update your leave details' : 'Submit a new leave request' }}</p>
     </div>
 
+    <!-- Leave Balance Cards -->
+    <div class="leave-balances" *ngIf="leaveBalances.length > 0 && !isEditMode">
+      <h3>Your Leave Balance</h3>
+      <div class="balance-cards">
+        <div class="balance-card" *ngFor="let balance of leaveBalances">
+          <div class="balance-type">{{ balance.leaveType }}</div>
+          <div class="balance-info">
+            <span class="balance-remaining">{{ balance.remainingLeaves }}</span>
+            <span class="balance-total">/ {{ balance.totalAllocated }}</span>
+          </div>
+          <div class="balance-used">Used: {{ balance.usedLeaves }}</div>
+        </div>
+      </div>
+    </div>
+
     <div *ngIf="error" class="alert alert-error">{{ error }}</div>
     <div *ngIf="success" class="alert alert-success">{{ success }}</div>
 
-    <form (ngSubmit)="onSubmit()" #leaveForm="ngForm">
+    <form (ngSubmit)="onSubmit()" #leaveFormRef="ngForm">
       <div class="form-group">
         <label for="employee">Employee *</label>
         <select
           id="employee"
           name="employee"
           [(ngModel)]="leave.employeeId"
+          (change)="onEmployeeChange()"
           required
           #employeeField="ngModel"
           [disabled]="!isAdmin || isEditMode"
@@ -40,11 +56,22 @@
           #leaveTypeField="ngModel"
           class="form-control">
           <option value="" disabled>Select Leave Type</option>
-          <option *ngFor="let type of leaveTypes" [value]="type">{{ type }}</option>
+          <option *ngFor="let type of leaveTypes" [value]="type.value">
+            {{ type.label }} ({{ getBalance(type.value) }} days remaining)
+          </option>
         </select>
         <div class="field-error" *ngIf="leaveTypeField.invalid && leaveTypeField.touched">
           Please select a leave type
         </div>
+      </div>
+
+      <!-- Warnings based on leave type -->
+      <div class="alert alert-warning" *ngIf="leave.leaveType === 'SICK' && calculateDays() > 2">
+        ⚠️ <strong>Medical Certificate Required:</strong> For sick leave more than 2 days, you must upload a medical certificate.
+      </div>
+
+      <div class="alert alert-warning" *ngIf="leave.leaveType === 'CASUAL'">
+        ⚠️ <strong>Casual Leave Rules:</strong> Maximum 1 day only, cannot be consecutive with other casual leaves.
       </div>
 
       <div class="form-row">
@@ -57,9 +84,13 @@
             [(ngModel)]="leave.startDate"
             required
             #startDateField="ngModel"
+            [min]="today"
             class="form-control">
           <div class="field-error" *ngIf="startDateField.invalid && startDateField.touched">
             Start date is required
+          </div>
+          <div class="alert alert-error" *ngIf="leave.startDate && isDateBlocked(leave.startDate)">
+            ❌ This date is already taken or pending approval
           </div>
         </div>
 
@@ -72,9 +103,13 @@
             [(ngModel)]="leave.endDate"
             required
             #endDateField="ngModel"
+            [min]="leave.startDate || today"
             class="form-control">
           <div class="field-error" *ngIf="endDateField.invalid && endDateField.touched">
             End date is required
+          </div>
+          <div class="alert alert-error" *ngIf="leave.endDate && isDateBlocked(leave.endDate)">
+            ❌ This date is already taken or pending approval
           </div>
         </div>
       </div>
@@ -83,6 +118,29 @@
         <div class="days-info">
           <span class="days-label">Total Days:</span>
           <span class="days-value">{{ calculateDays() }} day(s)</span>
+        </div>
+      </div>
+
+      <!-- Medical Certificate Upload (for SICK leave) -->
+      <div class="form-group" *ngIf="leave.leaveType === 'SICK' && !isEditMode">
+        <label for="medicalCertificate">
+          Medical Certificate
+          <span class="required" *ngIf="calculateDays() > 2">*</span>
+          <span class="optional" *ngIf="calculateDays() <= 2">(Optional)</span>
+        </label>
+        <input
+          type="file"
+          id="medicalCertificate"
+          name="medicalCertificate"
+          (change)="onFileSelected($event)"
+          accept="image/*,.pdf"
+          class="form-control file-input">
+        <small class="form-text">
+          Accepted formats: JPG, PNG, PDF (Max 5MB)
+          <span *ngIf="calculateDays() > 2" class="text-danger"> - Required for sick leave more than 2 days</span>
+        </small>
+        <div *ngIf="selectedFile" class="file-preview">
+          ✓ Selected: {{ selectedFile.name }} ({{ (selectedFile.size / 1024).toFixed(2) }} KB)
         </div>
       </div>
 
@@ -108,7 +166,7 @@
         <button
           type="submit"
           class="btn btn-primary"
-          [disabled]="!leaveForm.form.valid || loading">
+          [disabled]="!leaveFormRef.form.valid || loading">
           <span *ngIf="loading">Processing...</span>
           <span *ngIf="!loading">{{ isEditMode ? 'Update Leave' : 'Apply Leave' }}</span>
         </button>

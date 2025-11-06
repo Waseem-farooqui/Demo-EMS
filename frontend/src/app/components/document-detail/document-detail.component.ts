@@ -5,6 +5,7 @@ import {ActivatedRoute, Router, RouterModule} from '@angular/router';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import {DocumentService} from '../../services/document.service';
 import {Document} from '../../models/document.model';
+import {environment} from '../../../environments/environment';
 
 @Component({
   selector: 'app-document-detail',
@@ -248,7 +249,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   downloadDocument(): void {
     if (this.document?.id) {
       // Open download endpoint in new window
-      window.open(`http://localhost:8080/api/documents/${this.document.id}/download`, '_blank');
+      window.open(`${environment.apiUrl}/documents/${this.document.id}/download`, '_blank');
     }
   }
 
@@ -258,7 +259,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
       window.open(this.rawDocumentUrl, '_blank');
     } else if (this.document?.id) {
       // Fallback: open the API endpoint directly
-      window.open(`http://localhost:8080/api/documents/${this.document.id}/image`, '_blank');
+      window.open(`${environment.apiUrl}/documents/${this.document.id}/image`, '_blank');
     }
   }
 

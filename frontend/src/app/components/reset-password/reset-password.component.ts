@@ -4,6 +4,7 @@ import {FormBuilder, FormGroup, ReactiveFormsModule, Validators} from '@angular/
 import {ActivatedRoute, Router, RouterLink} from '@angular/router';
 import {HttpClient} from '@angular/common/http';
 import {ToastService} from '../../services/toast.service';
+import {environment} from '../../../environments/environment';
 
 @Component({
   selector: 'app-reset-password',
@@ -74,7 +75,7 @@ export class ResetPasswordComponent implements OnInit {
       ...this.resetPasswordForm.value
     };
 
-    this.http.post('http://localhost:8080/api/auth/reset-password', requestData)
+    this.http.post(`${environment.apiUrl}/auth/reset-password`, requestData)
       .subscribe({
         next: (response: any) => {
           this.toastService.success('Password reset successfully! You can now login.');
@@ -97,4 +98,3 @@ export class ResetPasswordComponent implements OnInit {
     });
   }
 }
-

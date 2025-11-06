@@ -23,5 +23,8 @@ public class LeaveDTO {
     private String approvedBy;
     private LocalDate approvalDate;
     private String remarks;
+    private boolean hasMedicalCertificate;
+    private String certificateFileName;
+    private String financialYear;
 }
 

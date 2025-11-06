@@ -16,6 +16,27 @@ export interface Leave {
   remarks?: string;
   adminComments?: string;
   requiresSuperAdminApproval?: boolean;
+  hasMedicalCertificate?: boolean;
+  certificateFileName?: string;
+  financialYear?: string;
+}
+
+export interface LeaveBalance {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  financialYear: string;
+  leaveType: string;
+  totalAllocated: number;
+  usedLeaves: number;
+  remainingLeaves: number;
+}
+
+export interface BlockedDate {
+  startDate: string;
+  endDate: string;
+  status: string;
+  leaveType: string;
 }
 
 export interface LeaveApprovalRequest {

@@ -6,6 +6,7 @@ import {AuthService} from '../../services/auth.service';
 import {EmployeeService} from '../../services/employee.service';
 import {DocumentService} from '../../services/document.service';
 import {AttendanceService} from '../../services/attendance.service';
+import {environment} from '../../../environments/environment';
 
 // Import Chart.js dynamically only in browser
 import {Chart, registerables} from 'chart.js';
@@ -88,7 +89,7 @@ export class DashboardComponent implements OnInit {
     this.loading = true;
     const token = this.authService.getToken();
 
-    this.http.get<any>('http://localhost:8080/api/dashboard/stats', {
+    this.http.get<any>(`${environment.apiUrl}/dashboard/stats`, {
       headers: { Authorization: `Bearer ${token}` }
     }).subscribe({
       next: (stats) => {

@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
+import {environment} from '../../environments/environment';
 
 export interface Rota {
   id: number;
@@ -64,7 +65,7 @@ export interface DaySchedulePreview {
   providedIn: 'root'
 })
 export class RotaService {
-  private apiUrl = 'http://localhost:8080/api/rota';
+  private apiUrl = `${environment.apiUrl}${environment.endpoints.rotas}`;
 
   constructor(private http: HttpClient) {}
 

@@ -6,7 +6,7 @@ import {LeaveService} from '../../services/leave.service';
 import {EmployeeService} from '../../services/employee.service';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
-import {Leave} from '../../models/leave.model';
+import {Leave, LeaveBalance, BlockedDate} from '../../models/leave.model';
 import {Employee} from '../../models/employee.model';
 
 @Component({
@@ -26,13 +26,15 @@ export class LeaveFormComponent implements OnInit {
   };
 
   employees: Employee[] = [];
+  leaveBalances: LeaveBalance[] = [];
+  blockedDates: BlockedDate[] = [];
+  selectedFile: File | null = null;
+
   leaveTypes = [
-    'Annual Leave',
-    'Sick Leave',
-    'Casual Leave',
-    'Unpaid Leave',
-    'Maternity/Paternity Leave',
-    'Bereavement Leave'
+    {value: 'ANNUAL', label: 'Annual Leave'},
+    {value: 'SICK', label: 'Sick Leave'},
+    {value: 'CASUAL', label: 'Casual Leave'},
+    {value: 'OTHER', label: 'Other Leave'}
   ];
 
   isEditMode = false;
@@ -42,6 +44,7 @@ export class LeaveFormComponent implements OnInit {
   loading = false;
   currentUser: any;
   isAdmin = false;
+  today: string;
 
   constructor(
     private leaveService: LeaveService,
@@ -50,7 +53,11 @@ export class LeaveFormComponent implements OnInit {
     private toastService: ToastService,
     private router: Router,
     private route: ActivatedRoute
-  ) { }
+  ) {
+    // Set today's date for min date validation
+    const today = new Date();
+    this.today = today.toISOString().split('T')[0];
+  }
 
   ngOnInit(): void {
     this.currentUser = this.authService.getUser();
@@ -83,6 +90,8 @@ export class LeaveFormComponent implements OnInit {
         // For non-admin users, auto-select their employee
         if (!this.isAdmin && data.length > 0) {
           this.leave.employeeId = data[0].id!;
+          this.loadLeaveBalances(this.leave.employeeId);
+          this.loadBlockedDates(this.leave.employeeId);
         }
       },
       error: (err) => {
@@ -90,6 +99,72 @@ export class LeaveFormComponent implements OnInit {
         this.toastService.error('Failed to load employees');
       }
     });
+  }
+
+  onEmployeeChange(): void {
+    if (this.leave.employeeId) {
+      this.loadLeaveBalances(this.leave.employeeId);
+      this.loadBlockedDates(this.leave.employeeId);
+    }
+  }
+
+  loadLeaveBalances(employeeId: number): void {
+    this.leaveService.getLeaveBalances(employeeId).subscribe({
+      next: (balances) => {
+        this.leaveBalances = balances;
+        console.log('Leave balances loaded:', balances);
+      },
+      error: (err) => {
+        console.error('Error loading leave balances:', err);
+      }
+    });
+  }
+
+  loadBlockedDates(employeeId: number): void {
+    this.leaveService.getBlockedDates(employeeId).subscribe({
+      next: (dates) => {
+        this.blockedDates = dates;
+        console.log('Blocked dates loaded:', dates);
+      },
+      error: (err) => {
+        console.error('Error loading blocked dates:', err);
+      }
+    });
+  }
+
+  getBalance(leaveType: string): number {
+    const balance = this.leaveBalances.find(b => b.leaveType === leaveType);
+    return balance ? balance.remainingLeaves : 0;
+  }
+
+  isDateBlocked(dateString: string): boolean {
+    const date = new Date(dateString);
+    return this.blockedDates.some(blocked => {
+      const start = new Date(blocked.startDate);
+      const end = new Date(blocked.endDate);
+      return date >= start && date <= end;
+    });
+  }
+
+  onFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        this.toastService.error('Only JPG, PNG, and PDF files are allowed');
+        event.target.value = '';
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        this.toastService.error('File size must be less than 5MB');
+        event.target.value = '';
+        return;
+      }
+      this.selectedFile = file;
+      console.log('Medical certificate selected:', file.name);
+    }
   }
 
   loadLeave(id: number): void {
@@ -141,8 +216,35 @@ export class LeaveFormComponent implements OnInit {
       return;
     }
 
+    // Check if dates are blocked
+    if (this.isDateBlocked(this.leave.startDate) || this.isDateBlocked(this.leave.endDate)) {
+      this.toastService.error('Selected dates are already taken or pending approval');
+      return;
+    }
+
     if (!this.leave.reason || this.leave.reason.trim() === '') {
       this.toastService.warning('Please provide a reason for leave');
+      return;
+    }
+
+    const days = this.calculateDays();
+
+    // Check balance
+    const balance = this.leaveBalances.find(b => b.leaveType === this.leave.leaveType);
+    if (balance && balance.remainingLeaves < days) {
+      this.toastService.error(`Insufficient ${this.leave.leaveType} leave balance. Available: ${balance.remainingLeaves} days`);
+      return;
+    }
+
+    // Check if SICK > 2 days requires certificate
+    if (this.leave.leaveType === 'SICK' && days > 2 && !this.selectedFile) {
+      this.toastService.error('Medical certificate is required for sick leave more than 2 days');
+      return;
+    }
+
+    // Check if CASUAL > 1 day
+    if (this.leave.leaveType === 'CASUAL' && days > 1) {
+      this.toastService.error('Casual leave cannot be more than 1 day');
       return;
     }
 
@@ -157,22 +259,33 @@ export class LeaveFormComponent implements OnInit {
           setTimeout(() => this.router.navigate(['/leaves']), 2000);
         },
         error: (err) => {
-          const errorMsg = err.error?.message || 'Failed to update leave. Please try again.';
+          const errorMsg = err.error?.error || err.error?.message || 'Failed to update leave. Please try again.';
           this.toastService.error(errorMsg);
           this.loading = false;
           console.error('Error updating leave:', err);
         }
       });
     } else {
-      // Create new leave
-      this.leaveService.applyLeave(this.leave).subscribe({
+      // Create new leave with FormData
+      const formData = new FormData();
+      formData.append('employeeId', this.leave.employeeId.toString());
+      formData.append('leaveType', this.leave.leaveType);
+      formData.append('startDate', this.leave.startDate);
+      formData.append('endDate', this.leave.endDate);
+      formData.append('reason', this.leave.reason);
+
+      if (this.selectedFile) {
+        formData.append('medicalCertificate', this.selectedFile);
+      }
+
+      this.leaveService.applyLeave(formData).subscribe({
         next: () => {
           this.toastService.success('Leave applied successfully!');
           this.loading = false;
           setTimeout(() => this.router.navigate(['/leaves']), 2000);
         },
         error: (err) => {
-          const errorMsg = err.error?.message || 'Failed to apply leave. Please try again.';
+          const errorMsg = err.error?.error || err.error?.message || 'Failed to apply leave. Please try again.';
           this.toastService.error(errorMsg);
           this.loading = false;
           console.error('Error applying leave:', err);

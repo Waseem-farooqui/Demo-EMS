@@ -10,6 +10,7 @@ import com.was.employeemanagementsystem.exception.ResourceNotFoundException;
 import com.was.employeemanagementsystem.exception.ValidationException;
 import com.was.employeemanagementsystem.repository.DepartmentRepository;
 import com.was.employeemanagementsystem.repository.EmployeeRepository;
+import com.was.employeemanagementsystem.repository.OrganizationRepository;
 import com.was.employeemanagementsystem.repository.UserRepository;
 import com.was.employeemanagementsystem.security.SecurityUtils;
 import com.was.employeemanagementsystem.util.PasswordGenerator;
@@ -32,6 +33,7 @@ public class UserManagementService {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
+    private final OrganizationRepository organizationRepository;
     private final SecurityUtils securityUtils;
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
@@ -244,14 +246,36 @@ public class UserManagementService {
         // Extract base username from email
         String baseUsername = email.split("@")[0].toLowerCase().replaceAll("[^a-z0-9]", "");
 
+        // Get organization suffix
+        String orgSuffix = "";
+        if (organizationId != null) {
+            var orgOptional = organizationRepository.findById(organizationId);
+            if (orgOptional.isPresent()) {
+                var org = orgOptional.get();
+                String suffix = org.getName()
+                        .toLowerCase()
+                        .trim()
+                        .replaceAll("\\s+", "")
+                        .replaceAll("[^a-z0-9]", "");
+
+                // Limit to 10 chars
+                orgSuffix = suffix.length() > 10 ? suffix.substring(0, 10) : suffix;
+                log.info("🏷️ Adding org suffix '{}' to username", orgSuffix);
+            }
+        }
+
+        // Create username with org suffix: baseUsername_orgSuffix
+        String usernameBase = orgSuffix.isEmpty() ? baseUsername : baseUsername + "_" + orgSuffix;
+
         // Check for duplicates within SAME organization only and add number if needed
-        String username = baseUsername;
+        String username = usernameBase;
         int counter = 1;
         while (userRepository.existsByUsernameAndOrganizationId(username, organizationId)) {
-            username = baseUsername + counter;
+            username = usernameBase + counter;
             counter++;
         }
 
+        log.info("✅ Generated username for SUPER_ADMIN: {}", username);
         return username;
     }
 }

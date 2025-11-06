@@ -385,9 +385,23 @@ public class RotaService {
     private List<RotaSchedule> parseRotaSchedules(String text, Map<String, String> metadata) {
         List<RotaSchedule> schedules = new ArrayList<>();
 
-        // Get all employees from database
-        List<Employee> allEmployees = employeeRepository.findAll();
-        log.info("📋 Total employees in database: {}", allEmployees.size());
+        // Get all employees from database (excluding SUPER_ADMIN)
+        List<Employee> allEmployees = employeeRepository.findAll().stream()
+                .filter(emp -> {
+                    // Only include employees with USER or ADMIN roles (exclude SUPER_ADMIN)
+                    if (emp.getUserId() != null) {
+                        User user = userRepository.findById(emp.getUserId()).orElse(null);
+                        if (user != null) {
+                            // Exclude SUPER_ADMIN from ROTA schedules
+                            return !user.getRoles().contains("SUPER_ADMIN");
+                        }
+                    }
+                    // Include employees without user accounts
+                    return true;
+                })
+                .collect(Collectors.toList());
+
+        log.info("📋 Total employees for ROTA (excluding SUPER_ADMIN): {}", allEmployees.size());
 
         if (allEmployees.isEmpty()) {
             log.warn("⚠️ No employees found in database! Please create employee profiles first.");
@@ -395,7 +409,7 @@ public class RotaService {
         }
 
         // Log ALL employee names for debugging
-        log.info("📝 All employee names in database:");
+        log.info("📝 Employee names for ROTA matching (USER and ADMIN only):");
         allEmployees.forEach(e ->
             log.info("   👤 '{}'", e.getFullName())
         );

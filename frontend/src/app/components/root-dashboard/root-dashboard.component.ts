@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { environment } from '../../../environments/environment';
 
 interface OrganizationOnboarding {
   organizationId: number;
@@ -35,8 +36,8 @@ export class RootDashboardComponent implements OnInit {
   loading = true;
   error: string | null = null;
 
-  private apiUrl = 'http://localhost:8080/api/root/dashboard';
-  private organizationApiUrl = 'http://localhost:8080/api/organizations';
+  private apiUrl = `${environment.apiUrl}/root/dashboard`;
+  private organizationApiUrl = `${environment.apiUrl}/organizations`;
 
   constructor(
     private http: HttpClient,

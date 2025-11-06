@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-forgot-username',
@@ -18,7 +19,7 @@ export class ForgotUsernameComponent {
   success = false;
   email = '';
 
-  private apiUrl = 'http://localhost:8080/api/auth/forgot-username';
+  private apiUrl = `${environment.apiUrl}/auth/forgot-username`;
 
   constructor(
     private fb: FormBuilder,
@@ -57,4 +58,3 @@ export class ForgotUsernameComponent {
     this.router.navigate(['/login']);
   }
 }
-

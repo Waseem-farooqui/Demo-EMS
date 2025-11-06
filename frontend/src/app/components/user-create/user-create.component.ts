@@ -12,6 +12,7 @@ import {Router} from '@angular/router';
 import {HttpClient} from '@angular/common/http';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
+import {environment} from '../../../environments/environment';
 
 @Component({
   selector: 'app-user-create',
@@ -112,8 +113,8 @@ export class UserCreateComponent implements OnInit {
   loadDepartments(): void {
     // Use different endpoint for SUPER_ADMIN to get admin status
     const endpoint = this.isSuperAdmin
-      ? 'http://localhost:8080/api/departments/with-admin-status'
-      : 'http://localhost:8080/api/departments';
+      ? `${environment.apiUrl}/departments/with-admin-status`
+      : `${environment.apiUrl}/departments`;
 
     this.http.get<any[]>(endpoint).subscribe({
       next: (data) => {
@@ -199,14 +200,14 @@ export class UserCreateComponent implements OnInit {
     };
 
     const token = this.authService.getToken();
-    return this.http.post<any>('http://localhost:8080/api/departments', deptData, {
+    return this.http.post<any>(`${environment.apiUrl}/departments`, deptData, {
       headers: { Authorization: `Bearer ${token}` }
     });
   }
 
   createUser(formData: any): void {
     const token = this.authService.getToken();
-    this.http.post<any>('http://localhost:8080/api/users/create', formData, {
+    this.http.post<any>(`${environment.apiUrl}/users/create`, formData, {
       headers: { Authorization: `Bearer ${token}` }
     }).subscribe({
       next: (response) => {

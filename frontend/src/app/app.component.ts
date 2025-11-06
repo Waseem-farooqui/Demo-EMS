@@ -5,6 +5,7 @@ import {AuthService} from './services/auth.service';
 import {ToastComponent} from './components/toast/toast.component';
 import {NotificationDropdownComponent} from './components/notification-dropdown/notification-dropdown.component';
 import {HttpClient} from '@angular/common/http';
+import {environment} from '../environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -69,7 +70,7 @@ export class AppComponent implements OnInit {
   loadOrganizationInfo(): void {
     console.log('🌐 Calling API: GET /api/organizations/my-organization');
     // Use the /my-organization endpoint which doesn't require organization ID
-    this.http.get<any>(`http://localhost:8080/api/organizations/my-organization`).subscribe({
+    this.http.get<any>(`${environment.apiUrl}/organizations/my-organization`).subscribe({
       next: (org) => {
         console.log('✅ Organization info loaded:', org);
         this.organizationName = org.name || 'EMS';
@@ -77,7 +78,7 @@ export class AppComponent implements OnInit {
           // If logoUrl is relative, prepend the API base URL
           this.organizationLogoUrl = org.logoUrl.startsWith('http')
             ? org.logoUrl
-            : `http://localhost:8080${org.logoUrl}`;
+            : `${environment.apiBaseUrl}${org.logoUrl}`;
           console.log('🖼️ Organization logo URL:', this.organizationLogoUrl);
         } else {
           this.organizationLogoUrl = '';

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-organization-create',
@@ -27,7 +28,7 @@ export class OrganizationCreateComponent {
     email: string;
   } | null = null;
 
-  private apiUrl = 'http://localhost:8080/api/organizations';
+  private apiUrl = `${environment.apiUrl}/organizations`;
 
   constructor(
     private fb: FormBuilder,

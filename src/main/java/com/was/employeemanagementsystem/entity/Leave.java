@@ -51,5 +51,23 @@ public class Leave {
 
     @Column(name = "remarks")
     private String remarks;
+
+    // Medical Certificate for sick leave (more than 2 days)
+    @Lob
+    @Column(name = "medical_certificate", columnDefinition = "LONGBLOB")
+    private byte[] medicalCertificate;
+
+    @Column(name = "certificate_file_name")
+    private String certificateFileName;
+
+    @Column(name = "certificate_content_type")
+    private String certificateContentType;
+
+    // Financial year for leave balance tracking (e.g., "2024-2025")
+    @Column(name = "financial_year")
+    private String financialYear;
+
+    @Column(name = "organization_id")
+    private Long organizationId;
 }
 

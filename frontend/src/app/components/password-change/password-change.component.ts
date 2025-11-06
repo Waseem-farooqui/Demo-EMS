@@ -5,6 +5,7 @@ import {Router} from '@angular/router';
 import {HttpClient} from '@angular/common/http';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
+import {environment} from '../../../environments/environment';
 
 @Component({
   selector: 'app-password-change',
@@ -78,7 +79,7 @@ export class PasswordChangeComponent implements OnInit {
     const formData = this.passwordForm.value;
 
     // JWT interceptor will automatically add Authorization header and X-Organization-UUID
-    this.http.post('http://localhost:8080/api/auth/change-password', formData).subscribe({
+    this.http.post(`${environment.apiUrl}/auth/change-password`, formData).subscribe({
       next: () => {
         this.toastService.success('Password changed successfully! Please login with your new password.');
         setTimeout(() => {

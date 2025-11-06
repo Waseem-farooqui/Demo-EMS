@@ -9,6 +9,7 @@ import com.was.employeemanagementsystem.exception.ResourceNotFoundException;
 import com.was.employeemanagementsystem.exception.ValidationException;
 import com.was.employeemanagementsystem.repository.DepartmentRepository;
 import com.was.employeemanagementsystem.repository.EmployeeRepository;
+import com.was.employeemanagementsystem.repository.OrganizationRepository;
 import com.was.employeemanagementsystem.repository.UserRepository;
 import com.was.employeemanagementsystem.security.SecurityUtils;
 import com.was.employeemanagementsystem.util.PasswordGenerator;
@@ -31,25 +32,31 @@ public class EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final DepartmentRepository departmentRepository;
+    private final OrganizationRepository organizationRepository;
     private final SecurityUtils securityUtils;
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
     private final EmailService emailService;
+    private final LeaveService leaveService;
 
     public EmployeeService(EmployeeRepository employeeRepository,
                           UserRepository userRepository,
                           DepartmentRepository departmentRepository,
+                          OrganizationRepository organizationRepository,
                           SecurityUtils securityUtils,
                           PasswordEncoder passwordEncoder,
                           PasswordGenerator passwordGenerator,
-                          EmailService emailService) {
+                          EmailService emailService,
+                          LeaveService leaveService) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
         this.departmentRepository = departmentRepository;
+        this.organizationRepository = organizationRepository;
         this.securityUtils = securityUtils;
         this.passwordEncoder = passwordEncoder;
         this.passwordGenerator = passwordGenerator;
         this.emailService = emailService;
+        this.leaveService = leaveService;
     }
 
     public EmployeeDTO createEmployee(EmployeeDTO employeeDTO) {
@@ -103,7 +110,12 @@ public class EmployeeService {
         log.info("✓ Employee created - ID: {}, Name: {}", savedEmployee.getId(), savedEmployee.getFullName());
 
         // Automatically create user account with organization-specific username
-        User currentUser = securityUtils.getCurrentUser();
+        log.info("📝 Starting username generation process...");
+        log.info("📝 Employee email: {}", savedEmployee.getWorkEmail());
+        log.info("📝 Employee name: {}", savedEmployee.getFullName());
+        log.info("📝 Current user: {} (ID: {}, OrgID: {})",
+                currentUser.getUsername(), currentUser.getId(), currentUser.getOrganizationId());
+
         String username = generateUsername(savedEmployee.getWorkEmail(), savedEmployee.getFullName(), currentUser);
         String temporaryPassword = passwordGenerator.generateTemporaryPassword();
 
@@ -149,6 +161,14 @@ public class EmployeeService {
         // Link employee to user
         savedEmployee.setUserId(savedUser.getId());
         employeeRepository.save(savedEmployee);
+
+        // Initialize leave balances for new employee
+        try {
+            leaveService.initializeLeaveBalances(savedEmployee.getId());
+            log.info("✅ Leave balances initialized for new employee: {}", savedEmployee.getFullName());
+        } catch (Exception e) {
+            log.error("❌ Failed to initialize leave balances: {}", e.getMessage());
+        }
 
         // Send credentials via email
         emailService.sendAccountCreationEmail(
@@ -219,6 +239,9 @@ public class EmployeeService {
     }
 
     private String generateUsername(String email, String fullName, User currentUser) {
+        log.info("🔍 Generating username for: {} (email: {})", fullName, email);
+        log.info("🔍 Current user org ID: {}", currentUser.getOrganizationId());
+
         // Try to generate from full name first for better readability
         String baseUsername;
 
@@ -229,17 +252,21 @@ public class EmployeeService {
                     .trim()
                     .replaceAll("\\s+", ".")
                     .replaceAll("[^a-z0-9.]", "");
-            log.debug("🏷️ Generated base username from full name: {}", baseUsername);
+            log.info("🏷️ Generated base username from full name: {}", baseUsername);
         } else {
             // Fallback to email if no full name
             baseUsername = email.split("@")[0].toLowerCase().replaceAll("[^a-z0-9]", "");
-            log.debug("🏷️ Generated base username from email: {}", baseUsername);
+            log.info("🏷️ Generated base username from email: {}", baseUsername);
         }
 
         // Get organization suffix from organization
-        final String[] orgSuffixHolder = {""};
+        String orgSuffix = "";
         if (currentUser.getOrganizationId() != null) {
-            organizationRepository.findById(currentUser.getOrganizationId()).ifPresent(org -> {
+            var orgOptional = organizationRepository.findById(currentUser.getOrganizationId());
+            if (orgOptional.isPresent()) {
+                var org = orgOptional.get();
+                log.info("🏢 Organization found: {} (ID: {})", org.getName(), org.getId());
+
                 // Create meaningful organization suffix from organization name
                 String suffix = org.getName()
                         .toLowerCase()
@@ -248,16 +275,19 @@ public class EmployeeService {
                         .replaceAll("[^a-z0-9]", "");
 
                 // Limit to 10 chars
-                orgSuffixHolder[0] = suffix.length() > 10 ? suffix.substring(0, 10) : suffix;
-            });
+                orgSuffix = suffix.length() > 10 ? suffix.substring(0, 10) : suffix;
+                log.info("🏷️ Organization suffix: {}", orgSuffix);
+            } else {
+                log.warn("⚠️ Organization not found for ID: {}", currentUser.getOrganizationId());
+            }
+        } else {
+            log.warn("⚠️ Current user has no organization ID");
         }
-
-        String orgSuffix = orgSuffixHolder[0];
 
         // Create username: baseUsername_orgSuffix (e.g., john.smith_acme)
         String username = orgSuffix.isEmpty() ? baseUsername : baseUsername + "_" + orgSuffix;
 
-        log.info("🏷️ Final base username: {}", username);
+        log.info("✅ Final generated username: {}", username);
         return username;
     }
 
@@ -277,21 +307,23 @@ public class EmployeeService {
         String userOrgUuid = currentUser.getOrganizationUuid();
         log.debug("✓ Fetching employees for organization UUID: {}", userOrgUuid);
 
-        // SUPER_ADMIN can see ALL employees in their organization only
+        // SUPER_ADMIN can see ALL employees in their organization only (excluding other SUPER_ADMINs)
         if (securityUtils.isSuperAdmin()) {
             return employeeRepository.findAll().stream()
                     .filter(emp -> userOrgUuid.equals(emp.getOrganizationUuid()))
+                    .filter(emp -> !isSuperAdmin(emp)) // Exclude SUPER_ADMIN employees
                     .map(this::convertToDTO)
                     .collect(Collectors.toList());
         }
 
-        // ADMIN (Department Manager) can see only employees in their department (unless super admin)
+        // ADMIN (Department Manager) can see only employees in their department (excluding SUPER_ADMINs)
         if (securityUtils.isAdmin() && !securityUtils.isSuperAdmin()) {
             if (currentUser != null) {
                 Optional<Employee> managerEmployee = employeeRepository.findByUserId(currentUser.getId());
                 if (managerEmployee.isPresent() && managerEmployee.get().getDepartment() != null) {
                     Department department = managerEmployee.get().getDepartment();
                     return employeeRepository.findByDepartment(department).stream()
+                            .filter(emp -> !isSuperAdmin(emp)) // Exclude SUPER_ADMIN employees
                             .map(this::convertToDTO)
                             .collect(Collectors.toList());
                 }
@@ -376,6 +408,23 @@ public class EmployeeService {
             throw new RuntimeException("Employee not found with id: " + id);
         }
         employeeRepository.deleteById(id);
+    }
+
+    /**
+     * Check if employee has SUPER_ADMIN role
+     * SUPER_ADMIN users should not appear in employee lists or ROTA schedules
+     */
+    private boolean isSuperAdmin(Employee employee) {
+        if (employee.getUserId() == null) {
+            return false;
+        }
+
+        User user = userRepository.findById(employee.getUserId()).orElse(null);
+        if (user == null) {
+            return false;
+        }
+
+        return user.getRoles().contains("SUPER_ADMIN");
     }
 
     private boolean canAccessEmployee(Employee employee) {
