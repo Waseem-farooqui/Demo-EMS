@@ -101,19 +101,22 @@ public class EmployeeService {
         String username = generateUsername(savedEmployee.getWorkEmail());
         String temporaryPassword = passwordGenerator.generateTemporaryPassword();
 
-        // Check if username already exists
+        // Check if username already exists in SAME organization (multi-tenancy)
         int counter = 1;
         String finalUsername = username;
-        while (userRepository.existsByUsername(finalUsername)) {
+        while (userRepository.existsByUsernameAndOrganizationId(finalUsername, currentUser.getOrganizationId())) {
             finalUsername = username + counter;
             counter++;
         }
 
-        // Check if email already exists in users table
-        if (userRepository.existsByEmail(savedEmployee.getWorkEmail())) {
-            log.warn("User with email {} already exists", savedEmployee.getWorkEmail());
+        // Check if email already exists in SAME organization only (multi-tenancy)
+        // Different organizations CAN have users with same email
+        if (userRepository.existsByEmailAndOrganizationId(savedEmployee.getWorkEmail(), currentUser.getOrganizationId())) {
+            log.warn("User with email {} already exists in organization {}",
+                    savedEmployee.getWorkEmail(), currentUser.getOrganizationId());
             throw new DuplicateResourceException(
-                "A user account with email '" + savedEmployee.getWorkEmail() + "' already exists"
+                "A user account with email '" + savedEmployee.getWorkEmail() +
+                "' already exists in your organization"
             );
         }
 
