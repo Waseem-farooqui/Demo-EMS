@@ -73,9 +73,14 @@ public class UserManagementService {
                     .orElseThrow(() -> new ResourceNotFoundException("Department not found with ID: " + request.getDepartmentId()));
 
             // Check if department already has an ADMIN (only when creating ADMIN role)
+            // Only check within SAME organization for multi-tenancy
             if (assignedRole.equals("ADMIN")) {
+                User currentUser = securityUtils.getCurrentUser();
+                Long currentOrgId = currentUser.getOrganizationId();
+
                 boolean hasExistingAdmin = employeeRepository.findByDepartmentId(department.getId())
                         .stream()
+                        .filter(emp -> currentOrgId.equals(emp.getOrganizationId())) // ✅ Filter by organization
                         .anyMatch(emp -> {
                             if (emp.getUserId() != null) {
                                 return userRepository.findById(emp.getUserId())
@@ -86,8 +91,8 @@ public class UserManagementService {
                         });
 
                 if (hasExistingAdmin) {
-                    throw new ValidationException("Department '" + department.getName() + "' already has an ADMIN assigned. " +
-                            "Each department can only have one ADMIN. Please select a different department or remove the existing ADMIN first.");
+                    throw new ValidationException("Department '" + department.getName() + "' already has an ADMIN assigned in your organization. " +
+                            "Each department can only have one ADMIN per organization. Please select a different department or remove the existing ADMIN first.");
                 }
             }
 
