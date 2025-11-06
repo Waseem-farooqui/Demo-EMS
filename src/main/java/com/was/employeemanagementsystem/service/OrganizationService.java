@@ -104,27 +104,58 @@ public class OrganizationService {
         String plainPassword = generateSecurePassword();
         log.info("🔐 Auto-generated secure password for SUPER_ADMIN");
 
-        // Auto-generate username from email if not provided
+        // Auto-generate username from full name or email
         String baseUsername;
         if (request.getSuperAdminUsername() == null || request.getSuperAdminUsername().trim().isEmpty()) {
-            // Extract username from email (part before @)
-            baseUsername = request.getSuperAdminEmail().split("@")[0];
-            log.info("🏷️ Auto-generated base username from email: {}", baseUsername);
+            // Try to extract from full name first, fallback to email
+            if (request.getSuperAdminFullName() != null && !request.getSuperAdminFullName().trim().isEmpty()) {
+                // Convert full name to username format: "John Smith" -> "john.smith"
+                baseUsername = request.getSuperAdminFullName()
+                        .toLowerCase()
+                        .trim()
+                        .replaceAll("\\s+", ".")
+                        .replaceAll("[^a-z0-9.]", "");
+                log.info("🏷️ Auto-generated base username from full name: {}", baseUsername);
+            } else {
+                // Extract username from email (part before @)
+                baseUsername = request.getSuperAdminEmail().split("@")[0];
+                log.info("🏷️ Auto-generated base username from email: {}", baseUsername);
+            }
         } else {
             baseUsername = request.getSuperAdminUsername();
             log.info("🏷️ Using provided base username: {}", baseUsername);
         }
 
-        // Create organization-prefixed username for easier identification
-        // Format: orgXXXXXXXX_username (using first 8 chars of UUID)
-        String orgPrefix = savedOrganization.getOrganizationUuid().substring(0, 8);
-        String prefixedUsername = orgPrefix + "_" + baseUsername;
+        // Create meaningful organization suffix from organization name
+        // Format: "Acme Corporation" -> "acme" or "acmecorp"
+        String orgSuffix = savedOrganization.getName()
+                .toLowerCase()
+                .trim()
+                .replaceAll("\\s+", "")
+                .replaceAll("[^a-z0-9]", "");
 
-        log.info("🏷️ Final prefixed username: {}", prefixedUsername);
+        // Limit org suffix to reasonable length (max 10 chars)
+        if (orgSuffix.length() > 10) {
+            orgSuffix = orgSuffix.substring(0, 10);
+        }
+
+        // Create username: baseUsername_orgSuffix (e.g., john.smith_acme)
+        String prefixedUsername = baseUsername + "_" + orgSuffix;
+
+        // Handle duplicates by adding number suffix
+        String finalUsername = prefixedUsername;
+        int counter = 1;
+        while (userRepository.findByUsername(finalUsername).isPresent()) {
+            finalUsername = prefixedUsername + counter;
+            counter++;
+            log.info("🔄 Username exists, trying: {}", finalUsername);
+        }
+
+        log.info("✅ Final generated username: {}", finalUsername);
 
         // Create SUPER_ADMIN user
         User superAdmin = new User();
-        superAdmin.setUsername(prefixedUsername);  // Use prefixed username
+        superAdmin.setUsername(finalUsername);  // Use meaningful username
         superAdmin.setEmail(request.getSuperAdminEmail());
         superAdmin.setPassword(passwordEncoder.encode(plainPassword));
         superAdmin.setOrganizationId(savedOrganization.getId());
@@ -149,7 +180,7 @@ public class OrganizationService {
                 request.getSuperAdminEmail(),
                 request.getSuperAdminFullName(),
                 savedOrganization.getName(),
-                prefixedUsername,  // Send prefixed username in email
+                finalUsername,  // Send final generated username in email
                 plainPassword,
                 true  // Password is always auto-generated
             );
@@ -183,7 +214,7 @@ public class OrganizationService {
         response.setOrganization(convertToDTO(savedOrganization));
 
         OrganizationCreationResponse.CredentialsDTO credentials =
-            new OrganizationCreationResponse.CredentialsDTO(prefixedUsername, plainPassword);
+            new OrganizationCreationResponse.CredentialsDTO(finalUsername, plainPassword);
         response.setCredentials(credentials);
 
         log.info("📋 Returning organization details with credentials for display");
