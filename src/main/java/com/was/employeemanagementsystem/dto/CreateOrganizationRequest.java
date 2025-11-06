@@ -11,14 +11,14 @@ public class CreateOrganizationRequest {
     @NotBlank(message = "Organization name is required")
     private String organizationName;
 
-    @NotBlank(message = "Super admin username is required")
+    // Username will be auto-generated from email
     private String superAdminUsername;
 
     @NotBlank(message = "Super admin email is required")
     @Email(message = "Invalid email format")
     private String superAdminEmail;
 
-    // Password is now optional - will be auto-generated if not provided
+    // Password will be auto-generated
     private String password;
 
     @NotBlank(message = "Super admin full name is required")

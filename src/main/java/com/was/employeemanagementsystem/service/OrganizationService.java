@@ -98,25 +98,27 @@ public class OrganizationService {
         Department savedDept = departmentRepository.save(defaultDept);
         log.info("✅ Default department created with ID: {}", savedDept.getId());
 
-        // Generate password if not provided
-        String plainPassword = request.getPassword();
-        boolean isGeneratedPassword = false;
+        // Always auto-generate password
+        String plainPassword = generateSecurePassword();
+        log.info("🔐 Auto-generated secure password for SUPER_ADMIN");
 
-        if (plainPassword == null || plainPassword.trim().isEmpty()) {
-            plainPassword = generateSecurePassword();
-            isGeneratedPassword = true;
-            log.info("🔐 Auto-generated temporary password for SUPER_ADMIN");
+        // Auto-generate username from email if not provided
+        String baseUsername;
+        if (request.getSuperAdminUsername() == null || request.getSuperAdminUsername().trim().isEmpty()) {
+            // Extract username from email (part before @)
+            baseUsername = request.getSuperAdminEmail().split("@")[0];
+            log.info("🏷️ Auto-generated base username from email: {}", baseUsername);
         } else {
-            log.info("🔐 Using provided password for SUPER_ADMIN");
+            baseUsername = request.getSuperAdminUsername();
+            log.info("🏷️ Using provided base username: {}", baseUsername);
         }
 
         // Create organization-prefixed username for easier identification
-        // Format: orgXXX_username (using first 8 chars of UUID)
+        // Format: orgXXXXXXXX_username (using first 8 chars of UUID)
         String orgPrefix = savedOrganization.getOrganizationUuid().substring(0, 8);
-        String prefixedUsername = orgPrefix + "_" + request.getSuperAdminUsername();
+        String prefixedUsername = orgPrefix + "_" + baseUsername;
 
-        log.info("🏷️ Original username: {} → Prefixed username: {}",
-                request.getSuperAdminUsername(), prefixedUsername);
+        log.info("🏷️ Final prefixed username: {}", prefixedUsername);
 
         // Create SUPER_ADMIN user
         User superAdmin = new User();
@@ -139,7 +141,7 @@ public class OrganizationService {
         log.info("✅ SUPER_ADMIN user created with ID: {} for organization UUID: {}",
                 savedUser.getId(), savedOrganization.getOrganizationUuid());
 
-        // Send welcome email with credentials (use prefixed username for login)
+        // Send welcome email with auto-generated credentials
         try {
             emailService.sendOrganizationCreatedEmail(
                 request.getSuperAdminEmail(),
@@ -147,9 +149,9 @@ public class OrganizationService {
                 savedOrganization.getName(),
                 prefixedUsername,  // Send prefixed username in email
                 plainPassword,
-                isGeneratedPassword
+                true  // Password is always auto-generated
             );
-            log.info("📧 Welcome email sent to SUPER_ADMIN with login credentials");
+            log.info("📧 Welcome email sent to SUPER_ADMIN with auto-generated login credentials");
         } catch (Exception e) {
             log.error("❌ Failed to send welcome email: {}", e.getMessage());
             // Continue anyway - don't fail organization creation if email fails
