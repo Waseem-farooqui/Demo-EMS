@@ -86,24 +86,42 @@ public class DashboardService {
     /**
      * Count actual employees excluding SUPER_ADMIN users
      * SUPER_ADMINs are management/admin accounts, not employees
+     * ONLY counts employees from current user's organization
      */
     private long countActualEmployees() {
-        List<Employee> allEmployees = employeeRepository.findAll();
+        User currentUser = securityUtils.getCurrentUser();
+        if (currentUser == null || currentUser.getOrganizationId() == null) {
+            log.warn("⚠️ No organization ID found for current user");
+            return 0;
+        }
 
-        long actualEmployees = allEmployees.stream()
+        // Get employees ONLY from current user's organization
+        List<Employee> orgEmployees = employeeRepository.findByOrganizationId(currentUser.getOrganizationId());
+
+        long actualEmployees = orgEmployees.stream()
                 .filter(this::isActualEmployee)
                 .count();
 
-        log.debug("📊 Total employees (excluding SUPER_ADMINs): {}", actualEmployees);
+        log.debug("📊 Total employees in organization {} (excluding SUPER_ADMINs): {}",
+                currentUser.getOrganizationId(), actualEmployees);
         return actualEmployees;
     }
 
     /**
      * Get list of actual employees excluding SUPER_ADMINs
+     * ONLY returns employees from current user's organization
      */
     private List<Employee> getActualEmployees() {
-        List<Employee> allEmployees = employeeRepository.findAll();
-        return allEmployees.stream()
+        User currentUser = securityUtils.getCurrentUser();
+        if (currentUser == null || currentUser.getOrganizationId() == null) {
+            log.warn("⚠️ No organization ID found for current user");
+            return List.of();
+        }
+
+        // Get employees ONLY from current user's organization
+        List<Employee> orgEmployees = employeeRepository.findByOrganizationId(currentUser.getOrganizationId());
+
+        return orgEmployees.stream()
                 .filter(this::isActualEmployee)
                 .collect(Collectors.toList());
     }

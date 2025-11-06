@@ -18,5 +18,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findByDepartment(Department department);
     List<Employee> findByDepartmentId(Long departmentId);
     Long countByDepartmentId(Long departmentId);
+
+    // Organization-aware queries for multi-tenancy
+    List<Employee> findByOrganizationId(Long organizationId);
+    Long countByOrganizationId(Long organizationId);
 }
 
