@@ -84,6 +84,52 @@
         </div>
 
         <div class="form-group">
+          <label for="organizationDescription">Description</label>
+          <textarea
+            id="organizationDescription"
+            formControlName="organizationDescription"
+            placeholder="Brief description of the organization"
+            rows="3"
+          ></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="contactEmail">Contact Email</label>
+            <input
+              type="email"
+              id="contactEmail"
+              formControlName="contactEmail"
+              placeholder="e.g., info@acme.com"
+              [class.error]="organizationForm.get('contactEmail')?.touched && organizationForm.get('contactEmail')?.invalid"
+            />
+            <span class="field-error" *ngIf="getFieldError('contactEmail')">
+              {{ getFieldError('contactEmail') }}
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label for="contactPhone">Contact Phone</label>
+            <input
+              type="tel"
+              id="contactPhone"
+              formControlName="contactPhone"
+              placeholder="e.g., +1 (555) 123-4567"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="address">Address</label>
+          <textarea
+            id="address"
+            formControlName="address"
+            placeholder="Organization address"
+            rows="2"
+          ></textarea>
+        </div>
+
+        <div class="form-group">
           <label for="logo">Organization Logo (Optional)</label>
           <div class="logo-upload-container">
             <div
