@@ -16,6 +16,7 @@ import {ProfileCreateComponent} from './components/profile-create/profile-create
 import {UserCreateComponent} from './components/user-create/user-create.component';
 import {PasswordChangeComponent} from './components/password-change/password-change.component';
 import {ForgotPasswordComponent} from './components/forgot-password/forgot-password.component';
+import {ForgotUsernameComponent} from './components/forgot-username/forgot-username.component';
 import {ResetPasswordComponent} from './components/reset-password/reset-password.component';
 import {RotaListComponent} from './components/rota-list/rota-list.component';
 import {RotaUploadComponent} from './components/rota-upload/rota-upload.component';
@@ -25,6 +26,7 @@ export const routes: Routes = [
   { path: '', redirectTo: '/dashboard', pathMatch: 'full' },
   { path: 'login', component: LoginComponent },
   { path: 'forgot-password', component: ForgotPasswordComponent },
+  { path: 'forgot-username', component: ForgotUsernameComponent },
   { path: 'reset-password', component: ResetPasswordComponent },
   { path: 'change-password', component: PasswordChangeComponent, canActivate: [AuthGuard] },
   // ROOT Dashboard - Organization management only

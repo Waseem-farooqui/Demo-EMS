@@ -211,5 +211,34 @@ public class EmailService {
             log.warn("Note: Organization was created but email failed. Admin should manually share credentials.");
         }
     }
+
+    /**
+     * Send username reminder email
+     */
+    public void sendUsernameReminderEmail(String toEmail, String username) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(toEmail);
+            message.setSubject("Username Reminder - Employee Management System");
+
+            String emailBody = "Hello,\n\n" +
+                    "You requested a reminder of your username for the Employee Management System.\n\n" +
+                    "Your username is: " + username + "\n\n" +
+                    "You can use this username to login at: " + appUrl + "/login\n\n" +
+                    "If you also forgot your password, you can reset it using the 'Forgot Password' link on the login page.\n\n" +
+                    "If you did not request this reminder, please contact your system administrator.\n\n" +
+                    "Best regards,\n" +
+                    "Employee Management System Team";
+
+            message.setText(emailBody);
+
+            mailSender.send(message);
+            log.info("✓ Username reminder email sent successfully to: {}", toEmail);
+        } catch (Exception e) {
+            log.error("✗ Failed to send username reminder email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send username reminder email. Please try again.");
+        }
+    }
 }
 

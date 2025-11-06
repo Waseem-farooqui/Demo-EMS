@@ -1,0 +1,73 @@
+<div class="forgot-username-container">
+  <div class="forgot-username-background">
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+    <div class="shape shape-3"></div>
+  </div>
+
+  <div class="forgot-username-content">
+    <div class="forgot-username-card">
+      <!-- Success Message -->
+      <div *ngIf="success" class="success-container">
+        <div class="success-icon">✅</div>
+        <h2>Username Sent!</h2>
+        <p>Your username has been sent to <strong>{{ email }}</strong></p>
+        <p class="hint">Please check your email inbox (and spam folder).</p>
+        <button type="button" class="btn-login" (click)="goToLogin()">
+          ← Back to Login
+        </button>
+      </div>
+
+      <!-- Form -->
+      <div *ngIf="!success">
+        <div class="header">
+          <div class="logo-container">
+            <span class="logo-icon">🔑</span>
+            <h1 class="brand-name">Forgot Username</h1>
+          </div>
+          <p class="subtitle">Enter your email address and we'll send you your username</p>
+        </div>
+
+        <div *ngIf="error" class="alert alert-error">
+          <span class="alert-icon">⚠️</span>
+          <span>{{ error }}</span>
+        </div>
+
+        <form [formGroup]="forgotUsernameForm" (ngSubmit)="onSubmit()">
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <div class="input-wrapper">
+              <span class="input-icon">📧</span>
+              <input
+                type="email"
+                id="email"
+                formControlName="email"
+                placeholder="Enter your email"
+                class="form-input"
+                [class.ng-invalid]="forgotUsernameForm.get('email')?.invalid && forgotUsernameForm.get('email')?.touched"
+              />
+            </div>
+            <div *ngIf="forgotUsernameForm.get('email')?.invalid && forgotUsernameForm.get('email')?.touched"
+                 class="field-error">
+              <span *ngIf="forgotUsernameForm.get('email')?.errors?.['required']">Email is required</span>
+              <span *ngIf="forgotUsernameForm.get('email')?.errors?.['email']">Invalid email format</span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-submit" [disabled]="loading || forgotUsernameForm.invalid">
+            <span *ngIf="!loading">Send Username</span>
+            <span *ngIf="loading" class="loading">
+              <span class="spinner"></span> Sending...
+            </span>
+          </button>
+
+          <div class="footer-links">
+            <a routerLink="/login" class="link">← Back to Login</a>
+            <a routerLink="/forgot-password" class="link">Forgot Password?</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+

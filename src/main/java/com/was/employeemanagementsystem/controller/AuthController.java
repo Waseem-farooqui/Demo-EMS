@@ -393,5 +393,37 @@ public class AuthController {
                     .body(new MessageResponse("Error resetting password. Please try again."));
         }
     }
+
+    /**
+     * Forgot Username - Send username to user's email
+     */
+    @PostMapping("/forgot-username")
+    public ResponseEntity<?> forgotUsername(@Valid @RequestBody ForgotUsernameRequest request) {
+        try {
+            log.info("🔑 Forgot username request for email: {}", request.getEmail());
+
+            // Find user by email
+            User user = userRepository.findByEmail(request.getEmail())
+                    .orElseThrow(() -> new RuntimeException("No account found with this email address"));
+
+            // Send email with username
+            emailService.sendUsernameReminderEmail(
+                    user.getEmail(),
+                    user.getUsername()
+            );
+
+            log.info("✅ Username sent to email: {}", request.getEmail());
+            return ResponseEntity.ok(new MessageResponse("Your username has been sent to your email address."));
+
+        } catch (RuntimeException e) {
+            log.error("❌ Forgot username error: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("❌ Error sending username", e);
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("Error sending username. Please try again."));
+        }
+    }
 }
 
