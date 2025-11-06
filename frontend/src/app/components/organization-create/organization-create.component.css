@@ -48,32 +48,138 @@
   font-size: 1rem;
 }
 
-/* Success Message */
-.success-message {
+/* Success Container with Credentials */
+.success-container {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.success-header {
   text-align: center;
-  padding: 40px 20px;
-  animation: bounceIn 0.5s ease-out;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #10b981;
 }
 
-@keyframes bounceIn {
-  0% { transform: scale(0.8); opacity: 0; }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.success-icon {
+.success-header .success-icon {
   font-size: 4rem;
+  margin-bottom: 15px;
+}
+
+.success-header h2 {
+  color: #10b981;
+  margin: 0 0 10px 0;
+  font-size: 1.8rem;
+}
+
+.success-header p {
+  color: #666;
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Credentials Box */
+.credentials-box {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 25px;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.credentials-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.lock-icon {
+  font-size: 2rem;
+}
+
+.credentials-header h3 {
+  color: white;
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.credential-item {
   margin-bottom: 20px;
 }
 
-.success-message h3 {
-  color: #10b981;
-  margin: 0 0 10px 0;
+.credential-item label {
+  display: block;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.success-message p {
-  color: #666;
+.credential-value {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px 15px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  word-break: break-all;
+}
+
+.credential-value.selectable {
+  font-family: 'Courier New', monospace;
+  user-select: all;
+  cursor: text;
+  background: rgba(255, 255, 255, 1);
+  border: 2px solid rgba(102, 126, 234, 0.3);
+}
+
+.credential-value.selectable:hover {
+  background: #f0f9ff;
+  border-color: #667eea;
+}
+
+/* Warning Box */
+.warning-box {
+  display: flex;
+  gap: 15px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #f59e0b;
+  margin-top: 25px;
+}
+
+.warning-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.warning-box strong {
+  display: block;
+  color: #f59e0b;
+  margin-bottom: 5px;
+  font-size: 1rem;
+}
+
+.warning-box p {
   margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Success Actions */
+.success-actions {
+  text-align: center;
+}
+
+.success-actions .btn {
+  padding: 12px 40px;
+  font-size: 1.1rem;
 }
 
 /* Error Message */

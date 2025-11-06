@@ -1,6 +1,7 @@
 package com.was.employeemanagementsystem.service;
 
 import com.was.employeemanagementsystem.dto.CreateOrganizationRequest;
+import com.was.employeemanagementsystem.dto.OrganizationCreationResponse;
 import com.was.employeemanagementsystem.dto.OrganizationDTO;
 import com.was.employeemanagementsystem.entity.Department;
 import com.was.employeemanagementsystem.entity.Employee;
@@ -57,8 +58,9 @@ public class OrganizationService {
     /**
      * Create a new organization with a SUPER_ADMIN user
      * This can only be called by ROOT user
+     * Returns organization details AND generated credentials for display
      */
-    public OrganizationDTO createOrganization(CreateOrganizationRequest request) {
+    public OrganizationCreationResponse createOrganization(CreateOrganizationRequest request) {
         log.info("🏢 Creating organization: {}", request.getOrganizationName());
 
         // Check if ROOT user exists and is making this request
@@ -175,7 +177,17 @@ public class OrganizationService {
         log.info("✅ Employee profile created for SUPER_ADMIN");
 
         log.info("🎉 Organization setup complete!");
-        return convertToDTO(savedOrganization);
+
+        // Return organization details WITH generated credentials for display
+        OrganizationCreationResponse response = new OrganizationCreationResponse();
+        response.setOrganization(convertToDTO(savedOrganization));
+
+        OrganizationCreationResponse.CredentialsDTO credentials =
+            new OrganizationCreationResponse.CredentialsDTO(prefixedUsername, plainPassword);
+        response.setCredentials(credentials);
+
+        log.info("📋 Returning organization details with credentials for display");
+        return response;
     }
 
     /**

@@ -6,11 +6,54 @@
       <p>Set up a new organization with a Super Admin account</p>
     </div>
 
-    <!-- Success Message -->
-    <div *ngIf="success" class="success-message">
-      <div class="success-icon">✅</div>
-      <h3>Organization Created Successfully!</h3>
-      <p>Redirecting to dashboard...</p>
+    <!-- Success Message with Credentials -->
+    <div *ngIf="success && generatedCredentials" class="success-container">
+      <div class="success-header">
+        <div class="success-icon">✅</div>
+        <h2>Organization Created Successfully!</h2>
+        <p>Please save these credentials and provide them to the Super Admin</p>
+      </div>
+
+      <div class="credentials-box">
+        <div class="credentials-header">
+          <span class="lock-icon">🔐</span>
+          <h3>Generated Login Credentials</h3>
+        </div>
+
+        <div class="credential-item">
+          <label>Organization:</label>
+          <div class="credential-value">{{ generatedCredentials.organizationName }}</div>
+        </div>
+
+        <div class="credential-item">
+          <label>Super Admin Email:</label>
+          <div class="credential-value">{{ generatedCredentials.email }}</div>
+        </div>
+
+        <div class="credential-item">
+          <label>Username:</label>
+          <div class="credential-value selectable">{{ generatedCredentials.username }}</div>
+        </div>
+
+        <div class="credential-item">
+          <label>Temporary Password:</label>
+          <div class="credential-value selectable">{{ generatedCredentials.password }}</div>
+        </div>
+
+        <div class="warning-box">
+          <span class="warning-icon">⚠️</span>
+          <div>
+            <strong>Important:</strong>
+            <p>This password is temporary and must be changed on first login. Please copy these credentials now - they will not be shown again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="success-actions">
+        <button type="button" class="btn btn-primary" (click)="goToDashboard()">
+          ✓ Done - Go to Dashboard
+        </button>
+      </div>
     </div>
 
     <!-- Error Message -->

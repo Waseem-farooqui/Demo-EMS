@@ -1,6 +1,7 @@
 package com.was.employeemanagementsystem.controller;
 
 import com.was.employeemanagementsystem.dto.CreateOrganizationRequest;
+import com.was.employeemanagementsystem.dto.OrganizationCreationResponse;
 import com.was.employeemanagementsystem.dto.OrganizationDTO;
 import com.was.employeemanagementsystem.service.OrganizationService;
 import lombok.extern.slf4j.Slf4j;
@@ -38,13 +39,15 @@ public class OrganizationController {
     public ResponseEntity<?> createOrganization(@Valid @RequestBody CreateOrganizationRequest request) {
         try {
             log.info("🏢 Organization creation request received: {}", request.getOrganizationName());
-            OrganizationDTO organization = organizationService.createOrganization(request);
+            OrganizationCreationResponse creationResponse = organizationService.createOrganization(request);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Organization created successfully");
-            response.put("organization", organization);
+            response.put("organization", creationResponse.getOrganization());
+            response.put("credentials", creationResponse.getCredentials());
 
+            log.info("✅ Returning response with credentials for display");
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (RuntimeException e) {
             log.error("❌ Failed to create organization: {}", e.getMessage());

@@ -19,6 +19,14 @@ export class OrganizationCreateComponent {
   selectedLogo: File | null = null;
   logoPreview: string | null = null;
 
+  // Store generated credentials to display on screen
+  generatedCredentials: {
+    organizationName: string;
+    username: string;
+    password: string;
+    email: string;
+  } | null = null;
+
   private apiUrl = 'http://localhost:8080/api/organizations';
 
   constructor(
@@ -52,15 +60,23 @@ export class OrganizationCreateComponent {
       next: (response) => {
         console.log('✅ Organization created successfully:', response);
 
+        // Store generated credentials to display on screen
+        if (response.credentials) {
+          this.generatedCredentials = {
+            organizationName: response.organization?.name || formData.organizationName,
+            username: response.credentials.username,
+            password: response.credentials.password,
+            email: formData.superAdminEmail
+          };
+        }
+
         // If logo is selected, upload it
         if (this.selectedLogo && response.organization?.id) {
           this.uploadLogo(response.organization.id);
         } else {
           this.success = true;
           this.loading = false;
-          setTimeout(() => {
-            this.router.navigate(['/root/dashboard']);
-          }, 2000);
+          // Don't auto-redirect - let admin see and copy credentials
         }
       },
       error: (err) => {
@@ -107,9 +123,6 @@ export class OrganizationCreateComponent {
     if (!this.selectedLogo) {
       this.success = true;
       this.loading = false;
-      setTimeout(() => {
-        this.router.navigate(['/root/dashboard']);
-      }, 2000);
       return;
     }
 
@@ -121,9 +134,6 @@ export class OrganizationCreateComponent {
         console.log('✅ Logo uploaded successfully');
         this.success = true;
         this.loading = false;
-        setTimeout(() => {
-          this.router.navigate(['/root/dashboard']);
-        }, 2000);
       },
       error: (err) => {
         console.error('❌ Error uploading logo:', err);
@@ -131,11 +141,12 @@ export class OrganizationCreateComponent {
         this.success = true;
         this.loading = false;
         this.error = 'Organization created but logo upload failed';
-        setTimeout(() => {
-          this.router.navigate(['/root/dashboard']);
-        }, 2000);
       }
     });
+  }
+
+  goToDashboard(): void {
+    this.router.navigate(['/root/dashboard']);
   }
 
   private markFormGroupTouched(formGroup: FormGroup) {
