@@ -102,17 +102,21 @@ public class EmployeeService {
         Employee savedEmployee = employeeRepository.save(employee);
         log.info("✓ Employee created - ID: {}, Name: {}", savedEmployee.getId(), savedEmployee.getFullName());
 
-        // Automatically create user account
-        String username = generateUsername(savedEmployee.getWorkEmail());
+        // Automatically create user account with organization-specific username
+        User currentUser = securityUtils.getCurrentUser();
+        String username = generateUsername(savedEmployee.getWorkEmail(), savedEmployee.getFullName(), currentUser);
         String temporaryPassword = passwordGenerator.generateTemporaryPassword();
 
-        // Check if username already exists in SAME organization (multi-tenancy)
-        int counter = 1;
+        // Username is already organization-specific, but check for duplicates within same organization
         String finalUsername = username;
+        int counter = 1;
         while (userRepository.existsByUsernameAndOrganizationId(finalUsername, currentUser.getOrganizationId())) {
             finalUsername = username + counter;
             counter++;
+            log.info("🔄 Username exists, trying: {}", finalUsername);
         }
+
+        log.info("✅ Generated username: {} for employee: {}", finalUsername, savedEmployee.getFullName());
 
         // Check if email already exists in SAME organization only (multi-tenancy)
         // Different organizations CAN have users with same email
@@ -214,9 +218,47 @@ public class EmployeeService {
         return convertToDTO(savedEmployee);
     }
 
-    private String generateUsername(String email) {
-        // Extract username from email (before @)
-        return email.split("@")[0].toLowerCase().replaceAll("[^a-z0-9]", "");
+    private String generateUsername(String email, String fullName, User currentUser) {
+        // Try to generate from full name first for better readability
+        String baseUsername;
+
+        if (fullName != null && !fullName.trim().isEmpty()) {
+            // Convert full name to username format: "John Smith" -> "john.smith"
+            baseUsername = fullName
+                    .toLowerCase()
+                    .trim()
+                    .replaceAll("\\s+", ".")
+                    .replaceAll("[^a-z0-9.]", "");
+            log.debug("🏷️ Generated base username from full name: {}", baseUsername);
+        } else {
+            // Fallback to email if no full name
+            baseUsername = email.split("@")[0].toLowerCase().replaceAll("[^a-z0-9]", "");
+            log.debug("🏷️ Generated base username from email: {}", baseUsername);
+        }
+
+        // Get organization suffix from organization
+        final String[] orgSuffixHolder = {""};
+        if (currentUser.getOrganizationId() != null) {
+            organizationRepository.findById(currentUser.getOrganizationId()).ifPresent(org -> {
+                // Create meaningful organization suffix from organization name
+                String suffix = org.getName()
+                        .toLowerCase()
+                        .trim()
+                        .replaceAll("\\s+", "")
+                        .replaceAll("[^a-z0-9]", "");
+
+                // Limit to 10 chars
+                orgSuffixHolder[0] = suffix.length() > 10 ? suffix.substring(0, 10) : suffix;
+            });
+        }
+
+        String orgSuffix = orgSuffixHolder[0];
+
+        // Create username: baseUsername_orgSuffix (e.g., john.smith_acme)
+        String username = orgSuffix.isEmpty() ? baseUsername : baseUsername + "_" + orgSuffix;
+
+        log.info("🏷️ Final base username: {}", username);
+        return username;
     }
 
     public List<EmployeeDTO> getAllEmployees() {
