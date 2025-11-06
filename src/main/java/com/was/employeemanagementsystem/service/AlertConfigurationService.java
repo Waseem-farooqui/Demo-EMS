@@ -27,22 +27,22 @@ public class AlertConfigurationService {
     @PostConstruct
     public void initDefaultConfigurations() {
         // Create default configurations if they don't exist
-        if (alertConfigurationRepository.findByDocumentType("PASSPORT").isEmpty()) {
-            AlertConfiguration passportConfig = new AlertConfiguration(
-                "PASSPORT",
-                90, // 90 days before expiry
-                "waseem.farooqui19@gmail.com"
-            );
-            alertConfigurationRepository.save(passportConfig);
-        }
+        // Example: Passport with multiple priority levels
+        createDefaultIfNotExists("PASSPORT", 90, "ATTENTION", "EMAIL");
+        createDefaultIfNotExists("PASSPORT", 30, "WARNING", "BOTH");
+        createDefaultIfNotExists("PASSPORT", 7, "CRITICAL", "BOTH");
 
-        if (alertConfigurationRepository.findByDocumentType("VISA").isEmpty()) {
-            AlertConfiguration visaConfig = new AlertConfiguration(
-                "VISA",
-                60, // 60 days before expiry
-                "waseem.farooqui19@gmail.com"
+        createDefaultIfNotExists("VISA", 60, "ATTENTION", "EMAIL");
+        createDefaultIfNotExists("VISA", 30, "WARNING", "BOTH");
+        createDefaultIfNotExists("VISA", 7, "CRITICAL", "BOTH");
+    }
+
+    private void createDefaultIfNotExists(String docType, int days, String priority, String notifType) {
+        if (!alertConfigurationRepository.existsByDocumentTypeAndAlertPriority(docType, priority)) {
+            AlertConfiguration config = new AlertConfiguration(
+                docType, days, "waseem.farooqui19@gmail.com", priority, notifType
             );
-            alertConfigurationRepository.save(visaConfig);
+            alertConfigurationRepository.save(config);
         }
     }
 
@@ -56,14 +56,14 @@ public class AlertConfigurationService {
                 .collect(Collectors.toList());
     }
 
-    public AlertConfigurationDTO getConfigurationByDocumentType(String documentType) {
+    public List<AlertConfigurationDTO> getConfigurationsByDocumentType(String documentType) {
         if (!securityUtils.isAdminOrSuperAdmin()) {
             throw new RuntimeException("Access denied. Only admins can view alert configurations.");
         }
 
-        AlertConfiguration config = alertConfigurationRepository.findByDocumentType(documentType)
-                .orElseThrow(() -> new RuntimeException("Configuration not found for document type: " + documentType));
-        return convertToDTO(config);
+        return alertConfigurationRepository.findAllByDocumentType(documentType).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
     }
 
     public AlertConfigurationDTO updateConfiguration(Long id, AlertConfigurationDTO dto) {
@@ -77,6 +77,8 @@ public class AlertConfigurationService {
         config.setAlertDaysBefore(dto.getAlertDaysBefore());
         config.setAlertEmail(dto.getAlertEmail());
         config.setEnabled(dto.isEnabled());
+        config.setAlertPriority(dto.getAlertPriority());
+        config.setNotificationType(dto.getNotificationType());
 
         AlertConfiguration updated = alertConfigurationRepository.save(config);
         return convertToDTO(updated);
@@ -87,8 +89,11 @@ public class AlertConfigurationService {
             throw new RuntimeException("Access denied. Only admins can create alert configurations.");
         }
 
-        if (alertConfigurationRepository.findByDocumentType(dto.getDocumentType()).isPresent()) {
-            throw new RuntimeException("Configuration already exists for document type: " + dto.getDocumentType());
+        // Check if same document type + priority combination exists
+        if (alertConfigurationRepository.existsByDocumentTypeAndAlertPriority(
+                dto.getDocumentType(), dto.getAlertPriority())) {
+            throw new RuntimeException("Configuration already exists for " + dto.getDocumentType()
+                + " with priority: " + dto.getAlertPriority());
         }
 
         AlertConfiguration config = new AlertConfiguration();
@@ -96,6 +101,8 @@ public class AlertConfigurationService {
         config.setAlertDaysBefore(dto.getAlertDaysBefore());
         config.setAlertEmail(dto.getAlertEmail());
         config.setEnabled(dto.isEnabled());
+        config.setAlertPriority(dto.getAlertPriority());
+        config.setNotificationType(dto.getNotificationType());
 
         AlertConfiguration saved = alertConfigurationRepository.save(config);
         return convertToDTO(saved);
@@ -108,6 +115,9 @@ public class AlertConfigurationService {
         dto.setAlertDaysBefore(config.getAlertDaysBefore());
         dto.setAlertEmail(config.getAlertEmail());
         dto.setEnabled(config.isEnabled());
+        dto.setAlertPriority(config.getAlertPriority());
+        dto.setNotificationType(config.getNotificationType());
+        dto.setOrganizationId(config.getOrganizationId());
         return dto;
     }
 }

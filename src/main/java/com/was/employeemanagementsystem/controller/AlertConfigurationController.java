@@ -34,10 +34,10 @@ public class AlertConfigurationController {
     }
 
     @GetMapping("/type/{documentType}")
-    public ResponseEntity<?> getConfigurationByType(@PathVariable String documentType) {
+    public ResponseEntity<?> getConfigurationsByType(@PathVariable String documentType) {
         try {
-            AlertConfigurationDTO configuration = alertConfigurationService.getConfigurationByDocumentType(documentType);
-            return ResponseEntity.ok(configuration);
+            List<AlertConfigurationDTO> configurations = alertConfigurationService.getConfigurationsByDocumentType(documentType);
+            return ResponseEntity.ok(configurations);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         }

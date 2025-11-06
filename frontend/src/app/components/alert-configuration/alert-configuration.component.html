@@ -39,6 +39,24 @@
         </div>
 
         <div class="form-group">
+          <label for="alertPriority">Alert Priority *</label>
+          <select
+            id="alertPriority"
+            [(ngModel)]="newConfig.alertPriority"
+            name="alertPriority"
+            class="form-control"
+            required>
+            <option value="">Select Priority</option>
+            <option *ngFor="let priority of alertPriorities" [value]="priority.value">
+              {{ priority.label }} ({{ priority.days }} days)
+            </option>
+          </select>
+          <small class="form-text">Priority level determines alert urgency</small>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
           <label for="alertDaysBefore">Alert Days Before Expiry *</label>
           <input
             type="number"
@@ -46,10 +64,26 @@
             [(ngModel)]="newConfig.alertDaysBefore"
             name="alertDaysBefore"
             class="form-control"
-            min="1"
+            min="0"
             max="365"
             required>
-          <small class="form-text">Number of days before expiry to send alert (1-365)</small>
+          <small class="form-text">Number of days before expiry (0-365)</small>
+        </div>
+
+        <div class="form-group">
+          <label for="notificationType">Notification Type *</label>
+          <select
+            id="notificationType"
+            [(ngModel)]="newConfig.notificationType"
+            name="notificationType"
+            class="form-control"
+            required>
+            <option value="">Select Type</option>
+            <option *ngFor="let type of notificationTypes" [value]="type.value">
+              {{ type.label }}
+            </option>
+          </select>
+          <small class="form-text">How should alerts be delivered</small>
         </div>
       </div>
 
@@ -111,12 +145,22 @@
 
         <div class="card-body">
           <div class="info-row">
+            <span class="label">Priority:</span>
+            <span class="value priority-badge" [ngClass]="'priority-' + config.alertPriority.toLowerCase()">
+              {{ getPriorityLabel(config.alertPriority) }}
+            </span>
+          </div>
+          <div class="info-row">
             <span class="label">Alert Before:</span>
             <span class="value">{{ config.alertDaysBefore }} days</span>
           </div>
           <div class="info-row">
+            <span class="label">Notification:</span>
+            <span class="value">{{ getNotificationTypeLabel(config.notificationType) }}</span>
+          </div>
+          <div class="info-row">
             <span class="label">Alert Email:</span>
-            <span class="value">{{ config.alertEmail }}</span>
+            <span class="value email-text">{{ config.alertEmail }}</span>
           </div>
           <div class="info-row">
             <span class="label">Status:</span>
@@ -160,6 +204,20 @@
           </div>
 
           <div class="form-group">
+            <label for="editPriority">Alert Priority *</label>
+            <select
+              id="editPriority"
+              [(ngModel)]="editingConfig!.alertPriority"
+              name="editPriority"
+              class="form-control"
+              required>
+              <option *ngFor="let priority of alertPriorities" [value]="priority.value">
+                {{ priority.label }} ({{ priority.days }} days)
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
             <label for="editAlertDays">Alert Days Before Expiry *</label>
             <input
               type="number"
@@ -167,9 +225,23 @@
               [(ngModel)]="editingConfig!.alertDaysBefore"
               name="editAlertDays"
               class="form-control"
-              min="1"
+              min="0"
               max="365"
               required>
+          </div>
+
+          <div class="form-group">
+            <label for="editNotificationType">Notification Type *</label>
+            <select
+              id="editNotificationType"
+              [(ngModel)]="editingConfig!.notificationType"
+              name="editNotificationType"
+              class="form-control"
+              required>
+              <option *ngFor="let type of notificationTypes" [value]="type.value">
+                {{ type.label }}
+              </option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -221,30 +293,47 @@
   <div class="info-panel">
     <h4>ℹ️ How It Works</h4>
     <ul>
+      <li><strong>Priority Levels:</strong> Set different priorities for same document type</li>
+      <li><strong>Multiple Alerts:</strong> Create multiple alerts per document (e.g., 90, 30, 7 days)</li>
+      <li><strong>Notification Types:</strong> Choose Email, In-App, or Both</li>
       <li><strong>Alert Days Before:</strong> Number of days before expiry to send notification</li>
-      <li><strong>Email Alerts:</strong> Sent to the configured email address</li>
       <li><strong>Automatic Check:</strong> System checks daily at midnight</li>
       <li><strong>Test Alerts:</strong> Use "Test Alerts Now" to check immediately</li>
-      <li><strong>Multiple Alerts:</strong> Configure different periods for each document type</li>
     </ul>
 
     <div class="alert-examples">
-      <h5>💡 Recommended Settings</h5>
+      <h5>💡 Recommended Configuration</h5>
       <div class="example-item">
-        <span class="example-type">Passport/Visa:</span>
-        <span class="example-value">90 days (3 months)</span>
+        <span class="example-type">🔴 Expired (0 days):</span>
+        <span class="example-value">Immediate action</span>
       </div>
       <div class="example-item">
-        <span class="example-type">Work Permit:</span>
-        <span class="example-value">60 days (2 months)</span>
+        <span class="example-type">🟠 Critical (7 days):</span>
+        <span class="example-value">Urgent renewal</span>
       </div>
       <div class="example-item">
-        <span class="example-type">Contracts:</span>
-        <span class="example-value">30 days (1 month)</span>
+        <span class="example-type">🟡 Warning (30 days):</span>
+        <span class="example-value">Start processing</span>
       </div>
       <div class="example-item">
-        <span class="example-type">Certificates:</span>
-        <span class="example-value">30 days (1 month)</span>
+        <span class="example-type">🔵 Attention (90 days):</span>
+        <span class="example-value">Early planning</span>
+      </div>
+    </div>
+
+    <div class="alert-examples" style="margin-top: 20px;">
+      <h5>📧 Notification Types</h5>
+      <div class="example-item">
+        <span class="example-type">📧 Email Only:</span>
+        <span class="example-value">Send to email address</span>
+      </div>
+      <div class="example-item">
+        <span class="example-type">🔔 In-App Only:</span>
+        <span class="example-value">Dashboard notification</span>
+      </div>
+      <div class="example-item">
+        <span class="example-type">📧🔔 Both:</span>
+        <span class="example-value">Email + In-App</span>
       </div>
     </div>
   </div>

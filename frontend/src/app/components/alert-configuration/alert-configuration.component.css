@@ -294,6 +294,11 @@
   color: white;
 }
 
+.status-expired {
+  background: #6c757d;
+  color: white;
+}
+
 .status-warning {
   background: #ffc107;
   color: #333;
@@ -304,9 +309,49 @@
   color: white;
 }
 
+.status-attention {
+  background: #007bff;
+  color: white;
+}
+
 .status-disabled {
   background: #6c757d;
   color: white;
+}
+
+/* Priority Badges */
+.priority-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.priority-expired {
+  background: #6c757d;
+  color: white;
+}
+
+.priority-critical {
+  background: #fd7e14;
+  color: white;
+}
+
+.priority-warning {
+  background: #ffc107;
+  color: #333;
+}
+
+.priority-attention {
+  background: #17a2b8;
+  color: white;
+}
+
+.email-text {
+  font-size: 13px;
+  color: #667eea;
+  font-family: monospace;
 }
 
 .card-body {
