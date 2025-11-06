@@ -68,10 +68,15 @@ public class EmployeeService {
 
         log.debug("✓ Creating employee for organization UUID: {}", currentUser.getOrganizationUuid());
 
-        if (employeeRepository.existsByWorkEmail(employeeDTO.getWorkEmail())) {
-            log.warn("Attempt to create employee with duplicate email: {}", employeeDTO.getWorkEmail());
+        // Check for duplicate work email within SAME organization only (multi-tenancy)
+        if (employeeRepository.existsByWorkEmailAndOrganizationId(
+                employeeDTO.getWorkEmail(),
+                currentUser.getOrganizationId())) {
+            log.warn("Attempt to create employee with duplicate email: {} in organization: {}",
+                    employeeDTO.getWorkEmail(), currentUser.getOrganizationId());
             throw new DuplicateResourceException(
-                "An employee with email '" + employeeDTO.getWorkEmail() + "' already exists in the system"
+                "An employee with email '" + employeeDTO.getWorkEmail() +
+                "' already exists in your organization"
             );
         }
 
@@ -183,11 +188,15 @@ public class EmployeeService {
             throw new ValidationException("Work email is required");
         }
 
-        // Check if email already exists
-        if (employeeRepository.existsByWorkEmail(employeeDTO.getWorkEmail())) {
-            log.warn("Attempt to create profile with duplicate email: {}", employeeDTO.getWorkEmail());
+        // Check if email already exists in SAME organization only (multi-tenancy)
+        if (employeeRepository.existsByWorkEmailAndOrganizationId(
+                employeeDTO.getWorkEmail(),
+                currentUser.getOrganizationId())) {
+            log.warn("Attempt to create profile with duplicate email: {} in organization: {}",
+                    employeeDTO.getWorkEmail(), currentUser.getOrganizationId());
             throw new DuplicateResourceException(
-                "An employee with email '" + employeeDTO.getWorkEmail() + "' already exists. " +
+                "An employee with email '" + employeeDTO.getWorkEmail() +
+                "' already exists in your organization. " +
                 "If this is your email, please contact your administrator."
             );
         }
