@@ -7,7 +7,7 @@
     <div class="nav-container">
       <!-- Brand -->
       <div class="nav-brand">
-        <a routerLink="/" class="brand-link">
+        <a [routerLink]="isRoot ? '/root/dashboard' : '/dashboard'" class="brand-link">
           <!-- Organization Logo for non-ROOT users -->
           <img *ngIf="!isRoot && organizationLogoUrl"
                [src]="organizationLogoUrl"

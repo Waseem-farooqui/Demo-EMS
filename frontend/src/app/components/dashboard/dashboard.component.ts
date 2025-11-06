@@ -60,6 +60,14 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.currentUser = this.authService.getUser();
     const roles = this.currentUser?.roles || [];
+
+    // Check if ROOT user - redirect to ROOT dashboard
+    const isRoot = roles.includes('ROOT');
+    if (isRoot) {
+      this.router.navigate(['/root/dashboard']);
+      return;
+    }
+
     this.isSuperAdmin = roles.includes('SUPER_ADMIN');
     const isAdmin = roles.includes('ADMIN');
     this.isAdmin = this.isSuperAdmin || isAdmin;
