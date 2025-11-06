@@ -133,10 +133,11 @@ public class RotaService {
         rota.setUploadedDate(LocalDateTime.now());
         rota.setUploadedBy(user.getId());
         rota.setUploadedByName(user.getUsername());
+        rota.setOrganizationId(user.getOrganizationId()); // ✅ Set organization for multi-tenancy
 
         // Save ROTA
         Rota savedRota = rotaRepository.save(rota);
-        log.info("✅ ROTA saved with ID: {}", savedRota.getId());
+        log.info("✅ ROTA saved with ID: {} for organization: {}", savedRota.getId(), user.getOrganizationId());
 
         // Save schedules
         for (RotaSchedule schedule : schedules) {
@@ -186,10 +187,11 @@ public class RotaService {
         rota.setUploadedDate(LocalDateTime.now());
         rota.setUploadedBy(user.getId());
         rota.setUploadedByName(user.getUsername());
+        rota.setOrganizationId(user.getOrganizationId()); // ✅ Set organization for multi-tenancy
 
         // Save ROTA
         Rota savedRota = rotaRepository.save(rota);
-        log.info("✅ Manual ROTA saved with ID: {}", savedRota.getId());
+        log.info("✅ Manual ROTA saved with ID: {} for organization: {}", savedRota.getId(), user.getOrganizationId());
 
         // Parse schedules
         @SuppressWarnings("unchecked")
@@ -813,8 +815,16 @@ public class RotaService {
      * Get all ROTAs
      */
     public List<RotaDTO> getAllRotas() {
+        // Get current user's organization for multi-tenancy
+        User currentUser = securityUtils.getCurrentUser();
+        Long organizationId = currentUser.getOrganizationId();
+
+        log.info("📋 Fetching rotas for organization ID: {}", organizationId);
+
+        // Fetch rotas ONLY from current user's organization
         List<Rota> rotas = rotaRepository.findAllByOrderByUploadedDateDesc();
         return rotas.stream()
+                .filter(r -> organizationId.equals(r.getOrganizationId())) // ✅ Filter by organization
                 .map(r -> {
                     List<RotaSchedule> schedules = rotaScheduleRepository.findByRotaId(r.getId());
                     // Count unique employees, not total schedules

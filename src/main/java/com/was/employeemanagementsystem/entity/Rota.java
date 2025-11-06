@@ -52,5 +52,8 @@ public class Rota {
 
     @Column(nullable = false)
     private String uploadedByName;
+
+    @Column(name = "organization_id")
+    private Long organizationId; // For multi-tenancy support
 }
 
