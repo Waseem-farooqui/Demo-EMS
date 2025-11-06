@@ -25,7 +25,9 @@ export class AlertConfigurationComponent implements OnInit {
     documentType: '',
     alertDaysBefore: 30,
     alertEmail: '',
-    enabled: true
+    enabled: true,
+    alertPriority: 'WARNING',
+    notificationType: 'EMAIL'
   };
 
   documentTypes = [
@@ -36,6 +38,19 @@ export class AlertConfigurationComponent implements OnInit {
     { value: 'DRIVING_LICENSE', label: 'Driving License' },
     { value: 'CONTRACT', label: 'Contract' },
     { value: 'CERTIFICATE', label: 'Certificate' }
+  ];
+
+  alertPriorities = [
+    { value: 'EXPIRED', label: '🔴 Expired', days: 0, color: '#dc3545' },
+    { value: 'CRITICAL', label: '🟠 Critical', days: 7, color: '#fd7e14' },
+    { value: 'WARNING', label: '🟡 Warning', days: 30, color: '#ffc107' },
+    { value: 'ATTENTION', label: '🔵 Attention', days: 90, color: '#17a2b8' }
+  ];
+
+  notificationTypes = [
+    { value: 'EMAIL', label: '📧 Email Only', icon: '📧' },
+    { value: 'NOTIFICATION', label: '🔔 In-App Only', icon: '🔔' },
+    { value: 'BOTH', label: '📧🔔 Both', icon: '📧🔔' }
   ];
 
   constructor(
@@ -68,7 +83,18 @@ export class AlertConfigurationComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error loading configurations:', err);
-        this.toastService.error('Failed to load alert configurations');
+        // Handle JSON error response
+        let errorMsg = 'Failed to load alert configurations';
+        if (err.error) {
+          if (typeof err.error === 'string') {
+            errorMsg = err.error;
+          } else if (err.error.message) {
+            errorMsg = err.error.message;
+          } else if (err.error.error) {
+            errorMsg = err.error.error;
+          }
+        }
+        this.toastService.error(errorMsg);
         this.loading = false;
       }
     });
@@ -81,7 +107,9 @@ export class AlertConfigurationComponent implements OnInit {
       documentType: '',
       alertDaysBefore: 30,
       alertEmail: '',
-      enabled: true
+      enabled: true,
+      alertPriority: 'WARNING',
+      notificationType: 'EMAIL'
     };
   }
 
@@ -91,7 +119,9 @@ export class AlertConfigurationComponent implements OnInit {
       documentType: '',
       alertDaysBefore: 30,
       alertEmail: '',
-      enabled: true
+      enabled: true,
+      alertPriority: 'WARNING',
+      notificationType: 'EMAIL'
     };
   }
 
@@ -105,26 +135,37 @@ export class AlertConfigurationComponent implements OnInit {
   }
 
   saveConfiguration(): void {
-    if (!this.newConfig.documentType || !this.newConfig.alertEmail) {
+    if (!this.newConfig.documentType || !this.newConfig.alertEmail || !this.newConfig.alertPriority || !this.newConfig.notificationType) {
       this.toastService.warning('Please fill all required fields');
       return;
     }
 
-    if (this.newConfig.alertDaysBefore < 1 || this.newConfig.alertDaysBefore > 365) {
-      this.toastService.warning('Alert days must be between 1 and 365');
+    if (this.newConfig.alertDaysBefore < 0 || this.newConfig.alertDaysBefore > 365) {
+      this.toastService.warning('Alert days must be between 0 and 365');
       return;
     }
 
     this.loading = true;
     this.alertConfigService.createConfiguration(this.newConfig).subscribe({
       next: (created) => {
-        this.toastService.success('Alert configuration created successfully');
+        this.toastService.success(`Alert configuration created: ${this.newConfig.alertPriority} priority for ${this.newConfig.documentType}`);
         this.loadConfigurations();
         this.closeAddForm();
       },
       error: (err) => {
         console.error('Error creating configuration:', err);
-        this.toastService.error(err.error?.message || 'Failed to create configuration');
+        // Handle JSON error response
+        let errorMsg = 'Failed to create configuration';
+        if (err.error) {
+          if (typeof err.error === 'string') {
+            errorMsg = err.error;
+          } else if (err.error.message) {
+            errorMsg = err.error.message;
+          } else if (err.error.error) {
+            errorMsg = err.error.error;
+          }
+        }
+        this.toastService.error(errorMsg);
         this.loading = false;
       }
     });
@@ -133,13 +174,13 @@ export class AlertConfigurationComponent implements OnInit {
   updateConfiguration(): void {
     if (!this.editingConfig) return;
 
-    if (!this.editingConfig.documentType || !this.editingConfig.alertEmail) {
+    if (!this.editingConfig.documentType || !this.editingConfig.alertEmail || !this.editingConfig.alertPriority || !this.editingConfig.notificationType) {
       this.toastService.warning('Please fill all required fields');
       return;
     }
 
-    if (this.editingConfig.alertDaysBefore < 1 || this.editingConfig.alertDaysBefore > 365) {
-      this.toastService.warning('Alert days must be between 1 and 365');
+    if (this.editingConfig.alertDaysBefore < 0 || this.editingConfig.alertDaysBefore > 365) {
+      this.toastService.warning('Alert days must be between 0 and 365');
       return;
     }
 
@@ -152,7 +193,18 @@ export class AlertConfigurationComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error updating configuration:', err);
-        this.toastService.error(err.error?.message || 'Failed to update configuration');
+        // Handle JSON error response
+        let errorMsg = 'Failed to update configuration';
+        if (err.error) {
+          if (typeof err.error === 'string') {
+            errorMsg = err.error;
+          } else if (err.error.message) {
+            errorMsg = err.error.message;
+          } else if (err.error.error) {
+            errorMsg = err.error.error;
+          }
+        }
+        this.toastService.error(errorMsg);
         this.loading = false;
       }
     });
@@ -177,13 +229,25 @@ export class AlertConfigurationComponent implements OnInit {
     if (confirm('This will check all documents and send expiry alerts. Continue?')) {
       this.testingAlerts = true;
       this.alertConfigService.testAlerts().subscribe({
-        next: (response) => {
-          this.toastService.success('Alert check triggered successfully. Check email and logs.');
+        next: (response: any) => {
+          const message = response?.message || 'Alert check triggered successfully. Check email and logs.';
+          this.toastService.success(message);
           this.testingAlerts = false;
         },
         error: (err) => {
           console.error('Error testing alerts:', err);
-          this.toastService.error('Failed to trigger alert check');
+          // Handle JSON error response
+          let errorMsg = 'Failed to trigger alert check';
+          if (err.error) {
+            if (typeof err.error === 'string') {
+              errorMsg = err.error;
+            } else if (err.error.message) {
+              errorMsg = err.error.message;
+            } else if (err.error.error) {
+              errorMsg = err.error.error;
+            }
+          }
+          this.toastService.error(errorMsg);
           this.testingAlerts = false;
         }
       });
@@ -198,27 +262,37 @@ export class AlertConfigurationComponent implements OnInit {
   getAlertStatus(config: AlertConfiguration): string {
     if (!config.enabled) return 'Disabled';
 
-    if (config.alertDaysBefore <= 7) {
-      return 'Critical (1 week)';
-    } else if (config.alertDaysBefore <= 30) {
-      return 'Warning (1 month)';
-    } else if (config.alertDaysBefore <= 90) {
-      return 'Notice (3 months)';
-    } else {
-      return 'Early Warning';
-    }
+    const priorityLabels: any = {
+      'EXPIRED': 'Expired',
+      'CRITICAL': 'Critical',
+      'WARNING': 'Warning',
+      'ATTENTION': 'Attention'
+    };
+
+    return priorityLabels[config.alertPriority] || config.alertPriority;
   }
 
   getStatusClass(config: AlertConfiguration): string {
     if (!config.enabled) return 'status-disabled';
 
-    if (config.alertDaysBefore <= 7) {
-      return 'status-critical';
-    } else if (config.alertDaysBefore <= 30) {
-      return 'status-warning';
-    } else {
-      return 'status-notice';
-    }
+    const statusClasses: any = {
+      'EXPIRED': 'status-expired',
+      'CRITICAL': 'status-critical',
+      'WARNING': 'status-warning',
+      'ATTENTION': 'status-attention'
+    };
+
+    return statusClasses[config.alertPriority] || 'status-notice';
+  }
+
+  getPriorityLabel(priority: string): string {
+    const priorityObj = this.alertPriorities.find(p => p.value === priority);
+    return priorityObj ? priorityObj.label : priority;
+  }
+
+  getNotificationTypeLabel(type: string): string {
+    const typeObj = this.notificationTypes.find(t => t.value === type);
+    return typeObj ? typeObj.label : type;
   }
 }
 

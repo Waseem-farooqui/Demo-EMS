@@ -7,7 +7,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/alert-config")
@@ -29,7 +31,8 @@ public class AlertConfigurationController {
             List<AlertConfigurationDTO> configurations = alertConfigurationService.getAllConfigurations();
             return ResponseEntity.ok(configurations);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse(e.getMessage(), HttpStatus.FORBIDDEN.value()));
         }
     }
 
@@ -39,7 +42,8 @@ public class AlertConfigurationController {
             List<AlertConfigurationDTO> configurations = alertConfigurationService.getConfigurationsByDocumentType(documentType);
             return ResponseEntity.ok(configurations);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse(e.getMessage(), HttpStatus.FORBIDDEN.value()));
         }
     }
 
@@ -49,7 +53,8 @@ public class AlertConfigurationController {
             AlertConfigurationDTO created = alertConfigurationService.createConfiguration(dto);
             return new ResponseEntity<>(created, HttpStatus.CREATED);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST.value()));
         }
     }
 
@@ -59,7 +64,8 @@ public class AlertConfigurationController {
             AlertConfigurationDTO updated = alertConfigurationService.updateConfiguration(id, dto);
             return ResponseEntity.ok(updated);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST.value()));
         }
     }
 
@@ -67,11 +73,24 @@ public class AlertConfigurationController {
     public ResponseEntity<?> testAlerts() {
         try {
             documentExpiryScheduler.checkDocumentExpiryManually();
-            return ResponseEntity.ok("Alert check triggered successfully. Check logs and email.");
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Alert check triggered successfully. Check logs and email.");
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error triggering alerts: " + e.getMessage());
+                    .body(createErrorResponse("Error triggering alerts: " + e.getMessage(),
+                            HttpStatus.INTERNAL_SERVER_ERROR.value()));
         }
+    }
+
+    private Map<String, Object> createErrorResponse(String message, int status) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("error", message);
+        error.put("message", message);
+        error.put("status", status);
+        error.put("timestamp", System.currentTimeMillis());
+        return error;
     }
 }
 

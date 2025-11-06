@@ -13,5 +13,8 @@ public class AlertConfigurationDTO {
     private Integer alertDaysBefore;
     private String alertEmail;
     private boolean enabled;
+    private String alertPriority; // EXPIRED, CRITICAL, WARNING, ATTENTION
+    private String notificationType; // EMAIL, NOTIFICATION, BOTH
+    private Long organizationId;
 }
 

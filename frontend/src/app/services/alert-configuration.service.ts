@@ -16,8 +16,8 @@ export class AlertConfigurationService {
     return this.http.get<AlertConfiguration[]>(this.apiUrl);
   }
 
-  getConfigurationByType(documentType: string): Observable<AlertConfiguration> {
-    return this.http.get<AlertConfiguration>(`${this.apiUrl}/type/${documentType}`);
+  getConfigurationsByType(documentType: string): Observable<AlertConfiguration[]> {
+    return this.http.get<AlertConfiguration[]>(`${this.apiUrl}/type/${documentType}`);
   }
 
   createConfiguration(config: AlertConfiguration): Observable<AlertConfiguration> {
