@@ -21,8 +21,7 @@ export class ForgotPasswordComponent {
   constructor(
     private fb: FormBuilder,
     private http: HttpClient,
-    private toastService: ToastService,
-    private router: Router
+    private toastService: ToastService
   ) {
     this.forgotPasswordForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]]
