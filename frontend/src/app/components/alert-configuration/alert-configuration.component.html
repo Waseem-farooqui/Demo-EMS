@@ -1,0 +1,252 @@
+<div class="alert-config-container">
+  <div class="page-header">
+    <div class="header-content">
+      <h1>📧 Document Expiry Alert Configuration</h1>
+      <p class="subtitle">Configure when to send expiry alerts for different document types</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="testAlerts()" [disabled]="testingAlerts">
+        <span *ngIf="!testingAlerts">🧪 Test Alerts Now</span>
+        <span *ngIf="testingAlerts">⏳ Testing...</span>
+      </button>
+      <button class="btn btn-primary" (click)="openAddForm()" *ngIf="!showAddForm">
+        ➕ Add Configuration
+      </button>
+    </div>
+  </div>
+
+  <!-- Add/Edit Form -->
+  <div class="config-form" *ngIf="showAddForm">
+    <div class="form-header">
+      <h3>➕ Add New Alert Configuration</h3>
+      <button class="btn-close" (click)="closeAddForm()">✕</button>
+    </div>
+    <form (ngSubmit)="saveConfiguration()">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="documentType">Document Type *</label>
+          <select
+            id="documentType"
+            [(ngModel)]="newConfig.documentType"
+            name="documentType"
+            class="form-control"
+            required>
+            <option value="">Select Document Type</option>
+            <option *ngFor="let type of documentTypes" [value]="type.value">
+              {{ type.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="alertDaysBefore">Alert Days Before Expiry *</label>
+          <input
+            type="number"
+            id="alertDaysBefore"
+            [(ngModel)]="newConfig.alertDaysBefore"
+            name="alertDaysBefore"
+            class="form-control"
+            min="1"
+            max="365"
+            required>
+          <small class="form-text">Number of days before expiry to send alert (1-365)</small>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="alertEmail">Alert Email *</label>
+          <input
+            type="email"
+            id="alertEmail"
+            [(ngModel)]="newConfig.alertEmail"
+            name="alertEmail"
+            class="form-control"
+            placeholder="admin@company.com"
+            required>
+          <small class="form-text">Email address to receive expiry alerts</small>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="newConfig.enabled"
+              name="enabled">
+            <span>Enabled</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" (click)="closeAddForm()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="loading">
+          <span *ngIf="!loading">💾 Save Configuration</span>
+          <span *ngIf="loading">⏳ Saving...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-container" *ngIf="loading && !showAddForm && !editingConfig">
+    <div class="spinner"></div>
+    <p>Loading configurations...</p>
+  </div>
+
+  <!-- Configurations List -->
+  <div class="configurations-grid" *ngIf="!loading || editingConfig">
+    <div class="config-card" *ngFor="let config of configurations">
+      <!-- View Mode -->
+      <div class="card-content" *ngIf="editingConfig?.id !== config.id">
+        <div class="card-header">
+          <div class="doc-type">
+            <span class="doc-icon">📄</span>
+            <h3>{{ getDocumentTypeLabel(config.documentType) }}</h3>
+          </div>
+          <div class="status-badge" [ngClass]="getStatusClass(config)">
+            {{ getAlertStatus(config) }}
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Alert Before:</span>
+            <span class="value">{{ config.alertDaysBefore }} days</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Alert Email:</span>
+            <span class="value">{{ config.alertEmail }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Status:</span>
+            <span class="value">
+              <span class="toggle-badge" [class.active]="config.enabled">
+                {{ config.enabled ? '✅ Enabled' : '❌ Disabled' }}
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn btn-sm btn-secondary" (click)="editConfiguration(config)">
+            ✏️ Edit
+          </button>
+          <button
+            class="btn btn-sm"
+            [class.btn-success]="!config.enabled"
+            [class.btn-warning]="config.enabled"
+            (click)="toggleEnabled(config)">
+            {{ config.enabled ? '🔕 Disable' : '🔔 Enable' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Edit Mode -->
+      <div class="card-content editing" *ngIf="editingConfig?.id === config.id">
+        <div class="card-header">
+          <h3>✏️ Edit Configuration</h3>
+          <button class="btn-close-small" (click)="cancelEdit()">✕</button>
+        </div>
+
+        <form (ngSubmit)="updateConfiguration()">
+          <div class="form-group">
+            <label>Document Type</label>
+            <input
+              type="text"
+              class="form-control"
+              [value]="getDocumentTypeLabel(editingConfig.documentType)"
+              disabled>
+          </div>
+
+          <div class="form-group">
+            <label for="editAlertDays">Alert Days Before Expiry *</label>
+            <input
+              type="number"
+              id="editAlertDays"
+              [(ngModel)]="editingConfig.alertDaysBefore"
+              name="editAlertDays"
+              class="form-control"
+              min="1"
+              max="365"
+              required>
+          </div>
+
+          <div class="form-group">
+            <label for="editEmail">Alert Email *</label>
+            <input
+              type="email"
+              id="editEmail"
+              [(ngModel)]="editingConfig.alertEmail"
+              name="editEmail"
+              class="form-control"
+              required>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                [(ngModel)]="editingConfig.enabled"
+                name="editEnabled">
+              <span>Enabled</span>
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-sm btn-secondary" (click)="cancelEdit()">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-sm btn-primary" [disabled]="loading">
+              <span *ngIf="!loading">💾 Update</span>
+              <span *ngIf="loading">⏳ Updating...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" *ngIf="configurations.length === 0 && !loading">
+      <div class="empty-icon">📭</div>
+      <h3>No Alert Configurations</h3>
+      <p>Add your first alert configuration to start monitoring document expiry</p>
+      <button class="btn btn-primary" (click)="openAddForm()">
+        ➕ Add First Configuration
+      </button>
+    </div>
+  </div>
+
+  <!-- Info Panel -->
+  <div class="info-panel">
+    <h4>ℹ️ How It Works</h4>
+    <ul>
+      <li><strong>Alert Days Before:</strong> Number of days before expiry to send notification</li>
+      <li><strong>Email Alerts:</strong> Sent to the configured email address</li>
+      <li><strong>Automatic Check:</strong> System checks daily at midnight</li>
+      <li><strong>Test Alerts:</strong> Use "Test Alerts Now" to check immediately</li>
+      <li><strong>Multiple Alerts:</strong> Configure different periods for each document type</li>
+    </ul>
+
+    <div class="alert-examples">
+      <h5>💡 Recommended Settings</h5>
+      <div class="example-item">
+        <span class="example-type">Passport/Visa:</span>
+        <span class="example-value">90 days (3 months)</span>
+      </div>
+      <div class="example-item">
+        <span class="example-type">Work Permit:</span>
+        <span class="example-value">60 days (2 months)</span>
+      </div>
+      <div class="example-item">
+        <span class="example-type">Contracts:</span>
+        <span class="example-value">30 days (1 month)</span>
+      </div>
+      <div class="example-item">
+        <span class="example-type">Certificates:</span>
+        <span class="example-value">30 days (1 month)</span>
+      </div>
+    </div>
+  </div>
+</div>
+

@@ -58,6 +58,11 @@
           <span class="nav-icon">🏖️</span>
           <span>Leaves</span>
         </a>
+        <!-- Alert Configuration only for SUPER_ADMIN -->
+        <a *ngIf="isSuperAdmin" routerLink="/alert-configuration" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon">📧</span>
+          <span>Alert Config</span>
+        </a>
       </div>
 
       <!-- User Menu -->
@@ -124,6 +129,13 @@
       </a>
       <a *ngIf="!isRoot" routerLink="/leaves" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
         <span class="nav-icon">🏖️</span>
+        <span>Leaves</span>
+      </a>
+      <!-- Alert Configuration only for SUPER_ADMIN -->
+      <a *ngIf="isSuperAdmin" routerLink="/alert-configuration" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">📧</span>
+        <span>Alert Config</span>
+      </a>
         <span>Leaves</span>
       </a>
       <button class="mobile-logout" (click)="logout()">

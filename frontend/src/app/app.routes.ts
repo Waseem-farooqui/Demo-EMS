@@ -20,6 +20,7 @@ import {ForgotUsernameComponent} from './components/forgot-username/forgot-usern
 import {ResetPasswordComponent} from './components/reset-password/reset-password.component';
 import {RotaListComponent} from './components/rota-list/rota-list.component';
 import {RotaUploadComponent} from './components/rota-upload/rota-upload.component';
+import {AlertConfigurationComponent} from './components/alert-configuration/alert-configuration.component';
 import {AuthGuard} from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -49,6 +50,7 @@ export const routes: Routes = [
   { path: 'documents/:id', component: DocumentDetailComponent, canActivate: [AuthGuard] },
   { path: 'documents', component: DocumentListComponent, canActivate: [AuthGuard] },
   { path: 'rota/upload', component: RotaUploadComponent, canActivate: [AuthGuard] },
-  { path: 'rota', component: RotaListComponent, canActivate: [AuthGuard] }
+  { path: 'rota', component: RotaListComponent, canActivate: [AuthGuard] },
+  { path: 'alert-configuration', component: AlertConfigurationComponent, canActivate: [AuthGuard] }
 ];
 
