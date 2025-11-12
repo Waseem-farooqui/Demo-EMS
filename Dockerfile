@@ -15,9 +15,9 @@ RUN mvn clean package -DskipTests -Pprod
 # Stage 2: Runtime
 FROM openjdk:11-jre-slim
 
-# Install Tesseract OCR
+# Install Tesseract OCR and curl for health checks
 RUN apt-get update && \
-    apt-get install -y tesseract-ocr tesseract-ocr-eng && \
+    apt-get install -y tesseract-ocr tesseract-ocr-eng curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -25,6 +25,10 @@ WORKDIR /app
 
 # Copy JAR from build stage
 COPY --from=build /app/target/*.jar app.jar
+
+# Create uploads directory
+RUN mkdir -p /app/uploads && \
+    chmod 755 /app/uploads
 
 # Create non-root user
 RUN useradd -r -u 1001 -g root appuser && \

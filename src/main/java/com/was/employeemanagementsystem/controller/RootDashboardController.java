@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.RootDashboardDTO;
 import com.was.employeemanagementsystem.service.RootDashboardService;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +16,8 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/root/dashboard")
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@RequestMapping(AppConstants.API_ROOT_DASHBOARD_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 @RequiredArgsConstructor
 public class RootDashboardController {
 

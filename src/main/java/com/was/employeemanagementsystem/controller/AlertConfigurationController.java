@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.AlertConfigurationDTO;
 import com.was.employeemanagementsystem.service.AlertConfigurationService;
 import com.was.employeemanagementsystem.service.DocumentExpiryScheduler;
@@ -12,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/alert-config")
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@RequestMapping(AppConstants.API_ALERT_CONFIG_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 public class AlertConfigurationController {
 
     private final AlertConfigurationService alertConfigurationService;
@@ -63,6 +64,20 @@ public class AlertConfigurationController {
         try {
             AlertConfigurationDTO updated = alertConfigurationService.updateConfiguration(id, dto);
             return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST.value()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteConfiguration(@PathVariable Long id) {
+        try {
+            alertConfigurationService.deleteConfiguration(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Alert configuration deleted successfully");
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST.value()));

@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.*;
 import com.was.employeemanagementsystem.entity.Organization;
 import com.was.employeemanagementsystem.entity.User;
@@ -28,8 +29,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/auth")
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@RequestMapping(AppConstants.API_AUTH_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 @Slf4j
 public class AuthController {
 

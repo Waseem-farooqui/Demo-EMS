@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.CreateOrganizationRequest;
 import com.was.employeemanagementsystem.dto.OrganizationCreationResponse;
 import com.was.employeemanagementsystem.dto.OrganizationDTO;
@@ -20,8 +21,8 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/organizations")
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@RequestMapping(AppConstants.API_ORGANIZATIONS_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 public class OrganizationController {
 
     private final OrganizationService organizationService;

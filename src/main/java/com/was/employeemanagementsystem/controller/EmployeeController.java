@@ -14,7 +14,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping(AppConstants.API_EMPLOYEES_PATH)
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@CrossOrigin(origins = "${app.cors.origins}")
 public class EmployeeController {
 
     private final EmployeeService employeeService;

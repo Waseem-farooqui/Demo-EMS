@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.entity.User;
 import com.was.employeemanagementsystem.repository.UserRepository;
 import com.was.employeemanagementsystem.service.RootUserValidationService;
@@ -16,8 +17,8 @@ import java.util.Set;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/init")
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@RequestMapping(AppConstants.API_INIT_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 public class InitializationController {
 
     private final UserRepository userRepository;

@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.RotaChangeLogDTO;
 import com.was.employeemanagementsystem.dto.RotaDTO;
 import com.was.employeemanagementsystem.dto.RotaScheduleDTO;
@@ -24,8 +25,8 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/rota")
-@CrossOrigin(origins = "*", maxAge = 3600)
+@RequestMapping(AppConstants.API_ROTA_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 @Slf4j
 public class RotaController {
 

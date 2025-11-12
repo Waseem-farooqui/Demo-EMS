@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.LeaveBalanceDTO;
 import com.was.employeemanagementsystem.dto.LeaveDTO;
 import com.was.employeemanagementsystem.service.LeaveService;
@@ -20,8 +21,8 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/leaves")
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@RequestMapping(AppConstants.API_LEAVES_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 public class LeaveController {
 
     private final LeaveService leaveService;

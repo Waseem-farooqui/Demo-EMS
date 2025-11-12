@@ -27,6 +27,12 @@ public final class AppConstants {
     public static final String API_ATTENDANCE_PATH = API_BASE_PATH + "/attendance";
     public static final String API_DASHBOARD_PATH = API_BASE_PATH + "/dashboard";
     public static final String API_ALERTS_PATH = API_BASE_PATH + "/alerts";
+    public static final String API_ALERT_CONFIG_PATH = API_BASE_PATH + "/alert-config";
+    public static final String API_ORGANIZATIONS_PATH = API_BASE_PATH + "/organizations";
+    public static final String API_NOTIFICATIONS_PATH = API_BASE_PATH + "/notifications";
+    public static final String API_ROTA_PATH = API_BASE_PATH + "/rota";
+    public static final String API_ROOT_DASHBOARD_PATH = API_BASE_PATH + "/root/dashboard";
+    public static final String API_INIT_PATH = API_BASE_PATH + "/init";
 
     // Security Roles
     public static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";

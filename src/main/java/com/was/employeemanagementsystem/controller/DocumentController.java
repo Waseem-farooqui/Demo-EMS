@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.controller;
 
+import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.DocumentDTO;
 import com.was.employeemanagementsystem.service.DocumentService;
 import com.was.employeemanagementsystem.service.DocumentExpiryNotificationService;
@@ -18,8 +19,8 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/documents")
-@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
+@RequestMapping(AppConstants.API_DOCUMENTS_PATH)
+@CrossOrigin(origins = "${app.cors.origins}")
 public class DocumentController {
 
     private final DocumentService documentService;
