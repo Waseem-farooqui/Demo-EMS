@@ -13,7 +13,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests -Pprod
 
 # Stage 2: Runtime
-FROM openjdk:11-jre-slim
+FROM eclipse-temurin:11-jre
 
 # Install Tesseract OCR and curl for health checks
 RUN apt-get update && \
