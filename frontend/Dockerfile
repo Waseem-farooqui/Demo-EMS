@@ -8,23 +8,32 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (use ci for clean install)
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build for production
-RUN npm run build -- --configuration production
+RUN npm run build -- --configuration=production
+
+# List build output for debugging
+RUN ls -la dist/ && ls -la dist/frontend/ || echo "Build output not found"
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
+
+# Remove default nginx static assets
+RUN rm -rf /usr/share/nginx/html/*
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy built app from build stage
 COPY --from=build /app/dist/frontend /usr/share/nginx/html
+
+# Verify files copied
+RUN ls -la /usr/share/nginx/html/
 
 # Expose port 80
 EXPOSE 80
