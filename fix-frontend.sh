@@ -14,15 +14,15 @@ echo "=========================================="
 echo ""
 
 # Check if in correct directory
-if [ ! -f "docker-compose.yml" ]; then
-    echo -e "${RED}❌ Error: docker-compose.yml not found${NC}"
+if [ ! -f "compose.yaml" ]; then
+    echo -e "${RED}❌ Error: compose.yaml not found${NC}"
     echo "Please run this script from the application directory"
     exit 1
 fi
 
 # Stop frontend
 echo "1/5: Stopping frontend container..."
-docker-compose stop frontend
+docker compose stop frontend
 echo -e "${GREEN}✅ Frontend stopped${NC}"
 
 # Remove frontend container
@@ -40,13 +40,13 @@ echo -e "${GREEN}✅ Image removed${NC}"
 # Rebuild frontend
 echo ""
 echo "4/5: Rebuilding frontend (this may take 2-3 minutes)..."
-docker-compose build --no-cache frontend
+docker compose build --no-cache frontend
 echo -e "${GREEN}✅ Frontend rebuilt${NC}"
 
 # Start frontend
 echo ""
 echo "5/5: Starting frontend..."
-docker-compose up -d frontend
+docker compose up -d frontend
 
 # Wait for frontend to be ready
 echo ""
@@ -70,12 +70,12 @@ if curl -f http://localhost/ > /dev/null 2>&1; then
     else
         echo -e "${YELLOW}⚠️  Frontend is running but might still show nginx default${NC}"
         echo "Checking container logs..."
-        docker-compose logs frontend --tail=20
+        docker compose logs frontend --tail=20
     fi
 else
     echo -e "${RED}❌ Frontend is not responding${NC}"
     echo "Checking logs..."
-    docker-compose logs frontend --tail=30
+    docker compose logs frontend --tail=30
 fi
 
 echo ""
@@ -83,7 +83,7 @@ echo "=========================================="
 echo "Fix script completed"
 echo ""
 echo "Useful commands:"
-echo "  View logs: docker-compose logs frontend -f"
-echo "  Restart: docker-compose restart frontend"
+echo "  View logs: docker compose logs frontend -f"
+echo "  Restart: docker compose restart frontend"
 echo "  Check files: docker exec ems-frontend ls /usr/share/nginx/html/"
 
