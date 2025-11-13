@@ -68,8 +68,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/api/auth/resend-verification").permitAll()
                 .antMatchers("/api/auth/forgot-password").permitAll()
                 .antMatchers("/api/auth/reset-password").permitAll()
+                .antMatchers("/api/auth/forgot-username").permitAll()
                 // Public organization logo endpoint (no authentication required for images)
                 .antMatchers("/api/organizations/*/logo").permitAll()
+                // Public health check endpoint
+                .antMatchers("/api/actuator/health").permitAll()
                 // Protected auth endpoints (authentication required)
                 .antMatchers("/api/auth/change-password").authenticated()
                 .antMatchers("/api/auth/complete-profile").authenticated()
@@ -78,7 +81,19 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/h2-console/**").permitAll()
                 .anyRequest().authenticated();
 
-        // For H2 Console
+        // Security headers configuration
+        http.headers()
+                .contentSecurityPolicy("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';")
+                .and()
+                .httpStrictTransportSecurity()
+                    .includeSubDomains(true)
+                    .maxAgeInSeconds(31536000)
+                .and()
+                .contentTypeOptions()
+                .and()
+                .frameOptions().deny();  // Override for non-H2 endpoints
+
+        // For H2 Console only - allow framing (development only)
         http.headers().frameOptions().sameOrigin();
 
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
