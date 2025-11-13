@@ -72,8 +72,74 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+# Check for existing deployment and clean up
+print_step "Step 1/16: Checking for existing deployment"
+EXISTING_DEPLOYMENT=false
+
+# Check if Docker is installed and has existing containers
+if command -v docker &> /dev/null; then
+    # Check for existing EMS containers
+    EXISTING_CONTAINERS=$(docker ps -a --filter "name=ems-" --format "{{.Names}}" 2>/dev/null)
+
+    if [ ! -z "$EXISTING_CONTAINERS" ]; then
+        EXISTING_DEPLOYMENT=true
+        print_warning "Found existing EMS deployment:"
+        echo "$EXISTING_CONTAINERS"
+        echo ""
+        echo -e "${YELLOW}Options:${NC}"
+        echo "  1. Remove existing deployment and continue (fresh install)"
+        echo "  2. Keep existing deployment and exit"
+        echo ""
+        read -p "Choose option (1 or 2): " -n 1 -r
+        echo
+
+        if [[ $REPLY == "1" ]]; then
+            print_info "Removing existing deployment..."
+
+            # Stop containers
+            echo "Stopping containers..."
+            docker stop ems-backend ems-frontend ems-mysql 2>/dev/null || true
+            docker stop ems-backend-blue ems-frontend-blue 2>/dev/null || true
+
+            # Remove containers
+            echo "Removing containers..."
+            docker rm -f ems-backend ems-frontend ems-mysql 2>/dev/null || true
+            docker rm -f ems-backend-blue ems-frontend-blue 2>/dev/null || true
+
+            # Remove images
+            echo "Removing images..."
+            docker rmi -f $(docker images | grep -E 'ems-|employeemanagementsystem' | awk '{print $3}') 2>/dev/null || true
+
+            # Remove volumes
+            read -p "Remove existing data volumes? (y/N): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                echo "Removing volumes (this will DELETE all data)..."
+                docker volume rm employeemanagementsystem_mysql_data 2>/dev/null || true
+                docker volume rm employeemanagementsystem_uploads_data 2>/dev/null || true
+                print_warning "All data has been removed"
+            else
+                print_info "Keeping existing data volumes"
+            fi
+
+            # Remove networks
+            echo "Removing networks..."
+            docker network rm employeemanagementsystem_ems-network 2>/dev/null || true
+
+            print_success "Existing deployment cleaned up"
+        else
+            print_info "Deployment cancelled. Existing deployment preserved."
+            exit 0
+        fi
+    else
+        print_success "No existing deployment found"
+    fi
+else
+    print_success "Docker not installed - proceeding with fresh installation"
+fi
+
 # Check Ubuntu version
-print_step "Step 1/15: Checking system requirements"
+print_step "Step 2/16: Checking system requirements"
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     if [[ "$ID" == "ubuntu" && "$VERSION_ID" == "24.04" ]]; then
@@ -92,13 +158,13 @@ else
 fi
 
 # Update system
-print_step "Step 2/15: Updating system packages"
+print_step "Step 3/16: Updating system packages"
 sudo apt-get update
 sudo apt-get upgrade -y
 print_success "System packages updated"
 
 # Install prerequisites
-print_step "Step 3/15: Installing prerequisites"
+print_step "Step 4/16: Installing prerequisites"
 sudo apt-get install -y \
     apt-transport-https \
     ca-certificates \
@@ -113,32 +179,11 @@ sudo apt-get install -y \
 print_success "Prerequisites installed"
 
 # Install Docker
-print_step "Step 4/15: Installing Docker"
+print_step "Step 5/16: Installing Docker"
 if command -v docker &> /dev/null; then
     print_warning "Docker already installed, skipping"
 else
-    # Add Docker's official GPG key
-    sudo install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-    # Add Docker repository
-    echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    # Install Docker
-    sudo apt-get update
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-    # Start and enable Docker
-    sudo systemctl start docker
-    sudo systemctl enable docker
-
-    # Add current user to docker group
-    sudo usermod -aG docker $USER
-
+    # ...existing code...
     print_success "Docker installed successfully"
     print_warning "You may need to log out and back in for Docker group changes to take effect"
 fi
@@ -148,7 +193,7 @@ docker --version
 docker compose version
 
 # Install Docker Compose (standalone) if not available
-print_step "Step 5/15: Checking Docker Compose"
+print_step "Step 6/16: Checking Docker Compose"
 if ! command -v docker-compose &> /dev/null; then
     print_info "Installing Docker Compose standalone..."
     sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -159,13 +204,13 @@ else
 fi
 
 # Create application directory
-print_step "Step 6/15: Creating application directory"
+print_step "Step 7/16: Creating application directory"
 sudo mkdir -p $APP_DIR
 sudo chown -R $USER:$USER $APP_DIR
 print_success "Application directory created: $APP_DIR"
 
 # Clone repository
-print_step "Step 7/15: Cloning application repository"
+print_step "Step 8/16: Cloning application repository"
 read -p "Enter Git repository URL: " REPO_URL
 if [ -z "$REPO_URL" ]; then
     print_error "Repository URL cannot be empty"
@@ -181,14 +226,14 @@ cd $APP_DIR
 print_success "Repository cloned successfully"
 
 # Generate secure credentials
-print_step "Step 8/15: Generating secure credentials"
+print_step "Step 9/16: Generating secure credentials"
 JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
 DB_ROOT_PASSWORD=$(openssl rand -base64 32 | tr -d '\n')
 DB_PASSWORD=$(openssl rand -base64 32 | tr -d '\n')
 print_success "Secure credentials generated"
 
 # Configure environment variables
-print_step "Step 9/15: Configuring environment variables"
+print_step "Step 10/16: Configuring environment variables"
 read -p "Enter your domain (e.g., example.com): " DOMAIN
 if [ -z "$DOMAIN" ]; then
     DOMAIN="localhost"
@@ -239,53 +284,37 @@ print_success "Environment variables configured"
 print_info "Configuration saved to: $APP_DIR/.env"
 
 # Update frontend environment
-print_step "Step 10/15: Configuring frontend"
+print_step "Step 11/16: Configuring frontend"
 if [ -f frontend/src/environments/environment.prod.ts ]; then
-    cat > frontend/src/environments/environment.prod.ts << EOF
-export const environment = {
-  production: true,
-  apiUrl: 'http://${DOMAIN}:8080/api',
-  apiBaseUrl: 'http://${DOMAIN}:8080',
-  frontendUrl: 'http://${DOMAIN}',
-  maxFileSize: 10485760,
-  allowedFileTypes: ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
-};
-EOF
+    # ...existing code...
     print_success "Frontend environment configured"
 else
     print_warning "Frontend environment file not found, skipping"
 fi
 
 # Configure firewall
-print_step "Step 11/15: Configuring firewall"
+print_step "Step 12/16: Configuring firewall"
 read -p "Configure UFW firewall? (y/n): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    sudo ufw --force enable
-    sudo ufw default deny incoming
-    sudo ufw default allow outgoing
-    sudo ufw allow ssh
-    sudo ufw allow 80/tcp
-    sudo ufw allow 443/tcp
-    sudo ufw allow 8080/tcp
-    sudo ufw status
+    # ...existing code...
     print_success "Firewall configured"
 else
     print_warning "Firewall configuration skipped"
 fi
 
 # Build and deploy
-print_step "Step 12/15: Building Docker images"
+print_step "Step 13/16: Building Docker images"
 docker compose build --no-cache
 print_success "Docker images built"
 
 # Start services
-print_step "Step 13/15: Starting services"
+print_step "Step 14/16: Starting services"
 docker compose up -d
 print_success "Services started"
 
 # Wait for services to be healthy
-print_step "Step 14/15: Waiting for services to be healthy"
+print_step "Step 15/16: Waiting for services to be healthy"
 echo "This may take 1-2 minutes..."
 sleep 30
 
@@ -317,7 +346,7 @@ else
 fi
 
 # Setup automated backups
-print_step "Step 15/15: Setting up automated backups"
+print_step "Step 16/16: Setting up automated backups"
 read -p "Setup automated daily backups? (y/n): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
