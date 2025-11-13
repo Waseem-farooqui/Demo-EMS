@@ -58,6 +58,14 @@ export class DocumentService {
     return this.http.get(`${this.apiUrl}/${id}/image`, { responseType: 'blob' });
   }
 
+  getDocumentPreview(id: number): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/${id}/preview`, { responseType: 'blob' });
+  }
+
+  debugDocument(id: number): Observable<any> {
+    return this.http.get(`${this.apiUrl}/${id}/debug`);
+  }
+
   checkDuplicateDocument(documents: Document[], newDoc: Document): Document | null {
     return documents.find(doc =>
       doc.documentType === newDoc.documentType &&

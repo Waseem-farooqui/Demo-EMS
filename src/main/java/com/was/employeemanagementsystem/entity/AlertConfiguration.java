@@ -36,6 +36,12 @@ public class AlertConfiguration {
     @Column(name = "notification_type", nullable = false)
     private String notificationType; // EMAIL, NOTIFICATION, BOTH
 
+    @Column(name = "alert_frequency")
+    private String alertFrequency; // ONCE, DAILY, HOURLY
+
+    @Column(name = "repeat_until_resolved")
+    private boolean repeatUntilResolved = false; // Keep sending alerts until document is updated
+
     @Column(name = "organization_id")
     private Long organizationId; // Multi-tenancy support
 
@@ -47,6 +53,8 @@ public class AlertConfiguration {
         this.alertPriority = alertPriority;
         this.notificationType = notificationType;
         this.enabled = true;
+        this.alertFrequency = "ONCE"; // Default to once
+        this.repeatUntilResolved = false;
     }
 }
 

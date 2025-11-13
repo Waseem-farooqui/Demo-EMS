@@ -14,6 +14,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -148,10 +152,69 @@ public class DocumentController {
         }
     }
 
+    @GetMapping("/{id}/debug")
+    public ResponseEntity<Map<String, Object>> debugDocument(@PathVariable Long id) {
+        try {
+            log.info("🐛 Debug request for document ID: {}", id);
+
+            // This will throw exception if user doesn't have access
+            DocumentDTO document = documentService.getDocumentById(id);
+
+            Map<String, Object> debug = new HashMap<>();
+            debug.put("id", id);
+            debug.put("fileName", document.getFileName());
+            debug.put("fileType", document.getFileType());
+            debug.put("documentType", document.getDocumentType());
+            debug.put("currentDirectory", System.getProperty("user.dir"));
+            debug.put("uploadDirectory", "uploads/documents/");
+            debug.put("message", "File path not exposed for security. Check backend logs for detailed path info.");
+
+            // Try to get the file to see if it works
+            try {
+                byte[] fileData = documentService.getDocumentImage(id);
+                debug.put("fileLoadSuccess", true);
+                debug.put("fileSize", fileData.length);
+                debug.put("fileSizeKB", fileData.length / 1024);
+            } catch (Exception e) {
+                debug.put("fileLoadSuccess", false);
+                debug.put("fileLoadError", e.getMessage());
+            }
+
+            return ResponseEntity.ok(debug);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            error.put("stackTrace", e.getClass().getName());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    @GetMapping("/{id}/preview")
+    public ResponseEntity<byte[]> getDocumentPreview(@PathVariable Long id) {
+        try {
+            log.info("📸 Document preview request - ID: {}", id);
+
+            byte[] previewData = documentService.getDocumentPreview(id);
+
+            if (previewData == null || previewData.length == 0) {
+                log.warn("No preview data found for document ID: {}", id);
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.IMAGE_JPEG)
+                    .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                    .body(previewData);
+        } catch (RuntimeException e) {
+            log.error("✗ Failed to retrieve document preview: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+    }
+
     @GetMapping("/{id}/image")
     public ResponseEntity<byte[]> getDocumentImage(@PathVariable Long id) {
         try {
-            log.info("Document image request - ID: {}", id);
+            log.info("📄 Document image request - ID: {}", id);
 
             DocumentDTO document = documentService.getDocumentById(id);
             byte[] imageData = documentService.getDocumentImage(id);

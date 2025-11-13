@@ -1,4 +1,21 @@
 <div class="upload-container">
+  <!-- Processing Overlay -->
+  <div *ngIf="uploading" class="processing-overlay">
+    <div class="processing-modal">
+      <div class="processing-content">
+        <div class="spinner-large"></div>
+        <h3>Processing Document...</h3>
+        <p class="processing-steps">
+          <span class="step">📤 Uploading file</span>
+          <span class="step">🔍 Extracting text with OCR</span>
+          <span class="step">📝 Analyzing document data</span>
+          <span class="step">💾 Saving to database</span>
+        </p>
+        <p class="processing-note">Please wait, this may take a few moments...</p>
+      </div>
+    </div>
+  </div>
+
   <div class="header">
     <div class="header-left">
       <h2>Upload Document</h2>

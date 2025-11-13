@@ -131,12 +131,16 @@ public class AlertConfigurationService {
         log.info("      Enabled: {} -> {}", config.isEnabled(), dto.isEnabled());
         log.info("      Priority: {} -> {}", config.getAlertPriority(), dto.getAlertPriority());
         log.info("      Notification Type: {} -> {}", config.getNotificationType(), dto.getNotificationType());
+        log.info("      Alert Frequency: {} -> {}", config.getAlertFrequency(), dto.getAlertFrequency());
+        log.info("      Repeat Until Resolved: {} -> {}", config.isRepeatUntilResolved(), dto.isRepeatUntilResolved());
 
         config.setAlertDaysBefore(dto.getAlertDaysBefore());
         config.setAlertEmail(dto.getAlertEmail());
         config.setEnabled(dto.isEnabled());
         config.setAlertPriority(dto.getAlertPriority());
         config.setNotificationType(dto.getNotificationType());
+        config.setAlertFrequency(dto.getAlertFrequency() != null ? dto.getAlertFrequency() : "ONCE");
+        config.setRepeatUntilResolved(dto.isRepeatUntilResolved());
 
         AlertConfiguration updated = alertConfigurationRepository.save(config);
 
@@ -230,6 +234,8 @@ public class AlertConfigurationService {
         config.setEnabled(dto.isEnabled());
         config.setAlertPriority(dto.getAlertPriority());
         config.setNotificationType(dto.getNotificationType());
+        config.setAlertFrequency(dto.getAlertFrequency() != null ? dto.getAlertFrequency() : "ONCE");
+        config.setRepeatUntilResolved(dto.isRepeatUntilResolved());
         config.setOrganizationId(dto.getOrganizationId());
 
         AlertConfiguration saved = alertConfigurationRepository.save(config);
@@ -255,6 +261,8 @@ public class AlertConfigurationService {
         dto.setEnabled(config.isEnabled());
         dto.setAlertPriority(config.getAlertPriority());
         dto.setNotificationType(config.getNotificationType());
+        dto.setAlertFrequency(config.getAlertFrequency() != null ? config.getAlertFrequency() : "ONCE");
+        dto.setRepeatUntilResolved(config.isRepeatUntilResolved());
         dto.setOrganizationId(config.getOrganizationId());
         return dto;
     }

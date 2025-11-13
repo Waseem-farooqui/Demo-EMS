@@ -6,6 +6,8 @@ export interface AlertConfiguration {
   enabled: boolean;
   alertPriority: string; // EXPIRED, CRITICAL, WARNING, ATTENTION
   notificationType: string; // EMAIL, NOTIFICATION, BOTH
+  alertFrequency?: string; // ONCE, DAILY, HOURLY
+  repeatUntilResolved?: boolean; // Keep sending alerts until document is updated
   organizationId?: number;
 }
 

@@ -26,6 +26,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -249,16 +251,50 @@ public class DocumentService {
             }
         }
 
-        // Save file to disk (keep for backup)
-        String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-        Path filePath = Paths.get(uploadDir + fileName);
-        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+        // Calculate MD5 hash for deduplication
+        String fileHash = calculateMD5(file);
+        log.info("📝 Calculated file hash: {}", fileHash);
 
-        // Read file content as byte array for blob storage
-        byte[] fileData = file.getBytes();
-        log.info("File size: {} bytes", fileData.length);
+        // Check if this exact file already exists (based on hash)
+        Document existingFile = documentRepository.findByFileHash(fileHash);
 
-        // Extract preview image if PDF (for frontend display)
+        Path filePath;
+        String fileName;
+        long fileSize = file.getSize();
+
+        if (existingFile != null) {
+            // File already exists, reuse the existing file path
+            log.info("♻️ File already exists in storage (hash: {}), reusing existing file", fileHash);
+            log.info("   Existing file path: {}", existingFile.getFilePath());
+            log.info("   Storage saved: {} KB", fileSize / 1024);
+
+            filePath = Paths.get(existingFile.getFilePath());
+            fileName = existingFile.getFileName();
+        } else {
+            // New unique file, save it with MD5 hash + document type in filename
+            String originalFileName = file.getOriginalFilename();
+            String extension = "";
+            if (originalFileName != null && originalFileName.contains(".")) {
+                extension = originalFileName.substring(originalFileName.lastIndexOf("."));
+            }
+
+            // Format: {MD5_HASH}_{DOCUMENT_TYPE}{EXTENSION}
+            // Example: 5d41402abc4b2a76b9719d911017c592_PASSPORT.jpg
+            fileName = fileHash + "_" + documentType + extension;
+            filePath = Paths.get(uploadDir + fileName);
+
+            // Check if file with this exact name already exists (shouldn't happen with MD5, but safe check)
+            if (Files.exists(filePath)) {
+                log.warn("⚠️ File with this hash and type already exists: {}", fileName);
+                log.info("   Reusing existing file instead of overwriting");
+            } else {
+                Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+                log.info("💾 New file saved to disk: {} (Size: {} KB)", fileName, fileSize / 1024);
+                log.info("   Format: {MD5_HASH}_{DOCUMENT_TYPE}{EXTENSION}");
+            }
+        }
+
+        // Extract preview image if PDF (for frontend display - thumbnail only)
         byte[] previewImage = null;
         if (file.getContentType() != null && file.getContentType().equals("application/pdf")) {
             previewImage = extractPdfPreviewImage(file);
@@ -266,9 +302,9 @@ public class DocumentService {
                 log.info("✓ PDF preview image extracted: {} KB", previewImage.length / 1024);
             }
         } else {
-            // For regular images, use the file itself as preview
-            previewImage = fileData;
-            log.info("✓ Using original image as preview");
+            // For regular images, create a small thumbnail (not full image)
+            previewImage = createThumbnail(file);
+            log.info("✓ Thumbnail created for image preview");
         }
 
         // Create document entity
@@ -278,8 +314,9 @@ public class DocumentService {
         document.setFileName(file.getOriginalFilename());
         document.setFilePath(filePath.toString());
         document.setFileType(file.getContentType());
-        document.setFileData(fileData); // Store original file as blob
-        document.setPreviewImage(previewImage); // Store preview image for display
+        document.setFileSize(fileSize); // Store file size for tracking
+        document.setFileHash(fileHash); // Store MD5 hash for deduplication
+        document.setPreviewImage(previewImage); // Store small thumbnail only
         document.setExtractedText(extractedText);
         document.setUploadedDate(LocalDateTime.now());
 
@@ -474,14 +511,26 @@ public class DocumentService {
             throw new RuntimeException("Access denied. You can only delete your own documents.");
         }
 
-        // Delete file from filesystem
-        try {
-            Files.deleteIfExists(Paths.get(document.getFilePath()));
-        } catch (IOException e) {
-            log.error("Could not delete file: {}", e.getMessage());
-        }
+        String filePath = document.getFilePath();
 
+        // Delete document from database first
         documentRepository.deleteById(id);
+        log.info("🗑️ Document deleted from database: ID {}", id);
+
+        // Check if any other documents still reference this file
+        long referenceCount = documentRepository.countByFilePath(filePath);
+
+        if (referenceCount == 0) {
+            // No other documents reference this file, safe to delete
+            try {
+                Files.deleteIfExists(Paths.get(filePath));
+                log.info("🗑️ Physical file deleted: {} (no other references)", filePath);
+            } catch (IOException e) {
+                log.error("❌ Could not delete file: {}", e.getMessage());
+            }
+        } else {
+            log.info("♻️ Physical file kept: {} ({} other document(s) still reference it)", filePath, referenceCount);
+        }
     }
 
     public List<DocumentDTO> getExpiringDocuments(int daysAhead) {
@@ -574,6 +623,8 @@ public class DocumentService {
     }
 
     public byte[] getDocumentImage(Long id) {
+        log.info("🔍 Retrieving document image for ID: {}", id);
+
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
 
@@ -582,39 +633,80 @@ public class DocumentService {
 
         // Check access permissions
         if (!canAccessEmployee(employee)) {
-            log.warn("Unauthorized document image access attempt for document ID: {}", id);
+            log.warn("❌ Unauthorized document access attempt for document ID: {}", id);
             throw new RuntimeException("Access denied. You can only access your own documents.");
         }
 
-        // For CONTRACT, RESUME, and SHARE_CODE documents, return the full file (not preview)
-        if ("CONTRACT".equals(document.getDocumentType()) ||
-            "RESUME".equals(document.getDocumentType()) ||
-            "SHARE_CODE".equals(document.getDocumentType())) {
-            byte[] fileData = document.getFileData();
-            if (fileData == null || fileData.length == 0) {
-                log.warn("No file data found for {} document ID: {}", document.getDocumentType(), id);
-                throw new RuntimeException("No file data available for this document");
+        // Get file path and normalize it
+        String storedPath = document.getFilePath();
+        log.info("📂 Stored file path: {}", storedPath);
+
+        // Try to resolve the path (handles both absolute and relative paths)
+        Path filePath = Paths.get(storedPath);
+        if (!filePath.isAbsolute()) {
+            // If relative, resolve from current directory
+            filePath = Paths.get(System.getProperty("user.dir"), storedPath);
+        }
+
+        log.info("📍 Resolved file path: {}", filePath.toAbsolutePath());
+
+        // Check if file exists
+        if (!Files.exists(filePath)) {
+            log.error("❌ File not found on disk: {}", filePath.toAbsolutePath());
+            log.error("   Current directory: {}", System.getProperty("user.dir"));
+            log.error("   File name: {}", document.getFileName());
+
+            // Try alternative path without absolute resolution
+            Path alternativePath = Paths.get(storedPath);
+            if (Files.exists(alternativePath)) {
+                log.info("✓ Found file at alternative path: {}", alternativePath.toAbsolutePath());
+                filePath = alternativePath;
+            } else {
+                throw new RuntimeException("Document file not found on server. Path: " + filePath.toAbsolutePath());
             }
-            log.info("✓ Retrieved full {} file - ID: {}, Size: {} KB", document.getDocumentType(), id, fileData.length / 1024);
+        }
+
+        // Read file
+        try {
+            byte[] fileData = Files.readAllBytes(filePath);
+            log.info("✓ Retrieved document from file system - ID: {}, Type: {}, Size: {} KB, Path: {}",
+                    id, document.getDocumentType(), fileData.length / 1024, filePath.getFileName());
             return fileData;
+        } catch (IOException e) {
+            log.error("❌ Error reading file from disk: {}", e.getMessage(), e);
+            throw new RuntimeException("Error reading document file: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get preview thumbnail from database (small, fast)
+     * Use this for list views and quick previews
+     */
+    public byte[] getDocumentPreview(Long id) {
+        log.info("🔍 Retrieving document preview for ID: {}", id);
+
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
+
+        Employee employee = employeeRepository.findById(document.getEmployee().getId())
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        // Check access permissions
+        if (!canAccessEmployee(employee)) {
+            log.warn("❌ Unauthorized document preview access attempt for document ID: {}", id);
+            throw new RuntimeException("Access denied. You can only access your own documents.");
         }
 
-        // For PASSPORT/VISA, return preview image (extracted from PDF or original image)
-        byte[] imageData = document.getPreviewImage();
+        byte[] preview = document.getPreviewImage();
 
-        // Fallback to original file data if preview not available
-        if (imageData == null || imageData.length == 0) {
-            log.warn("No preview image found, falling back to original file data");
-            imageData = document.getFileData();
+        if (preview != null && preview.length > 0) {
+            log.info("✓ Retrieved preview from database - ID: {}, Size: {} KB", id, preview.length / 1024);
+            return preview;
+        } else {
+            log.warn("⚠ No preview available for document ID: {}, falling back to full file", id);
+            // Fallback to full file if no preview
+            return getDocumentImage(id);
         }
-
-        if (imageData == null || imageData.length == 0) {
-            log.warn("No file data found for document ID: {}", id);
-            throw new RuntimeException("No file data available for this document");
-        }
-
-        log.info("✓ Retrieved document image - ID: {}, Size: {} KB", id, imageData.length / 1024);
-        return imageData;
     }
 
     private boolean canAccessEmployee(Employee employee) {
@@ -735,6 +827,57 @@ public class DocumentService {
         }
     }
 
+    /**
+     * Create a thumbnail image for preview (max 200KB)
+     * This is stored in database for quick preview display
+     */
+    private byte[] createThumbnail(MultipartFile file) {
+        try {
+            BufferedImage originalImage = ImageIO.read(file.getInputStream());
+            if (originalImage == null) {
+                log.warn("⚠ Could not read image for thumbnail creation");
+                return null;
+            }
+
+            // Calculate thumbnail size (max 300px width, maintain aspect ratio)
+            int maxWidth = 300;
+            int originalWidth = originalImage.getWidth();
+            int originalHeight = originalImage.getHeight();
+
+            if (originalWidth <= maxWidth) {
+                // Image is already small, use as is
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ImageIO.write(originalImage, "jpg", baos);
+                return baos.toByteArray();
+            }
+
+            // Calculate proportional height
+            int newWidth = maxWidth;
+            int newHeight = (originalHeight * newWidth) / originalWidth;
+
+            // Create thumbnail
+            BufferedImage thumbnailImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+            thumbnailImage.createGraphics().drawImage(
+                originalImage.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH),
+                0, 0, null
+            );
+
+            // Convert to JPEG
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(thumbnailImage, "jpg", baos);
+
+            byte[] thumbnail = baos.toByteArray();
+            log.info("✓ Thumbnail created: {} KB (from original {} KB)",
+                    thumbnail.length / 1024, file.getSize() / 1024);
+
+            return thumbnail;
+
+        } catch (Exception e) {
+            log.error("✗ Failed to create thumbnail: {}", e.getMessage());
+            return null;
+        }
+    }
+
     private DocumentDTO convertToDTO(Document document) {
         DocumentDTO dto = new DocumentDTO();
         dto.setId(document.getId());
@@ -775,6 +918,34 @@ public class DocumentService {
         }
 
         return dto;
+    }
+
+    /**
+     * Calculate MD5 hash of file content for deduplication
+     * Same file will always produce the same hash
+     */
+    private String calculateMD5(MultipartFile file) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] fileBytes = file.getBytes();
+            byte[] hashBytes = md.digest(fileBytes);
+
+            // Convert byte array to hex string
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException | IOException e) {
+            log.error("❌ Failed to calculate MD5 hash: {}", e.getMessage());
+            // Return a random UUID as fallback to prevent errors
+            return UUID.randomUUID().toString().replace("-", "");
+        }
     }
 }
 

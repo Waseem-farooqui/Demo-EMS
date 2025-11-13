@@ -22,10 +22,15 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   maxDate: string; // Maximum date (today) for issue date
 
   // Image/PDF display
-  documentImageUrl: SafeResourceUrl | null = null;
+  documentImageUrl: SafeResourceUrl | null = null; // For PDFs in iframe
+  documentImageRawUrl: string | null = null; // For images in img tag
   private rawDocumentUrl: string | null = null; // For cleanup
   imageLoading = false;
   imageError = false;
+
+  // Smart display detection
+  isPdfDocument = false; // True if blob type is PDF
+  isImageDocument = false; // True if blob type is image
 
   // Manual entry fields
   manualDocumentNumber = '';
@@ -87,19 +92,55 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
 
     this.documentService.getDocumentImage(id).subscribe({
       next: (blob) => {
+        if (blob.size === 0) {
+          console.error('Received empty blob for document:', id);
+          this.error = 'Document file is empty or corrupted';
+          this.imageError = true;
+          this.imageLoading = false;
+          return;
+        }
+
+        // Revoke previous URL if exists
+        if (this.rawDocumentUrl) {
+          URL.revokeObjectURL(this.rawDocumentUrl);
+        }
+
         // Create object URL from blob
         const url = URL.createObjectURL(blob);
-        this.rawDocumentUrl = url; // Store for cleanup
-        // Sanitize URL for iframe (needed for PDF viewing)
+        this.rawDocumentUrl = url;
+
+        // Set both URLs for different viewer types
+        this.documentImageRawUrl = url;
         this.documentImageUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+
+        // Smart detection: Choose viewer based on actual blob type
+        this.isPdfDocument = blob.type === 'application/pdf' || blob.type.includes('pdf');
+        this.isImageDocument = blob.type.startsWith('image/');
+
         this.imageLoading = false;
       },
       error: (err) => {
-        console.error('Error loading document image:', err);
+        console.error('Failed to load document:', err.status, err.message);
         this.imageError = true;
         this.imageLoading = false;
+
+        if (err?.status === 403) {
+          this.error = 'Access denied. You do not have permission to view this document.';
+        } else if (err?.status === 404) {
+          this.error = 'Document file not found on server.';
+        } else if (err?.status === 0) {
+          this.error = 'Cannot connect to server. Please check your connection.';
+        } else {
+          this.error = 'Failed to load document. Please try again.';
+        }
       }
     });
+  }
+
+  onImageError(): void {
+    console.error('Image failed to load');
+    this.imageError = true;
+    this.error = 'Failed to display document. Please try downloading it instead.';
   }
 
   hasMinimalData(): boolean {
@@ -247,19 +288,49 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   }
 
   downloadDocument(): void {
-    if (this.document?.id) {
-      // Open download endpoint in new window
-      window.open(`${environment.apiUrl}/documents/${this.document.id}/download`, '_blank');
+    if (!this.document?.id) return;
+
+    // Use the existing blob if already loaded
+    if (this.rawDocumentUrl) {
+      const link = document.createElement('a');
+      link.href = this.rawDocumentUrl;
+      link.download = this.document.fileName || 'document';
+      link.click();
+    } else {
+      // Fetch with authentication and download
+      this.documentService.getDocumentImage(this.document.id).subscribe({
+        next: (blob) => {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = this.document?.fileName || 'document';
+          link.click();
+          window.URL.revokeObjectURL(url);
+        },
+        error: (err) => {
+          console.error('Failed to download document:', err);
+          this.error = 'Failed to download document. Please try again.';
+        }
+      });
     }
   }
 
+
   openPdfInNewTab(): void {
     if (this.rawDocumentUrl) {
-      // Open the blob URL in a new tab
       window.open(this.rawDocumentUrl, '_blank');
     } else if (this.document?.id) {
-      // Fallback: open the API endpoint directly
-      window.open(`${environment.apiUrl}/documents/${this.document.id}/image`, '_blank');
+      // Fetch with authentication and open in new tab
+      this.documentService.getDocumentImage(this.document.id).subscribe({
+        next: (blob) => {
+          const url = window.URL.createObjectURL(blob);
+          window.open(url, '_blank');
+        },
+        error: (err) => {
+          console.error('Failed to open document:', err);
+          this.error = 'Failed to open document. Please try again.';
+        }
+      });
     }
   }
 

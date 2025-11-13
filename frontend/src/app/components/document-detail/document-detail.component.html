@@ -349,28 +349,67 @@
         </div>
       </div>
 
-      <!-- PASSPORT/VISA documents: Show Image Preview -->
+      <!-- PASSPORT/VISA documents: Smart Viewer (Image or PDF based on actual file type) -->
       <div *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'">
-        <h3><span class="section-icon">🖼️</span> Document Image</h3>
+        <h3><span class="section-icon">🖼️</span> Document Preview</h3>
 
         <!-- Loading State -->
         <div *ngIf="imageLoading" class="image-loading">
           <div class="spinner"></div>
-          <p>Loading document image...</p>
+          <p>Loading document...</p>
         </div>
 
         <!-- Error State -->
         <div *ngIf="imageError && !imageLoading" class="image-error">
           <span class="error-icon">⚠️</span>
-          <p>Unable to load document image</p>
+          <p>Unable to load document</p>
+          <div class="fallback-actions">
+            <button (click)="downloadDocument()" class="btn-download">
+              <span>⬇️</span> Download Document
+            </button>
+          </div>
         </div>
 
-        <!-- Image Display -->
-        <div *ngIf="documentImageUrl && !imageLoading && !imageError" class="image-container">
-          <img [src]="documentImageUrl"
+        <!-- Smart Display: PDF Viewer (if blob is PDF) -->
+        <div *ngIf="isPdfDocument && !imageLoading && !imageError" class="pdf-container">
+          <div class="format-badge pdf-badge">
+            📄 PDF Format
+          </div>
+          <object [data]="documentImageUrl"
+                  type="application/pdf"
+                  class="pdf-viewer">
+            <div class="pdf-fallback">
+              <p>⚠️ Your browser cannot display PDF files inline.</p>
+              <p>Please use one of the options below:</p>
+              <div class="fallback-actions">
+                <button (click)="openPdfInNewTab()" class="btn-primary">
+                  <span>🔗</span> Open PDF in New Tab
+                </button>
+                <button (click)="downloadDocument()" class="btn-download">
+                  <span>⬇️</span> Download PDF
+                </button>
+              </div>
+            </div>
+          </object>
+          <div class="image-actions">
+            <button (click)="openPdfInNewTab()" class="btn-primary">
+              <span>🔗</span> Open in New Tab
+            </button>
+            <button (click)="downloadDocument()" class="btn-download">
+              <span>⬇️</span> Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Smart Display: Image Viewer (if blob is Image) -->
+        <div *ngIf="isImageDocument && !imageLoading && !imageError" class="image-container">
+          <div class="format-badge image-badge">
+            🖼️ Image Format
+          </div>
+          <img [src]="documentImageRawUrl"
                [alt]="document.fileName"
                class="document-image"
-               (error)="imageError = true">
+               (error)="onImageError()">
           <div class="image-actions">
             <button (click)="downloadDocument()" class="btn-download">
               <span>⬇️</span> Download Original
@@ -378,10 +417,13 @@
           </div>
         </div>
 
-        <!-- No Image Available -->
-        <div *ngIf="!documentImageUrl && !imageLoading && !imageError" class="no-image">
+        <!-- No Document Available -->
+        <div *ngIf="!isPdfDocument && !isImageDocument && !imageLoading && !imageError" class="no-image">
           <span class="no-image-icon">📄</span>
-          <p>No image preview available</p>
+          <p>No preview available for this document type</p>
+          <button (click)="downloadDocument()" class="btn-download">
+            <span>⬇️</span> Download Document
+          </button>
         </div>
       </div>
     </div>

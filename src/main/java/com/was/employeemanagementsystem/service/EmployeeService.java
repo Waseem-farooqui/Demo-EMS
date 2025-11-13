@@ -170,13 +170,19 @@ public class EmployeeService {
             log.error("❌ Failed to initialize leave balances: {}", e.getMessage());
         }
 
-        // Send credentials via email
-        emailService.sendAccountCreationEmail(
-            savedEmployee.getWorkEmail(),
-            savedEmployee.getFullName(),
-            finalUsername,
-            temporaryPassword
-        );
+        // Send credentials via email (don't fail employee creation if email fails)
+        try {
+            emailService.sendAccountCreationEmail(
+                savedEmployee.getWorkEmail(),
+                savedEmployee.getFullName(),
+                finalUsername,
+                temporaryPassword
+            );
+            log.info("✅ Account creation email sent to: {}", savedEmployee.getWorkEmail());
+        } catch (Exception e) {
+            log.error("❌ Failed to send account creation email to {} (employee still created): {}",
+                savedEmployee.getWorkEmail(), e.getMessage());
+        }
 
         log.info("✓ Account creation complete for employee: {} with username: {}",
             savedEmployee.getFullName(), finalUsername);

@@ -85,6 +85,21 @@
           </select>
           <small class="form-text">How should alerts be delivered</small>
         </div>
+
+        <div class="form-group">
+          <label for="alertFrequency">Alert Frequency *</label>
+          <select
+            id="alertFrequency"
+            [(ngModel)]="newConfig.alertFrequency"
+            name="alertFrequency"
+            class="form-control"
+            required>
+            <option *ngFor="let freq of alertFrequencies" [value]="freq.value">
+              {{ freq.label }}
+            </option>
+          </select>
+          <small class="form-text">{{ getFrequencyDescription(newConfig.alertFrequency) }}</small>
+        </div>
       </div>
 
       <div class="form-row">
@@ -101,6 +116,19 @@
           <small class="form-text">Email address to receive expiry alerts</small>
         </div>
 
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="newConfig.repeatUntilResolved"
+              name="repeatUntilResolved">
+            Continue alerts even after expiry
+          </label>
+          <small class="form-text">Keep sending alerts until document is updated</small>
+        </div>
+      </div>
+
+      <div class="form-row">
         <div class="form-group">
           <label class="checkbox-label">
             <input
@@ -157,6 +185,14 @@
           <div class="info-row">
             <span class="label">Notification:</span>
             <span class="value">{{ getNotificationTypeLabel(config.notificationType) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Frequency:</span>
+            <span class="value">{{ getFrequencyLabel(config.alertFrequency) }}</span>
+          </div>
+          <div class="info-row" *ngIf="config.repeatUntilResolved">
+            <span class="label">Repeat:</span>
+            <span class="value">🔄 Until resolved</span>
           </div>
           <div class="info-row">
             <span class="label">Alert Email:</span>
@@ -245,6 +281,21 @@
           </div>
 
           <div class="form-group">
+            <label for="editAlertFrequency">Alert Frequency *</label>
+            <select
+              id="editAlertFrequency"
+              [(ngModel)]="editingConfig!.alertFrequency"
+              name="editAlertFrequency"
+              class="form-control"
+              required>
+              <option *ngFor="let freq of alertFrequencies" [value]="freq.value">
+                {{ freq.label }}
+              </option>
+            </select>
+            <small class="form-text">{{ getFrequencyDescription(editingConfig!.alertFrequency) }}</small>
+          </div>
+
+          <div class="form-group">
             <label for="editEmail">Alert Email *</label>
             <input
               type="email"
@@ -253,6 +304,16 @@
               name="editEmail"
               class="form-control"
               required>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                [(ngModel)]="editingConfig!.repeatUntilResolved"
+                name="editRepeatUntilResolved">
+              <span>Continue alerts even after expiry</span>
+            </label>
           </div>
 
           <div class="form-group">

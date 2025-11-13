@@ -213,8 +213,13 @@ public class AuthController {
         verificationToken.setUsed(true);
         verificationTokenRepository.save(verificationToken);
 
-        // Send welcome email
-        emailService.sendWelcomeEmail(user.getEmail(), user.getUsername());
+        // Send welcome email (don't fail verification if email fails)
+        try {
+            emailService.sendWelcomeEmail(user.getEmail(), user.getUsername());
+        } catch (Exception e) {
+            log.error("Failed to send welcome email to {} (verification still successful): {}",
+                user.getEmail(), e.getMessage());
+        }
 
         return ResponseEntity.ok(new MessageResponse("Email verified successfully! You can now log in."));
     }
@@ -236,10 +241,15 @@ public class AuthController {
         VerificationToken verificationToken = new VerificationToken(token, user);
         verificationTokenRepository.save(verificationToken);
 
-        // Send verification email
-        emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), token);
-
-        return ResponseEntity.ok(new MessageResponse("Verification email sent! Please check your inbox."));
+        // Send verification email (handle email failures gracefully)
+        try {
+            emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), token);
+            return ResponseEntity.ok(new MessageResponse("Verification email sent! Please check your inbox."));
+        } catch (Exception e) {
+            log.error("Failed to send verification email to {}: {}", user.getEmail(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new MessageResponse("Token created but email sending failed. Please contact administrator with verification token: " + token));
+        }
     }
 
     @PostMapping("/complete-profile")
@@ -338,8 +348,14 @@ public class AuthController {
             verificationToken.setExpiryDate(java.time.LocalDateTime.now().plusHours(24));
             verificationTokenRepository.save(verificationToken);
 
-            // Send password reset email
-            emailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), resetToken);
+            // Send password reset email (don't fail the operation if email fails)
+            try {
+                emailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), resetToken);
+            } catch (Exception emailEx) {
+                log.error("Failed to send password reset email to {} (token still created): {}",
+                    user.getEmail(), emailEx.getMessage());
+                // Token is still saved, user can contact admin with token
+            }
 
             return ResponseEntity.ok(new MessageResponse("If the email exists, a password reset link has been sent."));
 
@@ -407,14 +423,19 @@ public class AuthController {
             User user = userRepository.findByEmail(request.getEmail())
                     .orElseThrow(() -> new RuntimeException("No account found with this email address"));
 
-            // Send email with username
-            emailService.sendUsernameReminderEmail(
-                    user.getEmail(),
-                    user.getUsername()
-            );
-
-            log.info("✅ Username sent to email: {}", request.getEmail());
-            return ResponseEntity.ok(new MessageResponse("Your username has been sent to your email address."));
+            // Send email with username (handle email failure gracefully)
+            try {
+                emailService.sendUsernameReminderEmail(
+                        user.getEmail(),
+                        user.getUsername()
+                );
+                log.info("✅ Username sent to email: {}", request.getEmail());
+                return ResponseEntity.ok(new MessageResponse("Your username has been sent to your email address."));
+            } catch (Exception emailEx) {
+                log.error("❌ Failed to send username reminder email: {}", emailEx.getMessage());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new MessageResponse("Email sending failed. Your username is: " + user.getUsername()));
+            }
 
         } catch (RuntimeException e) {
             log.error("❌ Forgot username error: {}", e.getMessage());

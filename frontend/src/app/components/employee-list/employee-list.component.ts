@@ -35,8 +35,14 @@ export class EmployeeListComponent implements OnInit {
   // Document Viewer
   selectedDocumentId: number | null = null;
   selectedDocumentUrl: SafeResourceUrl | null = null;
+  selectedDocumentRawUrl: string | null = null; // For image tags
   private rawDocumentUrl: string | null = null; // For cleanup
   selectedDocumentType: string | null = null;
+  documentLoading = false;
+
+  // Smart viewer detection
+  isSelectedDocPdf = false;
+  isSelectedDocImage = false;
 
   constructor(
     private employeeService: EmployeeService,
@@ -170,20 +176,52 @@ export class EmployeeListComponent implements OnInit {
     this.selectedDocumentId = documentId;
     this.selectedDocumentType = documentType;
     this.selectedDocumentUrl = null;
+    this.selectedDocumentRawUrl = null;
     this.rawDocumentUrl = null;
+    this.documentLoading = true;
+    this.isSelectedDocPdf = false;
+    this.isSelectedDocImage = false;
 
     this.documentService.getDocumentImage(documentId).subscribe({
       next: (blob) => {
+        if (blob.size === 0) {
+          console.error('Received empty blob for document:', documentId);
+          this.toastService.error('Document file is empty');
+          this.selectedDocumentId = null;
+          this.selectedDocumentType = null;
+          this.documentLoading = false;
+          return;
+        }
+
         const url = window.URL.createObjectURL(blob);
-        this.rawDocumentUrl = url; // Store for cleanup
-        // Sanitize URL for safe use in object/iframe tags
+        this.rawDocumentUrl = url;
+
+        // Set both URL types
+        this.selectedDocumentRawUrl = url;
         this.selectedDocumentUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+
+        // Smart detection based on blob type
+        this.isSelectedDocPdf = blob.type === 'application/pdf' || blob.type.includes('pdf');
+        this.isSelectedDocImage = blob.type.startsWith('image/');
+
+        this.documentLoading = false;
       },
       error: (err) => {
-        console.error('Error loading document:', err);
-        this.toastService.error('Failed to load document');
+        console.error('Failed to load document:', err.status, err.message);
+
+        let errorMessage = 'Failed to load document';
+        if (err?.status === 403) {
+          errorMessage = 'Access denied to this document';
+        } else if (err?.status === 404) {
+          errorMessage = 'Document file not found';
+        } else if (err?.status === 0) {
+          errorMessage = 'Cannot connect to server';
+        }
+
+        this.toastService.error(errorMessage);
         this.selectedDocumentId = null;
         this.selectedDocumentType = null;
+        this.documentLoading = false;
       }
     });
   }
@@ -194,8 +232,12 @@ export class EmployeeListComponent implements OnInit {
     }
     this.selectedDocumentId = null;
     this.selectedDocumentUrl = null;
+    this.selectedDocumentRawUrl = null;
     this.selectedDocumentType = null;
     this.rawDocumentUrl = null;
+    this.documentLoading = false;
+    this.isSelectedDocPdf = false;
+    this.isSelectedDocImage = false;
   }
 
   uploadDocument(employeeId: number): void {

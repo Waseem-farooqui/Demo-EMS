@@ -156,9 +156,9 @@ export class DocumentUploadComponent implements OnInit {
         this.resetForm();
       },
       error: (err) => {
+        console.error('Document upload failed:', err);
         this.error = err.error?.message || err.error || 'Failed to upload document. Please try again.';
         this.uploading = false;
-        console.error('Error uploading document:', err);
       }
     });
   }

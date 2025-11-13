@@ -278,28 +278,44 @@
             </div>
 
             <!-- Document Viewer -->
-            <div *ngIf="selectedDocumentId && selectedDocumentUrl" class="document-viewer">
+            <div *ngIf="selectedDocumentId" class="document-viewer">
               <div class="viewer-header">
                 <h5>📄 Document Preview</h5>
                 <button (click)="closeDocumentViewer()" class="btn-close-viewer" title="Close Viewer">×</button>
               </div>
-              <div class="viewer-content">
-                <!-- PDF Viewer for CONTRACT and RESUME -->
-                <object *ngIf="selectedDocumentType === 'CONTRACT' || selectedDocumentType === 'RESUME'"
-                        [data]="selectedDocumentUrl"
-                        type="application/pdf"
-                        class="document-pdf">
-                  <div class="pdf-fallback">
-                    <p>Unable to display PDF in browser.</p>
-                    <p>The document is a {{ selectedDocumentType }}.</p>
-                  </div>
-                </object>
 
-                <!-- Image Viewer for PASSPORT and VISA -->
-                <img *ngIf="selectedDocumentType !== 'CONTRACT' && selectedDocumentType !== 'RESUME'"
-                     [src]="selectedDocumentUrl"
-                     alt="Document"
-                     class="document-image">
+              <!-- Loading State -->
+              <div *ngIf="documentLoading" class="viewer-loading">
+                <div class="spinner"></div>
+                <p>Loading document...</p>
+              </div>
+
+              <!-- Smart Document Display -->
+              <div *ngIf="!documentLoading && (selectedDocumentUrl || selectedDocumentRawUrl)" class="viewer-content">
+                <!-- PDF Viewer (for PDF files) -->
+                <div *ngIf="isSelectedDocPdf">
+                  <div class="format-indicator">📄 PDF</div>
+                  <object [data]="selectedDocumentUrl"
+                          type="application/pdf"
+                          class="document-pdf">
+                    <div class="pdf-fallback">
+                      <p>Unable to display PDF in browser.</p>
+                    </div>
+                  </object>
+                </div>
+
+                <!-- Image Viewer (for image files) -->
+                <div *ngIf="isSelectedDocImage">
+                  <div class="format-indicator image-indicator">🖼️ Image</div>
+                  <img [src]="selectedDocumentRawUrl"
+                       alt="Document"
+                       class="document-image">
+                </div>
+
+                <!-- Fallback if type not detected -->
+                <div *ngIf="!isSelectedDocPdf && !isSelectedDocImage" class="unknown-format">
+                  <p>⚠️ Unable to preview this document format</p>
+                </div>
               </div>
             </div>
           </div>

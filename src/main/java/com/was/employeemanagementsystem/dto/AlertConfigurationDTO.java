@@ -15,6 +15,8 @@ public class AlertConfigurationDTO {
     private boolean enabled;
     private String alertPriority; // EXPIRED, CRITICAL, WARNING, ATTENTION
     private String notificationType; // EMAIL, NOTIFICATION, BOTH
+    private String alertFrequency; // ONCE, DAILY, HOURLY
+    private boolean repeatUntilResolved; // Keep sending alerts until document is updated
     private Long organizationId;
 }
 

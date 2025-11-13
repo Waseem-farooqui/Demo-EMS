@@ -27,7 +27,9 @@ export class AlertConfigurationComponent implements OnInit {
     alertEmail: '',
     enabled: true,
     alertPriority: 'WARNING',
-    notificationType: 'EMAIL'
+    notificationType: 'EMAIL',
+    alertFrequency: 'ONCE',
+    repeatUntilResolved: false
   };
 
   documentTypes = [
@@ -51,6 +53,12 @@ export class AlertConfigurationComponent implements OnInit {
     { value: 'EMAIL', label: '📧 Email Only', icon: '📧' },
     { value: 'NOTIFICATION', label: '🔔 In-App Only', icon: '🔔' },
     { value: 'BOTH', label: '📧🔔 Both', icon: '📧🔔' }
+  ];
+
+  alertFrequencies = [
+    { value: 'ONCE', label: '🔂 Once (then every 7 days)', description: 'Send alert once, then repeat every 7 days if still expiring' },
+    { value: 'DAILY', label: '📅 Daily', description: 'Send alert once per day while document is expiring' },
+    { value: 'HOURLY', label: '⏰ Every Hour', description: 'Send alert every hour (for critical documents)' }
   ];
 
   constructor(
@@ -293,6 +301,16 @@ export class AlertConfigurationComponent implements OnInit {
   getNotificationTypeLabel(type: string): string {
     const typeObj = this.notificationTypes.find(t => t.value === type);
     return typeObj ? typeObj.label : type;
+  }
+
+  getFrequencyDescription(frequency?: string): string {
+    const freqObj = this.alertFrequencies.find(f => f.value === frequency);
+    return freqObj ? freqObj.description : 'Select frequency to see description';
+  }
+
+  getFrequencyLabel(frequency?: string): string {
+    const freqObj = this.alertFrequencies.find(f => f.value === frequency);
+    return freqObj ? freqObj.label : 'Once';
   }
 }
 
