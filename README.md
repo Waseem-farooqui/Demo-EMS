@@ -12,7 +12,34 @@ Complete Docker-based Employee Management System with Document Management, Leave
 - 8GB RAM (minimum 4GB)
 - 50GB disk space
 
-### Fresh Deployment
+### Fresh Deployment (Ubuntu 24.04)
+
+**Automated one-command deployment:**
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd EmployeeManagementSystem
+
+# Run deployment script
+chmod +x fresh-deploy.sh
+./fresh-deploy.sh
+```
+
+This will:
+- ✅ Install Docker & Docker Compose
+- ✅ Deploy all services
+- ✅ Configure environment
+- ✅ Setup automated backups
+- ✅ Configure firewall
+
+**Time:** 15-20 minutes
+
+**Then:** Follow `POST_INSTALL_CONFIG.md` for post-installation configuration.
+
+---
+
+### Manual Deployment
 
 ```bash
 # 1. Clone repository
@@ -40,6 +67,9 @@ curl http://localhost:8080/api/actuator/health
 
 ## 📚 Documentation
 
+- **[Quick Deploy Reference](QUICK_DEPLOY_REFERENCE.md)** - Quick reference card
+- **[Fresh Deployment Script](fresh-deploy.sh)** - Automated Ubuntu 24.04 deployment
+- **[Post-Install Configuration](POST_INSTALL_CONFIG.md)** - After deployment checklist
 - **[Docker Deployment Guide](DOCKER_DEPLOYMENT_GUIDE.md)** - Complete deployment instructions
 - **[Production Readiness Checklist](PRODUCTION_READINESS_CHECKLIST.md)** - Pre-deployment verification
 - **[VM Cleanup Guide](VM_CLEANUP_GUIDE.md)** - Complete cleanup and reset
