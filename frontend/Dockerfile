@@ -33,8 +33,14 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copy built app from build stage
 COPY --from=build /app/dist/frontend /usr/share/nginx/html
 
-# Verify files copied
-RUN ls -la /usr/share/nginx/html/
+# Set proper permissions for nginx user
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
+
+# Verify files copied and check permissions
+RUN ls -la /usr/share/nginx/html/ && \
+    echo "index.html exists:" && \
+    test -f /usr/share/nginx/html/index.html && echo "YES" || echo "NO"
 
 # Expose port 80
 EXPOSE 80
