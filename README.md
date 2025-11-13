@@ -42,6 +42,8 @@ curl http://localhost:8080/api/actuator/health
 
 - **[Docker Deployment Guide](DOCKER_DEPLOYMENT_GUIDE.md)** - Complete deployment instructions
 - **[Production Readiness Checklist](PRODUCTION_READINESS_CHECKLIST.md)** - Pre-deployment verification
+- **[VM Cleanup Guide](VM_CLEANUP_GUIDE.md)** - Complete cleanup and reset
+- **[Security Audit Report](SECURITY_AUDIT_REPORT.md)** - Security findings and fixes
 
 ---
 
@@ -69,6 +71,16 @@ chmod +x monitor.sh
 ```bash
 chmod +x rollback.sh
 ./rollback.sh
+```
+
+### Complete Cleanup (Reset VM)
+```bash
+# WARNING: This removes ALL data permanently!
+chmod +x cleanup-vm.sh
+./cleanup-vm.sh
+
+# Windows
+cleanup-vm.bat
 ```
 
 ---
