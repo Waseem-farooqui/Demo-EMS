@@ -19,7 +19,12 @@ COPY . .
 RUN npm run build -- --configuration=production
 
 # List build output for debugging
-RUN ls -la dist/ && ls -la dist/frontend/ || echo "Build output not found"
+RUN echo "=== Checking build output ===" && \
+    ls -la dist/ && \
+    echo "=== Contents of dist/frontend ===" && \
+    ls -la dist/frontend/ && \
+    echo "=== Checking for browser folder ===" && \
+    ls -la dist/frontend/browser/ || echo "No browser folder found"
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
@@ -30,8 +35,8 @@ RUN rm -rf /usr/share/nginx/html/*
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy built app from build stage
-COPY --from=build /app/dist/frontend /usr/share/nginx/html
+# Copy built app from build stage (Angular 17+ uses dist/frontend/browser)
+COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
 
 # Set proper permissions for nginx user
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
