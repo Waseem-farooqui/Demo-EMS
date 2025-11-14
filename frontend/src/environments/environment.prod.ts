@@ -1,9 +1,9 @@
 // Production environment configuration
 export const environment = {
   production: true,
-  apiUrl: 'https://api.yourdomain.com/api',
-  apiBaseUrl: 'https://api.yourdomain.com',
-  frontendUrl: 'https://yourdomain.com',
+  apiUrl: 'http://62.169.20.104:8080/api',
+  apiBaseUrl: 'http://62.169.20.104:8080',
+  frontendUrl: 'http://62.169.20.104',
 
   // Feature flags
   enableDebugMode: false,
