@@ -15,15 +15,16 @@ RUN mvn clean package -DskipTests
 # Stage 2: Runtime
 FROM eclipse-temurin:11-jre
 
-# Install Tesseract OCR and curl for health checks
+# Install Tesseract OCR, curl for health checks, and netcat for MySQL wait script
 RUN apt-get update && \
-    apt-get install -y tesseract-ocr tesseract-ocr-eng curl && \
+    apt-get install -y tesseract-ocr tesseract-ocr-eng curl netcat-openbsd && \
     rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app
 
-# Copy JAR from build stage
+# Copy wait script and JAR from build stage
+COPY wait-for-mysql.sh /app/wait-for-mysql.sh
 COPY --from=build /app/target/*.jar app.jar
 
 # Create uploads directory
@@ -32,7 +33,8 @@ RUN mkdir -p /app/uploads && \
 
 # Create non-root user
 RUN useradd -r -u 1001 -g root appuser && \
-    chown -R appuser:root /app
+    chown -R appuser:root /app && \
+    chmod +x /app/wait-for-mysql.sh
 
 USER appuser
 
@@ -43,8 +45,8 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
   CMD curl -f http://localhost:8080/api/actuator/health || exit 1
 
-# Run application
-ENTRYPOINT ["java", \
+# Run application with MySQL wait script
+ENTRYPOINT ["/app/wait-for-mysql.sh", "ems-mysql", "3306", "java", \
     "-Djava.security.egd=file:/dev/./urandom", \
     "-Dspring.profiles.active=prod", \
     "-jar", \
