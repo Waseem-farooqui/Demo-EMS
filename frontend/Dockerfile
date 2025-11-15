@@ -5,6 +5,16 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
+# Build arguments for environment variables
+ARG API_URL
+ARG API_BASE_URL
+ARG FRONTEND_URL
+
+# Set default values if not provided
+ENV API_URL=${API_URL:-http://localhost:8080/api}
+ENV API_BASE_URL=${API_BASE_URL:-http://localhost:8080}
+ENV FRONTEND_URL=${FRONTEND_URL:-http://localhost}
+
 # Copy package files
 COPY package*.json ./
 
@@ -14,6 +24,11 @@ RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
+
+# Replace placeholders in environment.prod.ts with actual values
+RUN sed -i "s|\${API_URL}|${API_URL}|g" src/environments/environment.prod.ts && \
+    sed -i "s|\${API_BASE_URL}|${API_BASE_URL}|g" src/environments/environment.prod.ts && \
+    sed -i "s|\${FRONTEND_URL}|${FRONTEND_URL}|g" src/environments/environment.prod.ts
 
 # Build for production
 RUN npm run build -- --configuration=production

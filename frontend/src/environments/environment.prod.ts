@@ -1,9 +1,10 @@
 // Production environment configuration
+// These values are replaced at build time via Docker build args
 export const environment = {
   production: true,
-  apiUrl: 'http://62.169.20.104:8080/api',
-  apiBaseUrl: 'http://62.169.20.104:8080',
-  frontendUrl: 'http://62.169.20.104',
+  apiUrl: '${API_URL}',
+  apiBaseUrl: '${API_BASE_URL}',
+  frontendUrl: '${FRONTEND_URL}',
 
   // Feature flags
   enableDebugMode: false,

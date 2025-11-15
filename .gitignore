@@ -58,3 +58,8 @@ hs_err_pid*
 replay_pid*
 
 /uploads/*
+
+# Environment variables
+.env
+.env.*
+!.env.example
