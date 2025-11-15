@@ -55,10 +55,18 @@ USE employee_management_system;
 -- Docker Compose creates the user with host '%' (any host)
 -- 
 -- IMPORTANT: If you change DB_USERNAME in .env to a different value,
--- you must update 'emsuser' in the GRANT statements below to match your username.
+-- you must update 'emsuser' in the statements below to match your username.
 --
--- We need to explicitly grant CREATE and other privileges to ensure JPA/Hibernate
--- can create and modify tables, indexes, etc.
+-- We need to explicitly set the password and grant privileges to ensure
+-- JPA/Hibernate can create and modify tables, indexes, etc.
+
+-- Ensure the user exists and password is set correctly
+-- Note: The password should match MYSQL_PASSWORD from compose.yaml
+-- Default password is 'emspassword' if DB_PASSWORD is not set in .env
+ALTER USER IF EXISTS 'emsuser'@'%' IDENTIFIED BY 'wud19@WUD';
+
+-- If user doesn't exist (shouldn't happen as Docker creates it), create it
+CREATE USER IF NOT EXISTS 'emsuser'@'%' IDENTIFIED BY 'wud19@WUD';
 
 -- Grant all privileges on the database to emsuser
 -- This includes: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, etc.
