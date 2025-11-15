@@ -20,6 +20,16 @@ public class TesseractConfig {
     public Tesseract tesseract() {
         Tesseract tesseract = new Tesseract();
 
+        // Set TESSDATA_PREFIX environment variable if not already set
+        // This is required for Tesseract native library to find language data
+        String tessdataPrefix = System.getenv("TESSDATA_PREFIX");
+        if (tessdataPrefix == null || tessdataPrefix.isEmpty()) {
+            // Try to set it from the configured path
+            if (tesseractDataPath != null && !tesseractDataPath.isEmpty()) {
+                System.setProperty("TESSDATA_PREFIX", tesseractDataPath);
+            }
+        }
+
         // Set the Tesseract data path from configuration
         tesseract.setDatapath(tesseractDataPath);
 
@@ -29,12 +39,19 @@ public class TesseractConfig {
             System.err.println("⚠️ WARNING: Tesseract tessdata directory not found at: " + tesseractDataPath);
             System.err.println("Please install Tesseract OCR or update ocr.tesseract.datapath in application.properties");
 
-            // Try alternative paths
+            // Try alternative paths (Linux/Docker first, then Windows)
             String[] alternativePaths = {
+                // Linux/Docker paths (most common)
+                "/usr/share/tesseract-ocr/5/tessdata",        // Tesseract 5.x (Debian/Ubuntu)
+                "/usr/share/tesseract-ocr/4.00/tessdata",     // Tesseract 4.x
+                "/usr/share/tesseract-ocr/tessdata",          // Generic
+                "/usr/local/share/tessdata",                   // Alternative location
+                "/usr/share/tessdata",                        // System-wide
+                // Windows paths
                 "C:\\Users\\waseem.uddin\\AppData\\Local\\Programs\\Tesseract-OCR\\tessdata",
                 "C:\\Users\\" + System.getProperty("user.name") + "\\AppData\\Local\\Programs\\Tesseract-OCR\\tessdata",
-                "/usr/share/tesseract-ocr/4.00/tessdata",
-                "/usr/local/share/tessdata"
+                "C:\\Program Files\\Tesseract-OCR\\tessdata",
+                "C:\\Program Files (x86)\\Tesseract-OCR\\tessdata"
             };
 
             for (String altPath : alternativePaths) {

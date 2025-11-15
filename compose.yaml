@@ -71,7 +71,12 @@ services:
 
       # Application Configuration
       APP_URL: ${APP_URL:-http://localhost}
-      TESSERACT_DATA_PATH: /usr/share/tesseract-ocr/4.00/tessdata
+      # Tesseract data path - will auto-detect if not found
+      # Common paths: /usr/share/tesseract-ocr/5/tessdata (Tesseract 5.x) or /usr/share/tesseract-ocr/4.00/tessdata (Tesseract 4.x)
+      TESSERACT_DATA_PATH: ${TESSERACT_DATA_PATH:-/usr/share/tesseract-ocr/5/tessdata}
+      # TESSDATA_PREFIX environment variable for Tesseract native library
+      # This is required for Tesseract to find language data files
+      TESSDATA_PREFIX: ${TESSDATA_PREFIX:-${TESSERACT_DATA_PATH:-/usr/share/tesseract-ocr/5/tessdata}}
 
       # CORS Configuration
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:4200}

@@ -20,6 +20,26 @@ RUN apt-get update && \
     apt-get install -y tesseract-ocr tesseract-ocr-eng curl netcat-openbsd default-mysql-client && \
     rm -rf /var/lib/apt/lists/*
 
+# Detect and set Tesseract tessdata path
+# Tesseract 5.x uses /usr/share/tesseract-ocr/5/tessdata
+# Tesseract 4.x uses /usr/share/tesseract-ocr/4.00/tessdata
+RUN TESS_DATA_PATH="" && \
+    if [ -d "/usr/share/tesseract-ocr/5/tessdata" ]; then \
+        TESS_DATA_PATH="/usr/share/tesseract-ocr/5/tessdata"; \
+    elif [ -d "/usr/share/tesseract-ocr/4.00/tessdata" ]; then \
+        TESS_DATA_PATH="/usr/share/tesseract-ocr/4.00/tessdata"; \
+    elif [ -d "/usr/share/tesseract-ocr/tessdata" ]; then \
+        TESS_DATA_PATH="/usr/share/tesseract-ocr/tessdata"; \
+    else \
+        TESS_DATA_PATH="/usr/share/tesseract-ocr/5/tessdata"; \
+    fi && \
+    echo "TESSDATA_PREFIX=${TESS_DATA_PATH}" >> /etc/environment && \
+    echo "Detected Tesseract tessdata at: ${TESS_DATA_PATH}" && \
+    ls -la "${TESS_DATA_PATH}/eng.traineddata" 2>/dev/null || echo "WARNING: eng.traineddata not found at ${TESS_DATA_PATH}"
+
+# Set default TESSDATA_PREFIX (can be overridden by environment variable)
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
+
 # Create app directory
 WORKDIR /app
 
