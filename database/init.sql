@@ -52,6 +52,7 @@ USE employee_management_system;
 -- ===================================================================
 -- The user 'emsuser' is created by Docker via MYSQL_USER environment variable
 -- (default: DB_USERNAME=emsuser in .env file)
+-- Docker Compose creates the user with host '%' (any host)
 -- 
 -- IMPORTANT: If you change DB_USERNAME in .env to a different value,
 -- you must update 'emsuser' in the GRANT statements below to match your username.
@@ -61,13 +62,12 @@ USE employee_management_system;
 
 -- Grant all privileges on the database to emsuser
 -- This includes: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, etc.
+-- Note: Only grant to '%' host as that's what Docker Compose creates
 GRANT ALL PRIVILEGES ON employee_management_system.* TO 'emsuser'@'%';
-GRANT ALL PRIVILEGES ON employee_management_system.* TO 'emsuser'@'localhost';
 
 -- Grant CREATE DATABASE privilege (needed if createDatabaseIfNotExist=true in JDBC URL)
 -- This allows the user to create the database if it doesn't exist
 GRANT CREATE ON *.* TO 'emsuser'@'%';
-GRANT CREATE ON *.* TO 'emsuser'@'localhost';
 
 -- Apply privilege changes
 FLUSH PRIVILEGES;

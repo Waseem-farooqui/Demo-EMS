@@ -23,8 +23,22 @@ RUN apt-get update && \
 # Create app directory
 WORKDIR /app
 
-# Copy wait script and JAR from build stage
-COPY wait-for-mysql.sh /app/wait-for-mysql.sh
+# Create wait script inline (avoids COPY issues)
+RUN printf '#!/bin/bash\n\
+set -e\n\
+host="$1"\n\
+port="$2"\n\
+shift 2\n\
+echo "Waiting for MySQL at $host:$port..."\n\
+until nc -z "$host" "$port" 2>/dev/null; do\n\
+  >&2 echo "MySQL is unavailable - sleeping"\n\
+  sleep 2\n\
+done\n\
+>&2 echo "MySQL is up - executing command"\n\
+exec "$@"\n' > /app/wait-for-mysql.sh && \
+    chmod +x /app/wait-for-mysql.sh
+
+# Copy JAR from build stage
 COPY --from=build /app/target/*.jar app.jar
 
 # Create uploads directory
