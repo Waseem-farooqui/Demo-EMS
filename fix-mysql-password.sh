@@ -30,6 +30,11 @@ DB_PASSWORD=${DB_PASSWORD:-emspassword}
 DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpassword}
 DB_USERNAME=${DB_USERNAME:-emsuser}
 
+# If root password fails, try common defaults
+ROOT_PASSWORD_OPTIONS=("$DB_ROOT_PASSWORD" "rootpassword" "root" "")
+
+echo -e "${YELLOW}Attempting to connect with root password from .env...${NC}"
+
 echo -e "${GREEN}Using password from .env file${NC}"
 echo "Username: $DB_USERNAME"
 echo ""
@@ -43,6 +48,30 @@ fi
 
 echo "Resetting password for user '$DB_USERNAME'..."
 echo ""
+
+# Try to connect with root password
+# If it fails, we'll provide manual instructions
+if ! docker-compose exec -T mysql mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" > /dev/null 2>&1; then
+    echo -e "${RED}ERROR: Cannot connect with root password from .env${NC}"
+    echo ""
+    echo "Your DB_ROOT_PASSWORD in .env might be incorrect."
+    echo ""
+    echo "To fix this, you have two options:"
+    echo ""
+    echo "Option 1: Update .env with correct root password"
+    echo "  Edit .env and set: DB_ROOT_PASSWORD=your_actual_root_password"
+    echo ""
+    echo "Option 2: Reset MySQL container (WILL DELETE DATA!)"
+    echo "  docker-compose stop mysql"
+    echo "  docker volume rm employeemanagementsystem_mysql_data"
+    echo "  docker-compose up -d mysql"
+    echo ""
+    echo "Option 3: Connect manually and fix password"
+    echo "  docker-compose exec mysql mysql -u root -p"
+    echo "  Then run: ALTER USER 'emsuser'@'%' IDENTIFIED BY 'wud19@WUD';"
+    echo "           FLUSH PRIVILEGES;"
+    exit 1
+fi
 
 # Fix the password
 docker-compose exec -T mysql mysql -u root -p"$DB_ROOT_PASSWORD" <<EOF
