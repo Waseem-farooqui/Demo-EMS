@@ -47,9 +47,39 @@ USE employee_management_system;
 -- - User has CREATE TABLE privileges
 -- ===================================================================
 
--- Grant privileges to the application user (created by Docker)
--- This is handled by MySQL's initialization process
+-- ===================================================================
+-- Grant Privileges to Application User (emsuser)
+-- ===================================================================
+-- The user 'emsuser' is created by Docker via MYSQL_USER environment variable
+-- (default: DB_USERNAME=emsuser in .env file)
+-- 
+-- IMPORTANT: If you change DB_USERNAME in .env to a different value,
+-- you must update 'emsuser' in the GRANT statements below to match your username.
+--
+-- We need to explicitly grant CREATE and other privileges to ensure JPA/Hibernate
+-- can create and modify tables, indexes, etc.
+
+-- Grant all privileges on the database to emsuser
+-- This includes: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, etc.
+GRANT ALL PRIVILEGES ON employee_management_system.* TO 'emsuser'@'%';
+GRANT ALL PRIVILEGES ON employee_management_system.* TO 'emsuser'@'localhost';
+
+-- Grant CREATE DATABASE privilege (needed if createDatabaseIfNotExist=true in JDBC URL)
+-- This allows the user to create the database if it doesn't exist
+GRANT CREATE ON *.* TO 'emsuser'@'%';
+GRANT CREATE ON *.* TO 'emsuser'@'localhost';
+
+-- Apply privilege changes
+FLUSH PRIVILEGES;
+
+-- ===================================================================
+-- Verify Setup
+-- ===================================================================
 
 -- Verify database creation
 SELECT 'Database employee_management_system created successfully' AS status;
+
+-- Verify user privileges (optional - for debugging)
+-- SHOW GRANTS FOR 'emsuser'@'%';
+-- SHOW GRANTS FOR 'emsuser'@'localhost';
 
