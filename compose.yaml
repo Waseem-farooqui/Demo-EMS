@@ -47,6 +47,9 @@ services:
       # We also pass DB_USERNAME so Spring Boot can use it as fallback
       DB_USERNAME: ${DB_USERNAME:-emsuser}
       DB_PASSWORD: ${DB_PASSWORD:-emspassword}
+      # Note: Spring Boot will use SPRING_DATASOURCE_PASSWORD if set, otherwise DB_PASSWORD
+      # We pass both so Spring Boot can use the correct one
+      # IMPORTANT: Make sure DB_PASSWORD in .env matches the password in MySQL!
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-emsuser}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-emspassword}
 

@@ -62,7 +62,8 @@ USE employee_management_system;
 
 -- Ensure the user exists and password is set correctly
 -- Note: The password should match MYSQL_PASSWORD from compose.yaml
--- Default password is 'emspassword' if DB_PASSWORD is not set in .env
+-- IMPORTANT: Update this password to match your .env DB_PASSWORD value
+-- Current password: wud19@WUD
 ALTER USER IF EXISTS 'emsuser'@'%' IDENTIFIED BY 'wud19@WUD';
 
 -- If user doesn't exist (shouldn't happen as Docker creates it), create it
