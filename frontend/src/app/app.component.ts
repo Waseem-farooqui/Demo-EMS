@@ -4,13 +4,14 @@ import {CommonModule} from '@angular/common';
 import {AuthService} from './services/auth.service';
 import {ToastComponent} from './components/toast/toast.component';
 import {NotificationDropdownComponent} from './components/notification-dropdown/notification-dropdown.component';
+import {PwaInstallComponent} from './components/pwa-install/pwa-install.component';
 import {HttpClient} from '@angular/common/http';
 import {environment} from '../environments/environment';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule, RouterLink, RouterLinkActive, ToastComponent, NotificationDropdownComponent],
+  imports: [RouterOutlet, CommonModule, RouterLink, RouterLinkActive, ToastComponent, NotificationDropdownComponent, PwaInstallComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
