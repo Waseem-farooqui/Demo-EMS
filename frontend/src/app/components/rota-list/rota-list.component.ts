@@ -62,56 +62,170 @@ export class RotaListComponent implements OnInit {
   }
 
   loadSchedules(rotaId: number): void {
+    // Prevent multiple simultaneous loads
+    if (this.loadingSchedules) {
+      console.log('Already loading schedules, skipping...');
+      return;
+    }
+    
     this.loadingSchedules = true;
+    this.schedules = [];
+    this.scheduleDates = [];
+    
+    console.log('Loading schedules for ROTA ID:', rotaId);
+    
+    // Add timeout to prevent infinite loading
+    let timeout: any = setTimeout(() => {
+      if (this.loadingSchedules) {
+        console.error('Timeout loading schedules for ROTA:', rotaId);
+        this.toastService.error('Timeout loading schedules. Please try again.');
+        this.loadingSchedules = false;
+      }
+    }, 30000); // 30 second timeout
+    
     this.rotaService.getRotaSchedules(rotaId).subscribe({
       next: (data) => {
+        console.log('Received schedules data:', data);
+        console.log('Data type:', typeof data, 'Is array:', Array.isArray(data));
+        
         // Backend returns flat list of RotaScheduleEntryDTO
         // Transform to grouped format expected by template
-        if (!data || data.length === 0) {
+        if (!data) {
+          console.warn('Received null or undefined data');
+          clearTimeout(timeout);
           this.schedules = [];
           this.scheduleDates = [];
           this.loadingSchedules = false;
           return;
         }
 
-        // Group schedules by employee
-        const employeeMap = new Map<number, any>();
-        const dateSet = new Set<string>();
-
-        for (const entry of data) {
-          // Extract date (handle both date string and datetime)
-          const dateStr = entry.scheduleDate ? entry.scheduleDate.split('T')[0] : null;
-          if (!dateStr) continue;
-
-          dateSet.add(dateStr);
-
-          const employeeId = entry.employeeId;
-          if (!employeeMap.has(employeeId)) {
-            employeeMap.set(employeeId, {
-              employeeId: employeeId,
-              employeeName: entry.employeeName || 'Unknown',
-              schedules: {}
-            });
-          }
-
-          const employee = employeeMap.get(employeeId);
-          employee.schedules[dateStr] = {
-            dayOfWeek: entry.dayOfWeek || '',
-            duty: entry.duty || 'OFF',
-            startTime: entry.startTime || null,
-            endTime: entry.endTime || null,
-            isOffDay: entry.isOffDay || false
-          };
+        if (!Array.isArray(data)) {
+          console.error('Expected array but received:', typeof data, data);
+          clearTimeout(timeout);
+          this.toastService.error('Invalid schedule data format');
+          this.schedules = [];
+          this.scheduleDates = [];
+          this.loadingSchedules = false;
+          return;
         }
 
-        // Convert map to array and sort dates
-        this.schedules = Array.from(employeeMap.values());
-        this.scheduleDates = Array.from(dateSet).sort();
+        if (data.length === 0) {
+          console.log('No schedules found for ROTA:', rotaId);
+          clearTimeout(timeout);
+          this.schedules = [];
+          this.scheduleDates = [];
+          this.loadingSchedules = false;
+          return;
+        }
 
+        try {
+          // Group schedules by employee
+          const employeeMap = new Map<number, any>();
+          const dateSet = new Set<string>();
+
+          for (const entry of data) {
+            // Validate entry structure
+            if (!entry || typeof entry !== 'object') {
+              console.warn('Invalid schedule entry:', entry);
+              continue;
+            }
+
+            // Extract date - LocalDate is serialized as "YYYY-MM-DD" (no time component)
+            let dateStr: string | null = null;
+            if (entry.scheduleDate) {
+              // Handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm:ss" formats
+              dateStr = String(entry.scheduleDate).split('T')[0];
+              // Validate date format (should be YYYY-MM-DD)
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                console.warn('Invalid date format:', entry.scheduleDate, 'extracted:', dateStr);
+                continue;
+              }
+            }
+            
+            if (!dateStr) {
+              console.warn('Missing or invalid scheduleDate in entry:', entry);
+              continue;
+            }
+
+            dateSet.add(dateStr);
+
+            const employeeId = entry.employeeId;
+            if (!employeeId && employeeId !== 0) {
+              console.warn('Missing employeeId in entry:', entry);
+              continue;
+            }
+
+            if (!employeeMap.has(employeeId)) {
+              employeeMap.set(employeeId, {
+                employeeId: employeeId,
+                employeeName: entry.employeeName || 'Unknown',
+                schedules: {}
+              });
+            }
+
+            const employee = employeeMap.get(employeeId);
+            
+            // Format time - LocalTime is serialized as "HH:mm:ss" or "HH:mm:ss.SSS"
+            let startTimeStr: string | null = null;
+            let endTimeStr: string | null = null;
+            
+            if (entry.startTime) {
+              const timeStr = String(entry.startTime);
+              // Extract just HH:mm from "HH:mm:ss" or "HH:mm:ss.SSS"
+              startTimeStr = timeStr.substring(0, 5);
+            }
+            
+            if (entry.endTime) {
+              const timeStr = String(entry.endTime);
+              // Extract just HH:mm from "HH:mm:ss" or "HH:mm:ss.SSS"
+              endTimeStr = timeStr.substring(0, 5);
+            }
+            
+            employee.schedules[dateStr] = {
+              dayOfWeek: entry.dayOfWeek || '',
+              duty: entry.duty || 'OFF',
+              startTime: startTimeStr,
+              endTime: endTimeStr,
+              isOffDay: entry.isOffDay || false
+            };
+          }
+
+          // Convert map to array and sort dates
+          this.schedules = Array.from(employeeMap.values());
+          this.scheduleDates = Array.from(dateSet).sort();
+          
+          console.log('Successfully transformed schedules:', {
+            employeeCount: this.schedules.length,
+            dateCount: this.scheduleDates.length,
+            employees: this.schedules.map(e => ({ id: e.employeeId, name: e.employeeName, scheduleCount: Object.keys(e.schedules).length }))
+          });
+        } catch (error) {
+          console.error('Error transforming schedules:', error);
+          console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+          this.toastService.error('Error processing schedule data: ' + (error instanceof Error ? error.message : String(error)));
+          this.schedules = [];
+          this.scheduleDates = [];
+        }
+
+        clearTimeout(timeout);
         this.loadingSchedules = false;
       },
       error: (err) => {
-        this.toastService.error('Failed to load schedules');
+        clearTimeout(timeout);
+        console.error('Error loading schedules:', err);
+        
+        // Check for specific error types
+        if (err.status === 403) {
+          this.toastService.error('You do not have permission to view schedules');
+        } else if (err.status === 404) {
+          this.toastService.error('ROTA not found');
+        } else if (err.status === 0) {
+          this.toastService.error('Network error. Please check your connection.');
+        } else {
+          const errorMsg = err.error?.error || err.error?.message || err.message || 'Failed to load schedules';
+          this.toastService.error(errorMsg);
+        }
+        
         this.loadingSchedules = false;
         this.schedules = [];
         this.scheduleDates = [];
