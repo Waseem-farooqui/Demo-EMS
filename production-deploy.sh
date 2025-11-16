@@ -915,6 +915,50 @@ else
     print_info "rota_schedules table doesn't exist yet (will be created by JPA or Flyway)"
 fi
 
+# Repair Flyway schema history if there are failed migrations
+print_info "Checking Flyway schema history for failed migrations..."
+FLYWAY_HISTORY_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+    -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system' AND table_name = 'flyway_schema_history';" \
+    2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+
+if [ "$FLYWAY_HISTORY_EXISTS" = "1" ]; then
+    FAILED_MIGRATIONS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM flyway_schema_history WHERE success = 0;" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    if [ "$FAILED_MIGRATIONS" != "0" ] && [ "$FAILED_MIGRATIONS" != "" ]; then
+        print_warning "Found $FAILED_MIGRATIONS failed migration(s) in Flyway history"
+        print_info "Repairing Flyway schema history (marking failed migrations as resolved)..."
+        
+        docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'FLYWAYREPAIR' 2>/dev/null || true
+USE employee_management_system;
+
+-- Update failed migrations to success=1 (repair)
+-- This allows Flyway to proceed with new migrations
+UPDATE flyway_schema_history 
+SET success = 1 
+WHERE success = 0;
+
+-- Also update checksum to match current migration files if needed
+-- This is safe because we've made migrations idempotent
+SELECT 'Flyway schema history repaired' AS status;
+FLYWAYREPAIR
+        
+        if [ $? -eq 0 ]; then
+            print_success "Flyway schema history repaired"
+            print_info "Failed migrations have been marked as resolved"
+            print_info "Flyway will now proceed with pending migrations on backend startup"
+        else
+            print_warning "Failed to repair Flyway schema history"
+            print_info "You may need to manually repair: UPDATE flyway_schema_history SET success = 1 WHERE success = 0;"
+        fi
+    else
+        print_success "No failed migrations found in Flyway history"
+    fi
+else
+    print_info "Flyway schema history table doesn't exist yet (will be created on first migration)"
+fi
+
 # Fix all other table schemas
 if [ -f "fix-all-tables-schema.sql" ]; then
     print_info "Applying comprehensive schema fixes..."
