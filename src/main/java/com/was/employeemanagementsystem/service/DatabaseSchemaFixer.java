@@ -13,6 +13,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Fixes database schema issues at runtime
@@ -41,6 +42,7 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
             fixRotasTableStructure();
             fixAttendanceTableStructure();
             fixLeavesTableStructure();
+            fixLeaveBalancesTableStructure();
             log.info("✅ Database schema check complete");
         } catch (Exception e) {
             log.error("❌ Error fixing database schema: {}", e.getMessage(), e);
@@ -361,6 +363,143 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
             }
         } catch (Exception e) {
             log.debug("Error ensuring column exists: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Fix leave_balances table structure by removing incorrect columns
+     */
+    private void fixLeaveBalancesTableStructure() {
+        try (Connection connection = dataSource.getConnection()) {
+            String databaseName = connection.getCatalog();
+            DatabaseMetaData metaData = connection.getMetaData();
+
+            // Check if leave_balances table exists
+            try (ResultSet tables = metaData.getTables(databaseName, null, "leave_balances", new String[]{"TABLE"})) {
+                if (!tables.next()) {
+                    log.debug("leave_balances table does not exist yet - skipping cleanup");
+                    return;
+                }
+            }
+
+            log.info("🔍 Checking leave_balances table structure...");
+
+            // Get all columns in leave_balances table
+            List<String> columnsToRemove = new ArrayList<>();
+            try (ResultSet columns = metaData.getColumns(databaseName, null, "leave_balances", null)) {
+                while (columns.next()) {
+                    String columnName = columns.getString("COLUMN_NAME");
+                    // Check if this column should not be in leave_balances table
+                    if (isIncorrectLeaveBalanceColumn(columnName)) {
+                        columnsToRemove.add(columnName);
+                    }
+                }
+            }
+
+            if (columnsToRemove.isEmpty()) {
+                log.info("✅ leave_balances table structure is correct");
+            } else {
+                log.warn("⚠️ Found {} incorrect column(s) in leave_balances table: {}", columnsToRemove.size(), columnsToRemove);
+                log.info("🔧 Removing incorrect columns...");
+
+                // Remove each incorrect column
+                for (String columnName : columnsToRemove) {
+                    try {
+                        // First, drop foreign key constraints if they exist
+                        dropForeignKeyConstraints(connection, databaseName, "leave_balances", columnName);
+                        
+                        // Drop indexes on the column
+                        dropIndexes(connection, databaseName, "leave_balances", columnName);
+                        
+                        // Drop the column
+                        jdbcTemplate.execute("ALTER TABLE leave_balances DROP COLUMN " + columnName);
+                        log.info("  ✓ Removed column: {}", columnName);
+                    } catch (Exception e) {
+                        log.warn("  ⚠️ Could not remove column {}: {}", columnName, e.getMessage());
+                    }
+                }
+            }
+
+            // Ensure correct columns exist with correct types
+            ensureColumnExists("leave_balances", "financial_year", "VARCHAR(20)");
+            ensureColumnExists("leave_balances", "total_allocated", "INT");
+            ensureColumnExists("leave_balances", "used_leaves", "INT");
+            ensureColumnExists("leave_balances", "remaining_leaves", "INT");
+            ensureColumnExists("leave_balances", "organization_id", "BIGINT");
+
+            // Fix column types if they're wrong
+            fixColumnType("leave_balances", "financial_year", "VARCHAR(20)");
+            fixColumnType("leave_balances", "total_allocated", "INT");
+            fixColumnType("leave_balances", "used_leaves", "INT");
+            fixColumnType("leave_balances", "remaining_leaves", "INT");
+
+            // Ensure financial_year is NOT NULL
+            ensureColumnNotNull("leave_balances", "financial_year", "VARCHAR(20)");
+            ensureColumnNotNull("leave_balances", "total_allocated", "INT");
+            ensureColumnNotNull("leave_balances", "used_leaves", "INT");
+            ensureColumnNotNull("leave_balances", "remaining_leaves", "INT");
+
+            log.info("✅ leave_balances table structure fixed successfully");
+
+        } catch (Exception e) {
+            log.error("❌ Error fixing leave_balances table structure: {}", e.getMessage(), e);
+            // Don't fail startup - just log the error
+        }
+    }
+
+    /**
+     * Check if a column name is incorrect for leave_balances table
+     */
+    private boolean isIncorrectLeaveBalanceColumn(String columnName) {
+        // These columns don't belong to leave_balances table
+        // Entity uses 'financial_year' not 'year'
+        // Entity uses 'used_leaves' not 'used'
+        // Entity uses 'remaining_leaves' not 'remaining'
+        return columnName.equals("year") || 
+               columnName.equals("used") || 
+               columnName.equals("remaining");
+    }
+
+    /**
+     * Fix column type if it's incorrect
+     */
+    private void fixColumnType(String tableName, String columnName, String correctType) {
+        try {
+            String sql = "SELECT DATA_TYPE, COLUMN_TYPE " +
+                        "FROM INFORMATION_SCHEMA.COLUMNS " +
+                        "WHERE table_schema = DATABASE() " +
+                        "AND table_name = ? " +
+                        "AND column_name = ?";
+            
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, tableName, columnName);
+            
+            if (!results.isEmpty()) {
+                String currentType = (String) results.get(0).get("COLUMN_TYPE");
+                // Check if type needs to be changed
+                // For VARCHAR, check if length is different
+                // For INT vs DECIMAL, always fix
+                if (correctType.startsWith("VARCHAR")) {
+                    if (!currentType.toUpperCase().startsWith("VARCHAR")) {
+                        jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " " + correctType);
+                        log.info("  ✓ Changed {} column type to {} in {} table", columnName, correctType, tableName);
+                    } else if (!currentType.equals(correctType)) {
+                        jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " " + correctType);
+                        log.info("  ✓ Changed {} column type from {} to {} in {} table", columnName, currentType, correctType, tableName);
+                    }
+                } else if (correctType.equals("INT")) {
+                    if (!currentType.toUpperCase().contains("INT")) {
+                        jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " " + correctType + " NOT NULL DEFAULT 0");
+                        log.info("  ✓ Changed {} column type to {} in {} table", columnName, correctType, tableName);
+                    }
+                } else if (correctType.equals("BIGINT")) {
+                    if (!currentType.toUpperCase().contains("BIGINT")) {
+                        jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " " + correctType);
+                        log.info("  ✓ Changed {} column type to {} in {} table", columnName, correctType, tableName);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Error fixing column type: {}", e.getMessage());
         }
     }
 
