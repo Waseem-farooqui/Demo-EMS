@@ -25,10 +25,12 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
 
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
+    private final LeaveService leaveService;
 
-    public DatabaseSchemaFixer(DataSource dataSource, JdbcTemplate jdbcTemplate) {
+    public DatabaseSchemaFixer(DataSource dataSource, JdbcTemplate jdbcTemplate, LeaveService leaveService) {
         this.dataSource = dataSource;
         this.jdbcTemplate = jdbcTemplate;
+        this.leaveService = leaveService;
     }
 
     @Override
@@ -37,9 +39,20 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
         try {
             log.info("🔧 Checking and fixing database schema...");
             fixRotasTableStructure();
+            fixAttendanceTableStructure();
+            fixLeavesTableStructure();
             log.info("✅ Database schema check complete");
         } catch (Exception e) {
             log.error("❌ Error fixing database schema: {}", e.getMessage(), e);
+            // Don't fail startup - just log the error
+        }
+        
+        // Initialize leave balances for employees who don't have them
+        try {
+            log.info("🔍 Checking for employees without leave balances...");
+            leaveService.initializeLeaveBalancesForAllEmployees();
+        } catch (Exception e) {
+            log.error("❌ Error initializing leave balances: {}", e.getMessage(), e);
             // Don't fail startup - just log the error
         }
     }
@@ -173,6 +186,203 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
             }
         } catch (Exception e) {
             log.debug("Error checking indexes: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Fix attendance table structure by removing incorrect columns
+     */
+    private void fixAttendanceTableStructure() {
+        try (Connection connection = dataSource.getConnection()) {
+            String databaseName = connection.getCatalog();
+            DatabaseMetaData metaData = connection.getMetaData();
+
+            // Check if attendance table exists
+            try (ResultSet tables = metaData.getTables(databaseName, null, "attendance", new String[]{"TABLE"})) {
+                if (!tables.next()) {
+                    log.debug("attendance table does not exist yet - skipping cleanup");
+                    return;
+                }
+            }
+
+            log.info("🔍 Checking attendance table structure...");
+
+            // Get all columns in attendance table
+            List<String> columnsToRemove = new ArrayList<>();
+            try (ResultSet columns = metaData.getColumns(databaseName, null, "attendance", null)) {
+                while (columns.next()) {
+                    String columnName = columns.getString("COLUMN_NAME");
+                    // Check if this column should not be in attendance table
+                    if (isIncorrectAttendanceColumn(columnName)) {
+                        columnsToRemove.add(columnName);
+                    }
+                }
+            }
+
+            if (columnsToRemove.isEmpty()) {
+                log.info("✅ attendance table structure is correct");
+                return;
+            }
+
+            log.warn("⚠️ Found {} incorrect column(s) in attendance table: {}", columnsToRemove.size(), columnsToRemove);
+            log.info("🔧 Removing incorrect columns...");
+
+            // Remove each incorrect column
+            for (String columnName : columnsToRemove) {
+                try {
+                    // First, drop foreign key constraints if they exist
+                    dropForeignKeyConstraints(connection, databaseName, "attendance", columnName);
+                    
+                    // Drop indexes on the column
+                    dropIndexes(connection, databaseName, "attendance", columnName);
+                    
+                    // Drop the column
+                    jdbcTemplate.execute("ALTER TABLE attendance DROP COLUMN " + columnName);
+                    log.info("  ✓ Removed column: {}", columnName);
+                } catch (Exception e) {
+                    log.warn("  ⚠️ Could not remove column {}: {}", columnName, e.getMessage());
+                }
+            }
+
+            // Ensure work_date and work_location are NOT NULL
+            ensureColumnNotNull("attendance", "work_date", "DATE");
+            ensureColumnNotNull("attendance", "work_location", "VARCHAR(255)");
+
+            log.info("✅ attendance table structure fixed successfully");
+
+        } catch (Exception e) {
+            log.error("❌ Error fixing attendance table structure: {}", e.getMessage(), e);
+            // Don't fail startup - just log the error
+        }
+    }
+
+    /**
+     * Check if a column name is incorrect for attendance table
+     */
+    private boolean isIncorrectAttendanceColumn(String columnName) {
+        // These columns don't belong to attendance table
+        // Entity uses 'work_date' not 'date', and 'is_active' not 'status'
+        return columnName.equals("date") || columnName.equals("status");
+    }
+
+    /**
+     * Fix leaves table structure by removing incorrect columns
+     */
+    private void fixLeavesTableStructure() {
+        try (Connection connection = dataSource.getConnection()) {
+            String databaseName = connection.getCatalog();
+            DatabaseMetaData metaData = connection.getMetaData();
+
+            // Check if leaves table exists
+            try (ResultSet tables = metaData.getTables(databaseName, null, "leaves", new String[]{"TABLE"})) {
+                if (!tables.next()) {
+                    log.debug("leaves table does not exist yet - skipping cleanup");
+                    return;
+                }
+            }
+
+            log.info("🔍 Checking leaves table structure...");
+
+            // Get all columns in leaves table
+            List<String> columnsToRemove = new ArrayList<>();
+            try (ResultSet columns = metaData.getColumns(databaseName, null, "leaves", null)) {
+                while (columns.next()) {
+                    String columnName = columns.getString("COLUMN_NAME");
+                    // Check if this column should not be in leaves table
+                    if (isIncorrectLeavesColumn(columnName)) {
+                        columnsToRemove.add(columnName);
+                    }
+                }
+            }
+
+            if (columnsToRemove.isEmpty()) {
+                log.info("✅ leaves table structure is correct");
+                return;
+            }
+
+            log.warn("⚠️ Found {} incorrect column(s) in leaves table: {}", columnsToRemove.size(), columnsToRemove);
+            log.info("🔧 Removing incorrect columns...");
+
+            // Remove each incorrect column
+            for (String columnName : columnsToRemove) {
+                try {
+                    // First, drop foreign key constraints if they exist
+                    dropForeignKeyConstraints(connection, databaseName, "leaves", columnName);
+                    
+                    // Drop indexes on the column
+                    dropIndexes(connection, databaseName, "leaves", columnName);
+                    
+                    // Drop the column
+                    jdbcTemplate.execute("ALTER TABLE leaves DROP COLUMN " + columnName);
+                    log.info("  ✓ Removed column: {}", columnName);
+                } catch (Exception e) {
+                    log.warn("  ⚠️ Could not remove column {}: {}", columnName, e.getMessage());
+                }
+            }
+
+            // Ensure financial_year column exists (it should be nullable)
+            ensureColumnExists("leaves", "financial_year", "VARCHAR(20)");
+            // Ensure organization_id column exists
+            ensureColumnExists("leaves", "organization_id", "BIGINT");
+
+            log.info("✅ leaves table structure fixed successfully");
+
+        } catch (Exception e) {
+            log.error("❌ Error fixing leaves table structure: {}", e.getMessage(), e);
+            // Don't fail startup - just log the error
+        }
+    }
+
+    /**
+     * Check if a column name is incorrect for leaves table
+     */
+    private boolean isIncorrectLeavesColumn(String columnName) {
+        // These columns don't belong to leaves table
+        // 'year' is incorrect - should be 'financial_year'
+        return columnName.equals("year");
+    }
+
+    /**
+     * Ensure a column exists, create it if it doesn't
+     */
+    private void ensureColumnExists(String tableName, String columnName, String columnType) {
+        try {
+            String sql = "SELECT COUNT(*) " +
+                        "FROM INFORMATION_SCHEMA.COLUMNS " +
+                        "WHERE table_schema = DATABASE() " +
+                        "AND table_name = ? " +
+                        "AND column_name = ?";
+            
+            Integer count = jdbcTemplate.queryForObject(sql, Integer.class, tableName, columnName);
+            
+            if (count == 0) {
+                jdbcTemplate.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnType);
+                log.info("  ✓ Added column: {} to {} table", columnName, tableName);
+            }
+        } catch (Exception e) {
+            log.debug("Error ensuring column exists: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Ensure a column is NOT NULL
+     */
+    private void ensureColumnNotNull(String tableName, String columnName, String columnType) {
+        try {
+            String sql = "SELECT IS_NULLABLE " +
+                        "FROM INFORMATION_SCHEMA.COLUMNS " +
+                        "WHERE table_schema = DATABASE() " +
+                        "AND table_name = ? " +
+                        "AND column_name = ?";
+            
+            String isNullable = jdbcTemplate.queryForObject(sql, String.class, tableName, columnName);
+            
+            if ("YES".equals(isNullable)) {
+                jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " " + columnType + " NOT NULL");
+                log.info("  ✓ Set {} column to NOT NULL in {} table", columnName, tableName);
+            }
+        } catch (Exception e) {
+            log.debug("Error ensuring column NOT NULL: {}", e.getMessage());
         }
     }
 }

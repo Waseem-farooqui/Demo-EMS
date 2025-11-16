@@ -208,6 +208,94 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ===================================================================
+-- Cleanup Attendance Table Structure
+-- ===================================================================
+-- Remove incorrect/unused columns from attendance table
+-- The entity uses 'work_date' not 'date', and 'is_active' instead of 'status'
+-- Using stored procedure approach for conditional logic
+
+DELIMITER //
+
+CREATE PROCEDURE IF NOT EXISTS fix_attendance_table()
+BEGIN
+    DECLARE table_exists INT DEFAULT 0;
+    DECLARE column_exists INT DEFAULT 0;
+    DECLARE column_nullable VARCHAR(3);
+    
+    -- Check if attendance table exists
+    SELECT COUNT(*) INTO table_exists
+    FROM INFORMATION_SCHEMA.TABLES 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'attendance';
+    
+    IF table_exists > 0 THEN
+        -- Drop 'date' column if it exists (entity uses 'work_date' instead)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'date';
+        
+        IF column_exists > 0 THEN
+            SET @sql = 'ALTER TABLE attendance DROP COLUMN `date`';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Drop 'status' column if it exists (entity uses 'is_active' instead)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'status';
+        
+        IF column_exists > 0 THEN
+            SET @sql = 'ALTER TABLE attendance DROP COLUMN `status`';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Ensure work_date is NOT NULL
+        SELECT IS_NULLABLE INTO column_nullable
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'work_date';
+        
+        IF column_nullable = 'YES' THEN
+            SET @sql = 'ALTER TABLE attendance MODIFY COLUMN work_date DATE NOT NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Ensure work_location is NOT NULL
+        SELECT IS_NULLABLE INTO column_nullable
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'work_location';
+        
+        IF column_nullable = 'YES' THEN
+            SET @sql = 'ALTER TABLE attendance MODIFY COLUMN work_location VARCHAR(255) NOT NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+    END IF;
+END //
+
+DELIMITER ;
+
+-- Execute the procedure
+CALL fix_attendance_table();
+
+-- Drop the procedure after use
+DROP PROCEDURE IF EXISTS fix_attendance_table;
+
+-- ===================================================================
 -- Verify Setup
 -- ===================================================================
 

@@ -49,10 +49,14 @@
           placeholder="Add any notes about your work today..."></textarea>
       </div>
 
-      <button (click)="checkIn()" class="btn btn-primary btn-large" [disabled]="loading || !selectedLocation">
-        <span *ngIf="!loading">🟢 Check In</span>
+      <button (click)="checkIn()" class="btn btn-primary btn-large" [disabled]="loading || !selectedLocation || hasCheckedInToday">
+        <span *ngIf="!loading && !hasCheckedInToday">🟢 Check In</span>
         <span *ngIf="loading">Checking in...</span>
+        <span *ngIf="!loading && hasCheckedInToday">✅ Already Checked In Today</span>
       </button>
+      <p *ngIf="hasCheckedInToday && !isCheckedIn" class="info-message">
+        ℹ️ You have already checked in today. You can check in again tomorrow.
+      </p>
     </div>
 
     <!-- Check-out Form -->

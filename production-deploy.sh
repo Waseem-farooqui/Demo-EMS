@@ -1045,18 +1045,164 @@ fi
 
 # Remove unused columns (preview_image, extracted_text, file_size, file_data, extracted_text from rotas)
 print_info "Removing unused columns from documents and rotas tables..."
-docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<EOF 2>/dev/null || true
+docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'UNUSEDCOLS' 2>/dev/null || true
 USE employee_management_system;
--- Remove from documents table
-ALTER TABLE documents DROP COLUMN IF EXISTS preview_image;
-ALTER TABLE documents DROP COLUMN IF EXISTS extracted_text;
-ALTER TABLE documents DROP COLUMN IF EXISTS file_size;
+
+-- Remove from documents table (using conditional checks)
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'documents' AND column_name = 'preview_image');
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE documents DROP COLUMN preview_image', 'SELECT "preview_image does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'documents' AND column_name = 'extracted_text');
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE documents DROP COLUMN extracted_text', 'SELECT "extracted_text does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'documents' AND column_name = 'file_size');
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE documents DROP COLUMN file_size', 'SELECT "file_size does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- Remove from rotas table
-ALTER TABLE rotas DROP COLUMN IF EXISTS file_data;
-ALTER TABLE rotas DROP COLUMN IF EXISTS extracted_text;
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'file_data');
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE rotas DROP COLUMN file_data', 'SELECT "file_data does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'extracted_text');
+SET @sql = IF(@column_exists > 0, 'ALTER TABLE rotas DROP COLUMN extracted_text', 'SELECT "extracted_text does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SELECT 'Unused columns removed' AS status;
-EOF
+UNUSEDCOLS
 print_success "Unused columns removed"
+
+# Fix attendance table structure (remove incorrect columns: date and status)
+print_info "Checking attendance table structure..."
+ATTENDANCE_TABLE_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+    -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system' AND table_name = 'attendance';" \
+    2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+
+if [ "$ATTENDANCE_TABLE_EXISTS" = "1" ]; then
+    # Check if attendance table has incorrect fields
+    HAS_DATE=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'attendance' AND column_name = 'date';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    HAS_STATUS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'attendance' AND column_name = 'status';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    if [ "$HAS_DATE" = "1" ] || [ "$HAS_STATUS" = "1" ]; then
+        print_warning "attendance table has incorrect fields (date, status)"
+        print_info "Entity uses 'work_date' not 'date', and 'is_active' not 'status'"
+        print_info "Removing incorrect columns..."
+        
+        docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'ATTENDANCEFIX' 2>/dev/null || true
+USE employee_management_system;
+
+DELIMITER //
+
+CREATE PROCEDURE IF NOT EXISTS fix_attendance_table()
+BEGIN
+    DECLARE table_exists INT DEFAULT 0;
+    DECLARE column_exists INT DEFAULT 0;
+    DECLARE column_nullable VARCHAR(3);
+    
+    -- Check if attendance table exists
+    SELECT COUNT(*) INTO table_exists
+    FROM INFORMATION_SCHEMA.TABLES 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'attendance';
+    
+    IF table_exists > 0 THEN
+        -- Drop 'date' column if it exists (entity uses 'work_date' instead)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'date';
+        
+        IF column_exists > 0 THEN
+            SET @sql = 'ALTER TABLE attendance DROP COLUMN `date`';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Drop 'status' column if it exists (entity uses 'is_active' instead)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'status';
+        
+        IF column_exists > 0 THEN
+            SET @sql = 'ALTER TABLE attendance DROP COLUMN `status`';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Ensure work_date is NOT NULL
+        SELECT IS_NULLABLE INTO column_nullable
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'work_date';
+        
+        IF column_nullable = 'YES' THEN
+            SET @sql = 'ALTER TABLE attendance MODIFY COLUMN work_date DATE NOT NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Ensure work_location is NOT NULL
+        SELECT IS_NULLABLE INTO column_nullable
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'attendance' 
+        AND column_name = 'work_location';
+        
+        IF column_nullable = 'YES' THEN
+            SET @sql = 'ALTER TABLE attendance MODIFY COLUMN work_location VARCHAR(255) NOT NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+    END IF;
+END //
+
+DELIMITER ;
+
+-- Execute the procedure
+CALL fix_attendance_table();
+
+-- Drop the procedure after use
+DROP PROCEDURE IF EXISTS fix_attendance_table;
+
+SELECT 'attendance table structure fixed' AS status;
+ATTENDANCEFIX
+        
+        if [ $? -eq 0 ]; then
+            print_success "attendance table structure fixed"
+        else
+            print_warning "Failed to fix attendance table structure (will be fixed by DatabaseSchemaFixer on backend startup)"
+        fi
+    else
+        print_success "attendance table structure is correct"
+    fi
+else
+    print_info "attendance table doesn't exist yet (will be created by JPA)"
+fi
 
 # Configure Tesseract OCR
 print_step "Step 15/20: Configuring Tesseract OCR"

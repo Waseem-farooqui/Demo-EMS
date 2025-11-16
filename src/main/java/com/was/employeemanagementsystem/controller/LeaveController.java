@@ -45,6 +45,14 @@ public class LeaveController {
             @RequestParam("reason") String reason,
             @RequestParam(value = "medicalCertificate", required = false) MultipartFile medicalCertificate) {
         try {
+            log.info("📥 Received leave application request:");
+            log.info("  - Employee ID: {}", employeeId);
+            log.info("  - Leave Type: {}", leaveType);
+            log.info("  - Start Date: {}", startDate);
+            log.info("  - End Date: {}", endDate);
+            log.info("  - Reason: {}", reason);
+            log.info("  - Medical Certificate: {}", medicalCertificate != null ? "Provided (" + medicalCertificate.getSize() + " bytes)" : "Not provided");
+
             LeaveDTO leaveDTO = new LeaveDTO();
             leaveDTO.setEmployeeId(employeeId);
             leaveDTO.setLeaveType(leaveType);
@@ -52,16 +60,45 @@ public class LeaveController {
             leaveDTO.setEndDate(LocalDate.parse(endDate));
             leaveDTO.setReason(reason);
 
+            log.info("✅ LeaveDTO created successfully");
             LeaveDTO createdLeave = leaveService.applyLeaveWithValidation(leaveDTO, medicalCertificate);
+            log.info("✅ Leave application completed successfully - Leave ID: {}", createdLeave.getId());
             return new ResponseEntity<>(createdLeave, HttpStatus.CREATED);
         } catch (IOException e) {
-            log.error("Error processing medical certificate", e);
+            log.error("❌ Error processing medical certificate", e);
+            log.error("  - Error Type: {}", e.getClass().getName());
+            log.error("  - Error Message: {}", e.getMessage());
+            log.error("  - Stack Trace:", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to process medical certificate: " + e.getMessage()));
         } catch (RuntimeException e) {
-            log.error("Validation error: {}", e.getMessage());
+            log.error("❌ Validation/Runtime error during leave application:");
+            log.error("  - Error Type: {}", e.getClass().getName());
+            log.error("  - Error Message: {}", e.getMessage());
+            if (e.getCause() != null) {
+                log.error("  - Cause Type: {}", e.getCause().getClass().getName());
+                log.error("  - Cause Message: {}", e.getCause().getMessage());
+                
+                // Log nested causes
+                Throwable cause = e.getCause();
+                int depth = 1;
+                while (cause.getCause() != null && depth < 5) {
+                    cause = cause.getCause();
+                    log.error("  - Nested Cause #{} Type: {}", depth, cause.getClass().getName());
+                    log.error("  - Nested Cause #{} Message: {}", depth, cause.getMessage());
+                    depth++;
+                }
+            }
+            log.error("  - Full Stack Trace:", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("❌ Unexpected error during leave application:");
+            log.error("  - Error Type: {}", e.getClass().getName());
+            log.error("  - Error Message: {}", e.getMessage());
+            log.error("  - Full Stack Trace:", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "An unexpected error occurred: " + e.getMessage()));
         }
     }
 

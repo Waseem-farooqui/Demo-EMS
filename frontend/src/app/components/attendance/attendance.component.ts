@@ -21,6 +21,7 @@ export class AttendanceComponent implements OnInit {
   employeeId: number | null = null;
   currentStatus: Attendance | null = null;
   isCheckedIn = false;
+  hasCheckedInToday = false; // Track if user has already checked in today (even after checkout)
   workLocations: WorkLocationOption[] = [];
   maxDate: string; // Maximum date (today) for date filters
 
@@ -78,7 +79,7 @@ export class AttendanceComponent implements OnInit {
         if (employee) {
           this.employeeId = employee.id;
           this.loadWorkLocations();
-          this.loadCurrentStatus();
+          this.loadCurrentStatus(); // This will also check today's attendance
           this.initializeDateRange();
         } else {
           this.toastService.error('Employee profile not found. Please contact admin.');
@@ -116,13 +117,41 @@ export class AttendanceComponent implements OnInit {
         if (response.status === 'CHECKED_OUT') {
           this.isCheckedIn = false;
           this.currentStatus = null;
+          // Check if user has already checked in today (even after checkout)
+          this.checkTodayAttendance();
         } else {
           this.isCheckedIn = true;
+          this.hasCheckedInToday = true; // If currently checked in, they've checked in today
           this.currentStatus = response;
         }
       },
       error: (err) => {
         console.error('Error loading status:', err);
+        // Still check for today's attendance even if status check fails
+        this.checkTodayAttendance();
+      }
+    });
+  }
+
+  checkTodayAttendance(): void {
+    if (!this.employeeId) return;
+    
+    const today = new Date();
+    const todayStr = this.formatDate(today);
+    
+    // Load today's attendance to check if user has already checked in
+    this.attendanceService.getAttendanceByDateRange(
+      this.employeeId,
+      todayStr,
+      todayStr
+    ).subscribe({
+      next: (history) => {
+        // If there's any record for today, user has already checked in
+        this.hasCheckedInToday = history.length > 0;
+      },
+      error: (err) => {
+        console.error('Error checking today attendance:', err);
+        // Don't show error to user, just log it
       }
     });
   }
@@ -157,6 +186,7 @@ export class AttendanceComponent implements OnInit {
     ).subscribe({
       next: (attendance) => {
         this.isCheckedIn = true;
+        this.hasCheckedInToday = true; // Mark as checked in today
         this.currentStatus = attendance;
         this.toastService.success('Checked in successfully!');
         this.checkInNotes = '';
@@ -186,6 +216,7 @@ export class AttendanceComponent implements OnInit {
       next: (attendance) => {
         this.isCheckedIn = false;
         this.currentStatus = null;
+        // Keep hasCheckedInToday = true even after checkout (user can't check in again today)
         const hours = attendance.hoursWorked?.toFixed(2) || 0;
         this.toastService.success(`Checked out successfully! Total hours: ${hours}`);
         this.checkOutNotes = '';
@@ -210,12 +241,29 @@ export class AttendanceComponent implements OnInit {
     ).subscribe({
       next: (history) => {
         this.attendanceHistory = history;
+        // Check if user has already checked in today (even after checkout)
+        this.checkIfCheckedInToday(history);
       },
       error: (err) => {
         console.error('Error loading history:', err);
         this.toastService.error('Failed to load attendance history');
       }
     });
+  }
+
+  checkIfCheckedInToday(history: Attendance[]): void {
+    const today = new Date();
+    const todayStr = this.formatDate(today);
+    
+    // Check if there's any attendance record for today
+    const todayRecord = history.find(record => {
+      const recordDate = new Date(record.workDate);
+      const recordDateStr = this.formatDate(recordDate);
+      return recordDateStr === todayStr;
+    });
+    
+    // If there's a record for today, user has already checked in (regardless of checkout status)
+    this.hasCheckedInToday = !!todayRecord;
   }
 
   getElapsedTime(): string {
