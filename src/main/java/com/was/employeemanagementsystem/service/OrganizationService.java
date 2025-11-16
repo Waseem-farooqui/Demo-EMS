@@ -37,6 +37,7 @@ public class OrganizationService {
     private final PasswordEncoder passwordEncoder;
     private final SecurityUtils securityUtils;
     private final EmailService emailService;
+    private final AlertConfigurationService alertConfigurationService;
 
 
     public OrganizationService(OrganizationRepository organizationRepository,
@@ -45,7 +46,8 @@ public class OrganizationService {
                               DepartmentRepository departmentRepository,
                               PasswordEncoder passwordEncoder,
                               SecurityUtils securityUtils,
-                              EmailService emailService) {
+                              EmailService emailService,
+                              AlertConfigurationService alertConfigurationService) {
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
@@ -53,6 +55,7 @@ public class OrganizationService {
         this.passwordEncoder = passwordEncoder;
         this.securityUtils = securityUtils;
         this.emailService = emailService;
+        this.alertConfigurationService = alertConfigurationService;
     }
 
     /**
@@ -206,6 +209,18 @@ public class OrganizationService {
 
         employeeRepository.save(superAdminEmployee);
         log.info("✅ Employee profile created for SUPER_ADMIN");
+
+        // Create default alert configurations for this organization
+        try {
+            alertConfigurationService.createDefaultConfigurationsForOrganization(
+                savedOrganization.getId(),
+                request.getContactEmail() != null ? request.getContactEmail() : request.getSuperAdminEmail()
+            );
+            log.info("✅ Default alert configurations created for organization");
+        } catch (Exception e) {
+            log.error("❌ Failed to create default alert configurations: {}", e.getMessage());
+            // Don't fail organization creation if alert config fails
+        }
 
         log.info("🎉 Organization setup complete!");
 

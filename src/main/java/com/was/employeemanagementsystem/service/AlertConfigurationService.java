@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.PostConstruct;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,46 +25,41 @@ public class AlertConfigurationService {
         this.securityUtils = securityUtils;
     }
 
-    @PostConstruct
-    public void initDefaultConfigurations() {
-        log.info("🔔 Initializing default alert configurations...");
+    /**
+     * Create default alert configurations for a new organization
+     * This is called when an organization is created
+     */
+    public void createDefaultConfigurationsForOrganization(Long organizationId, String contactEmail) {
+        log.info("🔔 Creating default alert configurations for organization ID: {}", organizationId);
 
-        // Create default configurations if they don't exist
-        // Example: Passport with multiple priority levels
-        createDefaultIfNotExists("PASSPORT", 90, "ATTENTION", "EMAIL");
-        createDefaultIfNotExists("PASSPORT", 30, "WARNING", "BOTH");
-        createDefaultIfNotExists("PASSPORT", 7, "CRITICAL", "BOTH");
+        // Create default configurations for this organization
+        createDefaultIfNotExists(organizationId, "PASSPORT", 90, "ATTENTION", "EMAIL", contactEmail);
+        createDefaultIfNotExists(organizationId, "PASSPORT", 30, "WARNING", "BOTH", contactEmail);
+        createDefaultIfNotExists(organizationId, "PASSPORT", 7, "CRITICAL", "BOTH", contactEmail);
 
-        createDefaultIfNotExists("VISA", 60, "ATTENTION", "EMAIL");
-        createDefaultIfNotExists("VISA", 30, "WARNING", "BOTH");
-        createDefaultIfNotExists("VISA", 7, "CRITICAL", "BOTH");
+        createDefaultIfNotExists(organizationId, "VISA", 60, "ATTENTION", "EMAIL", contactEmail);
+        createDefaultIfNotExists(organizationId, "VISA", 30, "WARNING", "BOTH", contactEmail);
+        createDefaultIfNotExists(organizationId, "VISA", 7, "CRITICAL", "BOTH", contactEmail);
 
-        // Log all existing configurations
-        List<AlertConfiguration> allConfigs = alertConfigurationRepository.findAll();
-        log.info("📋 Total alert configurations in database: {}", allConfigs.size());
-        for (AlertConfiguration config : allConfigs) {
-            log.info("   ⚙️  [ID: {}] {} - {} priority - {} days - Enabled: {} - OrgId: {}",
-                config.getId(),
-                config.getDocumentType(),
-                config.getAlertPriority(),
-                config.getAlertDaysBefore(),
-                config.isEnabled(),
-                config.getOrganizationId());
-        }
-        log.info("✅ Default alert configurations initialized");
+        log.info("✅ Default alert configurations created for organization ID: {}", organizationId);
     }
 
-    private void createDefaultIfNotExists(String docType, int days, String priority, String notifType) {
-        boolean exists = alertConfigurationRepository.existsByDocumentTypeAndAlertPriority(docType, priority);
+    private void createDefaultIfNotExists(Long organizationId, String docType, int days, String priority, String notifType, String email) {
+        // Check if configuration exists for this organization
+        boolean exists = alertConfigurationRepository.existsByOrganizationIdAndDocumentTypeAndAlertPriority(
+                organizationId, docType, priority);
 
         if (!exists) {
             AlertConfiguration config = new AlertConfiguration(
-                docType, days, "waseem.farooqui19@gmail.com", priority, notifType
+                docType, days, email != null ? email : "admin@organization.com", priority, notifType
             );
+            config.setOrganizationId(organizationId);
             alertConfigurationRepository.save(config);
-            log.info("   ➕ Created default config: {} - {} priority - {} days", docType, priority, days);
+            log.info("   ➕ Created default config for org {}: {} - {} priority - {} days", 
+                organizationId, docType, priority, days);
         } else {
-            log.debug("   ⏭️  Skipped (already exists): {} - {} priority", docType, priority);
+            log.debug("   ⏭️  Skipped (already exists for org {}): {} - {} priority", 
+                organizationId, docType, priority);
         }
     }
 
@@ -189,9 +183,13 @@ public class AlertConfigurationService {
         log.info("   📝 Notification Type: {}", dto.getNotificationType());
         log.info("   📝 Organization ID: {}", dto.getOrganizationId());
 
-        // Check if same document type + priority combination exists
-        boolean exists = alertConfigurationRepository.existsByDocumentTypeAndAlertPriority(
-                dto.getDocumentType(), dto.getAlertPriority());
+        // Check if same document type + priority combination exists for this organization
+        if (dto.getOrganizationId() == null) {
+            throw new RuntimeException("Organization ID is required for alert configuration");
+        }
+        
+        boolean exists = alertConfigurationRepository.existsByOrganizationIdAndDocumentTypeAndAlertPriority(
+                dto.getOrganizationId(), dto.getDocumentType(), dto.getAlertPriority());
 
         log.info("   🔍 Checking for existing config with same document type and priority...");
 
