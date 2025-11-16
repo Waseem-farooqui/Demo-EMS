@@ -915,6 +915,27 @@ else
     print_info "rota_schedules table doesn't exist yet (will be created by JPA or Flyway)"
 fi
 
+# Fix rota_schedules table BEFORE Flyway repair (ensures table structure is correct)
+print_info "Ensuring rota_schedules table has correct structure..."
+ROTA_SCHEDULES_TABLE_EXISTS_CHECK=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+    -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules';" \
+    2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+
+if [ "$ROTA_SCHEDULES_TABLE_EXISTS_CHECK" = "1" ]; then
+    HAS_EMPLOYEE_ID_CHECK=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules' AND column_name = 'employee_id';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    if [ "$HAS_EMPLOYEE_ID_CHECK" = "0" ]; then
+        print_warning "rota_schedules table missing employee_id - applying fix now..."
+        if [ -f "database/fix-rota-schedules-now.sql" ]; then
+            docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" < database/fix-rota-schedules-now.sql 2>/dev/null && \
+                print_success "rota_schedules table structure fixed" || \
+                print_warning "Could not apply fix (will be handled by Flyway migration V14)"
+        fi
+    fi
+fi
+
 # Repair Flyway schema history if there are failed migrations
 print_info "Checking Flyway schema history for failed migrations..."
 FLYWAY_HISTORY_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
