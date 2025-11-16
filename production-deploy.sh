@@ -961,7 +961,11 @@ FROM flyway_schema_history
 WHERE success = 0 
 ORDER BY installed_rank;
 
--- Update failed migrations to success=1 (repair)
+-- Delete failed V16 migration if it exists (migration was removed, handled at runtime now)
+DELETE FROM flyway_schema_history 
+WHERE version = '16' AND success = 0;
+
+-- Update other failed migrations to success=1 (repair)
 -- This allows Flyway to proceed with new migrations
 UPDATE flyway_schema_history 
 SET success = 1 
@@ -983,6 +987,7 @@ ORDER BY installed_rank DESC
 LIMIT 5;
 
 SELECT 'Flyway schema history repaired' AS status;
+SELECT 'Note: V16 migration removed - schema fixes now handled at runtime by DatabaseSchemaFixer' AS info;
 FLYWAYREPAIR
         
         if [ $? -eq 0 ]; then
@@ -1019,7 +1024,7 @@ if [ "$ROTAS_TABLE_EXISTS" = "1" ]; then
     if [ "$HAS_EMPLOYEE_ID" = "1" ] || [ "$HAS_WEEK_START_DATE" = "1" ]; then
         print_warning "rotas table has incorrect fields (employee_id, week_start_date, etc.)"
         print_info "These fields belong to rota_schedules table or are unused"
-        print_info "Flyway migration V16 will fix this automatically on backend startup"
+        print_info "DatabaseSchemaFixer will fix this automatically on backend startup"
     else
         print_success "rotas table structure is correct"
     fi

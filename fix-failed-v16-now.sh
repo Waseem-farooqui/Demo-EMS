@@ -1,8 +1,8 @@
 #!/bin/bash
 ###############################################################################
-# IMMEDIATE FIX: Repair Failed Migration V16
+# IMMEDIATE FIX: Repair Failed Migration V16 and Start Backend
 ###############################################################################
-# This script repairs the failed V16 migration in Flyway schema history
+# This script repairs the failed V16 migration and restarts the backend
 # Run this to fix the "Detected failed migration to version 16" error
 ###############################################################################
 
@@ -42,7 +42,15 @@ if [ -f "compose.yaml" ] || [ -f "docker-compose.yml" ]; then
     
     DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpassword}
     
-    print_info "Repairing failed migration V16 in Flyway schema history..."
+    print_info "Fixing failed migration V16..."
+    
+    # Check if MySQL is running
+    if ! docker-compose -f "$COMPOSE_FILE" ps mysql | grep -q "Up"; then
+        print_error "MySQL container is not running"
+        print_info "Starting MySQL..."
+        docker-compose -f "$COMPOSE_FILE" up -d mysql
+        sleep 5
+    fi
     
     # Check if flyway_schema_history table exists
     FLYWAY_HISTORY_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
@@ -50,7 +58,7 @@ if [ -f "compose.yaml" ] || [ -f "docker-compose.yml" ]; then
         2>/dev/null | tail -1 | tr -d ' ' || echo "0")
     
     if [ "$FLYWAY_HISTORY_EXISTS" = "0" ]; then
-        print_info "Flyway schema history table doesn't exist yet"
+        print_info "Flyway schema history table doesn't exist yet - no repair needed"
         exit 0
     fi
     
@@ -61,21 +69,13 @@ if [ -f "compose.yaml" ] || [ -f "docker-compose.yml" ]; then
     
     if [ "$FAILED_V16" = "0" ]; then
         print_success "No failed V16 migration found"
-        exit 0
-    fi
-    
-    print_info "Found failed V16 migration - removing it..."
-    print_info "Note: V16 migration has been removed - schema fixes are now handled at runtime by DatabaseSchemaFixer"
-    
-    # Delete the failed migration record (migration file no longer exists)
-    docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'REPAIR' 2>/dev/null || true
+    else
+        print_info "Found failed V16 migration - removing it..."
+        print_info "Note: V16 migration has been removed - schema fixes are now handled at runtime"
+        
+        # Delete the failed migration record (migration file no longer exists)
+        docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'REPAIR' 2>/dev/null || true
 USE employee_management_system;
-
--- Show failed migration
-SELECT 'Failed migration V16:' AS status;
-SELECT installed_rank, version, description, success, installed_on, checksum
-FROM flyway_schema_history 
-WHERE version = '16' AND success = 0;
 
 -- Drop foreign key constraint on employee_id if it exists (cleanup)
 SET @fk_name = (
@@ -100,19 +100,27 @@ DEALLOCATE PREPARE stmt;
 DELETE FROM flyway_schema_history 
 WHERE version = '16' AND success = 0;
 
--- Verify deletion
 SELECT 'V16 migration record removed' AS status;
-SELECT 'Schema fixes will be handled at runtime by DatabaseSchemaFixer on backend startup' AS info;
+SELECT 'Schema fixes will be handled at runtime by DatabaseSchemaFixer' AS info;
 REPAIR
-    
-    if [ $? -eq 0 ]; then
-        print_success "Failed V16 migration record removed successfully"
-        print_info "Schema fixes will be handled automatically by DatabaseSchemaFixer on backend startup"
-        print_info "You can now restart the backend"
-    else
-        print_error "Failed to remove V16 migration record"
-        exit 1
+        
+        if [ $? -eq 0 ]; then
+            print_success "Failed V16 migration record removed successfully"
+        else
+            print_error "Failed to remove V16 migration record"
+            exit 1
+        fi
     fi
+    
+    # Restart backend to trigger runtime schema fixer
+    print_info "Restarting backend - DatabaseSchemaFixer will fix schema on startup..."
+    docker-compose -f "$COMPOSE_FILE" restart backend || {
+        print_error "Failed to restart backend"
+        exit 1
+    }
+    
+        print_success "Backend restarted - DatabaseSchemaFixer will fix schema automatically on startup"
+        print_info "Monitor logs with: docker-compose logs -f backend | grep -i 'DatabaseSchemaFixer\|schema'"
     
 else
     print_error "This script requires Docker Compose environment"

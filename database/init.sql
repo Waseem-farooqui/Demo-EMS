@@ -82,6 +82,132 @@ GRANT CREATE ON *.* TO 'emsuser'@'%';
 FLUSH PRIVILEGES;
 
 -- ===================================================================
+-- Cleanup Incorrect Table Structures (if tables were created incorrectly)
+-- ===================================================================
+-- This section removes incorrect columns from rotas table if they exist
+-- These columns don't belong to rotas table and should be removed
+
+-- Check if rotas table exists and has incorrect columns
+SET @rotas_table_exists = (
+    SELECT COUNT(*) 
+    FROM INFORMATION_SCHEMA.TABLES 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'rotas'
+);
+
+-- Remove employee_id from rotas table if it exists (belongs to rota_schedules)
+-- First drop foreign key constraint if it exists
+SET @fk_name = (
+    SELECT CONSTRAINT_NAME 
+    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'rotas' 
+    AND column_name = 'employee_id'
+    AND referenced_table_name IS NOT NULL
+    LIMIT 1
+);
+
+SET @sql = IF(@rotas_table_exists > 0 AND @fk_name IS NOT NULL,
+    CONCAT('ALTER TABLE rotas DROP FOREIGN KEY ', @fk_name),
+    'SELECT "No foreign key constraint on employee_id" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Drop index on employee_id if it exists
+SET @index_name = (
+    SELECT DISTINCT index_name 
+    FROM INFORMATION_SCHEMA.STATISTICS 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'rotas' 
+    AND column_name = 'employee_id'
+    AND index_name != 'PRIMARY'
+    LIMIT 1
+);
+
+SET @sql = IF(@rotas_table_exists > 0 AND @index_name IS NOT NULL,
+    CONCAT('ALTER TABLE rotas DROP INDEX ', @index_name),
+    'SELECT "No index on employee_id" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Drop employee_id column if it exists
+SET @column_exists = (
+    SELECT COUNT(*) 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'rotas' 
+    AND column_name = 'employee_id'
+);
+
+SET @sql = IF(@rotas_table_exists > 0 AND @column_exists > 0,
+    'ALTER TABLE rotas DROP COLUMN employee_id',
+    'SELECT "Column employee_id does not exist in rotas table" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Remove other incorrect columns (week_start_date, week_end_date, status, created_by, created_at, updated_at)
+SET @columns_to_drop = (
+    SELECT GROUP_CONCAT(column_name) 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'rotas' 
+    AND column_name IN ('week_start_date', 'week_end_date', 'status', 'created_by', 'created_at', 'updated_at')
+);
+
+-- Drop week_start_date
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'week_start_date');
+SET @sql = IF(@rotas_table_exists > 0 AND @column_exists > 0, 'ALTER TABLE rotas DROP COLUMN week_start_date', 'SELECT "week_start_date does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Drop week_end_date
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'week_end_date');
+SET @sql = IF(@rotas_table_exists > 0 AND @column_exists > 0, 'ALTER TABLE rotas DROP COLUMN week_end_date', 'SELECT "week_end_date does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Drop status
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'status');
+SET @sql = IF(@rotas_table_exists > 0 AND @column_exists > 0, 'ALTER TABLE rotas DROP COLUMN status', 'SELECT "status does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Drop created_by (check for FK first)
+SET @fk_name = (SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'created_by' AND referenced_table_name IS NOT NULL LIMIT 1);
+SET @sql = IF(@rotas_table_exists > 0 AND @fk_name IS NOT NULL, CONCAT('ALTER TABLE rotas DROP FOREIGN KEY ', @fk_name), 'SELECT "No FK on created_by" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'created_by');
+SET @sql = IF(@rotas_table_exists > 0 AND @column_exists > 0, 'ALTER TABLE rotas DROP COLUMN created_by', 'SELECT "created_by does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Drop created_at
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'created_at');
+SET @sql = IF(@rotas_table_exists > 0 AND @column_exists > 0, 'ALTER TABLE rotas DROP COLUMN created_at', 'SELECT "created_at does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Drop updated_at
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'updated_at');
+SET @sql = IF(@rotas_table_exists > 0 AND @column_exists > 0, 'ALTER TABLE rotas DROP COLUMN updated_at', 'SELECT "updated_at does not exist" AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ===================================================================
 -- Verify Setup
 -- ===================================================================
 
