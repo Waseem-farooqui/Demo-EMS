@@ -224,12 +224,85 @@ export class UserCreateComponent implements OnInit {
   }
 
   copyToClipboard(text: string, type: string): void {
-    navigator.clipboard.writeText(text).then(() => {
-      this.toastService.success(`${type} copied to clipboard!`);
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      this.toastService.error('Failed to copy to clipboard');
-    });
+    // Check if text is valid
+    if (!text || text.trim() === '') {
+      this.toastService.warning(`No ${type} to copy`);
+      return;
+    }
+
+    // Try modern Clipboard API first (requires HTTPS or localhost)
+    const isSecureContext = window.isSecureContext || 
+                           window.location.protocol === 'https:' || 
+                           window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1';
+
+    if (navigator.clipboard && isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.toastService.success(`${type} copied to clipboard!`);
+      }).catch(err => {
+        console.error('Clipboard API failed, trying fallback:', err);
+        this.fallbackCopyToClipboard(text, type);
+      });
+    } else {
+      // Fallback for non-HTTPS environments
+      this.fallbackCopyToClipboard(text, type);
+    }
+  }
+
+  private fallbackCopyToClipboard(text: string, type: string): void {
+    // Create a temporary textarea element
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    // Position it off-screen but still in the viewport for better compatibility
+    textArea.style.position = 'fixed';
+    textArea.style.left = '0';
+    textArea.style.top = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    textArea.style.opacity = '0';
+    textArea.style.zIndex = '-9999';
+    textArea.setAttribute('readonly', '');
+    textArea.setAttribute('aria-hidden', 'true');
+    
+    document.body.appendChild(textArea);
+    
+    // Select the text
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, text.length); // For mobile devices
+
+    try {
+      // Use the older execCommand method as fallback
+      const successful = document.execCommand('copy');
+      if (successful) {
+        this.toastService.success(`${type} copied to clipboard!`);
+      } else {
+        throw new Error('execCommand copy failed');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      // Last resort: show the text in a prompt or alert
+      try {
+        const copied = prompt(`Please copy the ${type}:\n\nPress Ctrl+C (Cmd+C on Mac) to copy:`, text);
+        if (copied !== null) {
+          this.toastService.info(`${type} displayed in prompt - please copy manually`);
+        }
+      } catch (promptErr) {
+        // If prompt is blocked, show in alert
+        alert(`Please copy this ${type}:\n\n${text}`);
+        this.toastService.warning(`Please manually copy the ${type} from the alert`);
+      }
+    } finally {
+      // Clean up
+      if (document.body.contains(textArea)) {
+        document.body.removeChild(textArea);
+      }
+    }
   }
 
   createAnother(): void {

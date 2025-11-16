@@ -5,6 +5,7 @@ import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.Notification;
 import com.was.employeemanagementsystem.entity.User;
 import com.was.employeemanagementsystem.repository.DocumentRepository;
+import com.was.employeemanagementsystem.repository.EmployeeRepository;
 import com.was.employeemanagementsystem.repository.NotificationRepository;
 import com.was.employeemanagementsystem.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -28,13 +29,16 @@ public class DocumentExpiryNotificationService {
     private final DocumentRepository documentRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
 
     public DocumentExpiryNotificationService(DocumentRepository documentRepository,
                                             NotificationRepository notificationRepository,
-                                            UserRepository userRepository) {
+                                            UserRepository userRepository,
+                                            EmployeeRepository employeeRepository) {
         this.documentRepository = documentRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.employeeRepository = employeeRepository;
     }
 
     /**
@@ -119,43 +123,91 @@ public class DocumentExpiryNotificationService {
 
         List<Long> notifyUserIds = new ArrayList<>();
 
-        // 1. Notify the employee themselves if they have a user account
-        if (employee.getUserId() != null) {
-            notifyUserIds.add(employee.getUserId());
-        }
-
-        // 2. Find employee's user to get organization
+        // Find employee's user to get organization and role
         User employeeUser = employee.getUserId() != null
             ? userRepository.findById(employee.getUserId()).orElse(null)
             : null;
 
         if (employeeUser != null && employeeUser.getOrganizationId() != null) {
             Long organizationId = employeeUser.getOrganizationId();
+            
+            // Determine document owner's role
+            boolean isUserRole = employeeUser.getRoles().contains("USER");
+            boolean isAdminRole = employeeUser.getRoles().contains("ADMIN") && 
+                                 !employeeUser.getRoles().contains("SUPER_ADMIN");
 
-            // 2. Notify all ADMIN users in the organization (not just department admins)
-            List<User> admins = userRepository.findAll().stream()
-                .filter(u -> {
-                    Set<String> roles = u.getRoles();
-                    return roles.contains("ADMIN") && !roles.contains("SUPER_ADMIN") &&
-                           organizationId.equals(u.getOrganizationId());
-                })
-                .collect(Collectors.toList());
+            if (isUserRole) {
+                // USER role document: Notify Super Admin + Department Admin (if exists) + Document Owner
+                log.info("📋 Document owner is USER role - notifying Super Admin + Department Admin + Owner");
+                
+                // 1. Notify all SUPER_ADMINs in the organization
+                List<User> superAdmins = userRepository.findAll().stream()
+                    .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                    .filter(u -> organizationId.equals(u.getOrganizationId()))
+                    .collect(Collectors.toList());
 
-            notifyUserIds.addAll(admins.stream()
-                .map(User::getId)
-                .collect(Collectors.toList()));
-            log.info("🔔 Found {} ADMIN users in organization {}", admins.size(), organizationId);
+                notifyUserIds.addAll(superAdmins.stream()
+                    .map(User::getId)
+                    .collect(Collectors.toList()));
+                log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationId);
 
-            // 3. Notify all SUPER_ADMINs in the organization
-            List<User> superAdmins = userRepository.findAll().stream()
-                .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
-                .filter(u -> organizationId.equals(u.getOrganizationId()))
-                .collect(Collectors.toList());
+                // 2. Notify Department Admin (if employee has a department)
+                if (employee.getDepartment() != null) {
+                    List<Employee> deptEmployees = employeeRepository.findByDepartmentId(employee.getDepartment().getId());
+                    for (Employee deptEmp : deptEmployees) {
+                        if (deptEmp.getUserId() != null) {
+                            User deptUser = userRepository.findById(deptEmp.getUserId()).orElse(null);
+                            if (deptUser != null && deptUser.getRoles().contains("ADMIN") && 
+                                !deptUser.getRoles().contains("SUPER_ADMIN")) {
+                                notifyUserIds.add(deptUser.getId());
+                                log.info("🔔 Added department ADMIN: {} (Department: {})",
+                                    deptUser.getUsername(), employee.getDepartment().getName());
+                            }
+                        }
+                    }
+                }
 
-            notifyUserIds.addAll(superAdmins.stream()
-                .map(User::getId)
-                .collect(Collectors.toList()));
-            log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationId);
+                // 3. Notify the document owner
+                notifyUserIds.add(employeeUser.getId());
+                log.info("🔔 Added document owner (USER): {}", employeeUser.getUsername());
+                
+            } else if (isAdminRole) {
+                // ADMIN role document: Notify Document Owner + Super Admin only
+                log.info("📋 Document owner is ADMIN role - notifying Super Admin + Owner only");
+                
+                // 1. Notify all SUPER_ADMINs in the organization
+                List<User> superAdmins = userRepository.findAll().stream()
+                    .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                    .filter(u -> organizationId.equals(u.getOrganizationId()))
+                    .collect(Collectors.toList());
+
+                notifyUserIds.addAll(superAdmins.stream()
+                    .map(User::getId)
+                    .collect(Collectors.toList()));
+                log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationId);
+
+                // 2. Notify the document owner
+                notifyUserIds.add(employeeUser.getId());
+                log.info("🔔 Added document owner (ADMIN): {}", employeeUser.getUsername());
+                
+            } else {
+                // No user account or unknown role - notify Super Admin only
+                log.info("📋 Document owner has no user account or unknown role - notifying Super Admin only");
+                
+                List<User> superAdmins = userRepository.findAll().stream()
+                    .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                    .filter(u -> organizationId.equals(u.getOrganizationId()))
+                    .collect(Collectors.toList());
+
+                notifyUserIds.addAll(superAdmins.stream()
+                    .map(User::getId)
+                    .collect(Collectors.toList()));
+                log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationId);
+            }
+        } else {
+            // Employee has no user account - notify Super Admin only (if we can find organization)
+            log.warn("⚠️ Document owner has no user account - attempting to notify Super Admin only");
+            // Note: Without user account, we can't determine organization, so skip notification
         }
 
         // Remove duplicates

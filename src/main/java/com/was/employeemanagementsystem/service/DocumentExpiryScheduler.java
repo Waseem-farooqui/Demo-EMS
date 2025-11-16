@@ -207,7 +207,7 @@ public class DocumentExpiryScheduler {
         // Send email alert if configured (wrapped in try-catch to prevent email failures from blocking in-app notifications)
         if ("EMAIL".equals(config.getNotificationType()) || "BOTH".equals(config.getNotificationType())) {
             try {
-                // Collect all email recipients: Admin, Super Admin, and Document Owner
+                // Collect all email recipients based on document owner's role
                 List<String> emailRecipients = new ArrayList<>();
                 
                 // 1. Add configured alert email if provided
@@ -215,30 +215,93 @@ public class DocumentExpiryScheduler {
                     emailRecipients.add(config.getAlertEmail());
                 }
                 
-                // 2. Find all ADMIN and SUPER_ADMIN users in the same organization
                 String organizationUuid = document.getEmployee().getOrganizationUuid();
-                List<User> adminUsers = userRepository.findAll().stream()
-                    .filter(u -> {
-                        Set<String> roles = u.getRoles();
-                        return (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN")) &&
-                               organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid());
-                    })
-                    .collect(Collectors.toList());
-                
-                for (User adminUser : adminUsers) {
-                    if (adminUser.getEmail() != null && !adminUser.getEmail().isEmpty()) {
-                        emailRecipients.add(adminUser.getEmail());
-                        log.info("📧 Added admin email: {} (Role: {})", adminUser.getEmail(), adminUser.getRoles());
-                    }
-                }
-                
-                // 3. Add document owner's email if they have a user account
                 Employee employee = document.getEmployee();
-                if (employee.getUserId() != null) {
-                    User employeeUser = userRepository.findById(employee.getUserId()).orElse(null);
+                User employeeUser = employee.getUserId() != null ?
+                    userRepository.findById(employee.getUserId()).orElse(null) : null;
+                
+                // Determine document owner's role
+                boolean isUserRole = employeeUser != null && employeeUser.getRoles().contains("USER");
+                boolean isAdminRole = employeeUser != null && employeeUser.getRoles().contains("ADMIN") && 
+                                     !employeeUser.getRoles().contains("SUPER_ADMIN");
+                
+                if (isUserRole) {
+                    // USER role document: Send to Super Admin + Department Admin (if exists) + Document Owner
+                    log.info("📋 Document owner is USER role - sending to Super Admin + Department Admin + Owner");
+                    
+                    // Add Super Admin emails
+                    List<User> superAdmins = userRepository.findAll().stream()
+                        .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                        .filter(u -> organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid()))
+                        .collect(Collectors.toList());
+                    
+                    for (User superAdmin : superAdmins) {
+                        if (superAdmin.getEmail() != null && !superAdmin.getEmail().isEmpty()) {
+                            emailRecipients.add(superAdmin.getEmail());
+                            log.info("📧 Added SUPER_ADMIN email: {}", superAdmin.getEmail());
+                        }
+                    }
+                    
+                    // Add Department Admin email (if employee has a department)
+                    if (employee.getDepartment() != null) {
+                        List<Employee> deptEmployees = employeeRepository.findByDepartmentId(employee.getDepartment().getId());
+                        for (Employee deptEmp : deptEmployees) {
+                            if (deptEmp.getUserId() != null) {
+                                User deptUser = userRepository.findById(deptEmp.getUserId()).orElse(null);
+                                if (deptUser != null && deptUser.getRoles().contains("ADMIN") && 
+                                    !deptUser.getRoles().contains("SUPER_ADMIN")) {
+                                    if (deptUser.getEmail() != null && !deptUser.getEmail().isEmpty()) {
+                                        emailRecipients.add(deptUser.getEmail());
+                                        log.info("📧 Added department ADMIN email: {} (Department: {})", 
+                                            deptUser.getEmail(), employee.getDepartment().getName());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Add document owner's email
                     if (employeeUser != null && employeeUser.getEmail() != null && !employeeUser.getEmail().isEmpty()) {
                         emailRecipients.add(employeeUser.getEmail());
-                        log.info("📧 Added document owner email: {} (Employee: {})", employeeUser.getEmail(), employeeName);
+                        log.info("📧 Added document owner (USER) email: {}", employeeUser.getEmail());
+                    }
+                    
+                } else if (isAdminRole) {
+                    // ADMIN role document: Send to Document Owner + Super Admin only
+                    log.info("📋 Document owner is ADMIN role - sending to Super Admin + Owner only");
+                    
+                    // Add Super Admin emails
+                    List<User> superAdmins = userRepository.findAll().stream()
+                        .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                        .filter(u -> organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid()))
+                        .collect(Collectors.toList());
+                    
+                    for (User superAdmin : superAdmins) {
+                        if (superAdmin.getEmail() != null && !superAdmin.getEmail().isEmpty()) {
+                            emailRecipients.add(superAdmin.getEmail());
+                            log.info("📧 Added SUPER_ADMIN email: {}", superAdmin.getEmail());
+                        }
+                    }
+                    
+                    // Add document owner's email
+                    if (employeeUser != null && employeeUser.getEmail() != null && !employeeUser.getEmail().isEmpty()) {
+                        emailRecipients.add(employeeUser.getEmail());
+                        log.info("📧 Added document owner (ADMIN) email: {}", employeeUser.getEmail());
+                    }
+                } else {
+                    // No user account or unknown role - send to Super Admin only
+                    log.info("📋 Document owner has no user account or unknown role - sending to Super Admin only");
+                    
+                    List<User> superAdmins = userRepository.findAll().stream()
+                        .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                        .filter(u -> organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid()))
+                        .collect(Collectors.toList());
+                    
+                    for (User superAdmin : superAdmins) {
+                        if (superAdmin.getEmail() != null && !superAdmin.getEmail().isEmpty()) {
+                            emailRecipients.add(superAdmin.getEmail());
+                            log.info("📧 Added SUPER_ADMIN email: {}", superAdmin.getEmail());
+                        }
                     }
                 }
                 
@@ -276,32 +339,78 @@ public class DocumentExpiryScheduler {
 
             List<User> notifyUsers = new ArrayList<>();
 
-            // 1. Find all SUPER_ADMIN users in the same organization
-            List<User> superAdmins = userRepository.findAll().stream()
-                    .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
-                    .filter(u -> organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid()))
-                    .collect(Collectors.toList());
+            // Determine document owner's role
+            boolean isUserRole = employeeUser != null && employeeUser.getRoles().contains("USER");
+            boolean isAdminRole = employeeUser != null && employeeUser.getRoles().contains("ADMIN") && 
+                                 !employeeUser.getRoles().contains("SUPER_ADMIN");
 
-            notifyUsers.addAll(superAdmins);
-            log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationUuid);
+            if (isUserRole) {
+                // USER role document: Notify Super Admin + Department Admin (if exists) + Document Owner
+                log.info("📋 Document owner is USER role - notifying Super Admin + Department Admin + Owner");
+                
+                // 1. Find all SUPER_ADMIN users in the same organization
+                List<User> superAdmins = userRepository.findAll().stream()
+                        .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                        .filter(u -> organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid()))
+                        .collect(Collectors.toList());
 
-            // 2. Find all ADMIN users in the same organization (not just department admins)
-            List<User> admins = userRepository.findAll().stream()
-                    .filter(u -> {
-                        Set<String> roles = u.getRoles();
-                        return roles.contains("ADMIN") && !roles.contains("SUPER_ADMIN") &&
-                               organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid());
-                    })
-                    .collect(Collectors.toList());
+                notifyUsers.addAll(superAdmins);
+                log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationUuid);
 
-            notifyUsers.addAll(admins);
-            log.info("🔔 Found {} ADMIN users in organization {}", admins.size(), organizationUuid);
+                // 2. Find Department Admin (if employee has a department)
+                if (employee.getDepartment() != null) {
+                    List<Employee> deptEmployees = employeeRepository.findByDepartmentId(employee.getDepartment().getId());
+                    for (Employee deptEmp : deptEmployees) {
+                        if (deptEmp.getUserId() != null) {
+                            User deptUser = userRepository.findById(deptEmp.getUserId()).orElse(null);
+                            if (deptUser != null && deptUser.getRoles().contains("ADMIN") && 
+                                !deptUser.getRoles().contains("SUPER_ADMIN")) {
+                                notifyUsers.add(deptUser);
+                                log.info("🔔 Added department ADMIN: {} (Department: {})",
+                                    deptUser.getUsername(), employee.getDepartment().getName());
+                            }
+                        }
+                    }
+                }
 
-            // 3. Notify the document owner (if they have a user account)
-            if (employeeUser != null) {
-                notifyUsers.add(employeeUser);
-                log.info("🔔 Added document owner: {} (User ID: {}, Roles: {})",
-                    employeeUser.getUsername(), employeeUser.getId(), employeeUser.getRoles());
+                // 3. Notify the document owner
+                if (employeeUser != null) {
+                    notifyUsers.add(employeeUser);
+                    log.info("🔔 Added document owner (USER): {} (User ID: {})",
+                        employeeUser.getUsername(), employeeUser.getId());
+                }
+                
+            } else if (isAdminRole) {
+                // ADMIN role document: Notify Document Owner + Super Admin only
+                log.info("📋 Document owner is ADMIN role - notifying Super Admin + Owner only");
+                
+                // 1. Find all SUPER_ADMIN users in the same organization
+                List<User> superAdmins = userRepository.findAll().stream()
+                        .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                        .filter(u -> organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid()))
+                        .collect(Collectors.toList());
+
+                notifyUsers.addAll(superAdmins);
+                log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationUuid);
+
+                // 2. Notify the document owner
+                if (employeeUser != null) {
+                    notifyUsers.add(employeeUser);
+                    log.info("🔔 Added document owner (ADMIN): {} (User ID: {})",
+                        employeeUser.getUsername(), employeeUser.getId());
+                }
+                
+            } else {
+                // No user account or unknown role - notify Super Admin only
+                log.info("📋 Document owner has no user account or unknown role - notifying Super Admin only");
+                
+                List<User> superAdmins = userRepository.findAll().stream()
+                        .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
+                        .filter(u -> organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid()))
+                        .collect(Collectors.toList());
+
+                notifyUsers.addAll(superAdmins);
+                log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationUuid);
             }
 
             // Remove duplicates
