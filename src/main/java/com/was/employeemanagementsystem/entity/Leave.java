@@ -43,8 +43,9 @@ public class Leave {
     @Column(name = "applied_date", nullable = false)
     private LocalDate appliedDate;
 
-    @Column(name = "approved_by")
-    private String approvedBy;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private User approvedBy;
 
     @Column(name = "approval_date")
     private LocalDate approvalDate;

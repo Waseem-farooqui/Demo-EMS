@@ -93,7 +93,7 @@ public class LeaveService {
         return convertToDTO(savedLeave);
     }
 
-    public LeaveDTO approveLeave(Long leaveId, String approvedBy, String remarks) {
+    public LeaveDTO approveLeave(Long leaveId, String remarks) {
         User currentUser = securityUtils.getCurrentUser();
 
         // Only admins and super admins can approve leaves
@@ -146,19 +146,19 @@ public class LeaveService {
         }
 
         leave.setStatus("APPROVED");
-        leave.setApprovedBy(approvedBy);
+        leave.setApprovedBy(currentUser); // Store user ID via relationship
         leave.setApprovalDate(LocalDate.now());
         leave.setRemarks(remarks);
 
         Leave updatedLeave = leaveRepository.save(leave);
 
         // Create approval notification for the employee
-        notificationService.createLeaveApprovalNotification(updatedLeave, approvedBy);
+        notificationService.createLeaveApprovalNotification(updatedLeave, currentUser.getUsername());
 
         return convertToDTO(updatedLeave);
     }
 
-    public LeaveDTO rejectLeave(Long leaveId, String rejectedBy, String remarks) {
+    public LeaveDTO rejectLeave(Long leaveId, String remarks) {
         User currentUser = securityUtils.getCurrentUser();
 
         // Only admins and super admins can reject leaves
@@ -211,14 +211,14 @@ public class LeaveService {
         }
 
         leave.setStatus("REJECTED");
-        leave.setApprovedBy(rejectedBy);
+        leave.setApprovedBy(currentUser); // Store user ID via relationship (used for both approval and rejection)
         leave.setApprovalDate(LocalDate.now());
         leave.setRemarks(remarks);
 
         Leave updatedLeave = leaveRepository.save(leave);
 
         // Create rejection notification for the employee
-        notificationService.createLeaveRejectionNotification(updatedLeave, rejectedBy, remarks);
+        notificationService.createLeaveRejectionNotification(updatedLeave, currentUser.getUsername(), remarks);
 
         return convertToDTO(updatedLeave);
     }
@@ -365,7 +365,8 @@ public class LeaveService {
         dto.setReason(leave.getReason());
         dto.setStatus(leave.getStatus());
         dto.setAppliedDate(leave.getAppliedDate());
-        dto.setApprovedBy(leave.getApprovedBy());
+        // Extract username from User object for display
+        dto.setApprovedBy(leave.getApprovedBy() != null ? leave.getApprovedBy().getUsername() : null);
         dto.setApprovalDate(leave.getApprovalDate());
         dto.setRemarks(leave.getRemarks());
         dto.setHasMedicalCertificate(leave.getMedicalCertificate() != null);
@@ -636,7 +637,9 @@ public class LeaveService {
     /**
      * Approve leave and deduct from balance
      */
-    public LeaveDTO approveLeaveAndDeduct(Long leaveId, String approvedBy, String remarks) {
+    public LeaveDTO approveLeaveAndDeduct(Long leaveId, String remarks) {
+        User currentUser = securityUtils.getCurrentUser();
+        
         Leave leave = leaveRepository.findById(leaveId)
                 .orElseThrow(() -> new RuntimeException("Leave not found"));
 
@@ -649,7 +652,7 @@ public class LeaveService {
 
         // Approve leave
         leave.setStatus("APPROVED");
-        leave.setApprovedBy(approvedBy);
+        leave.setApprovedBy(currentUser); // Store user ID via relationship
         leave.setApprovalDate(LocalDate.now());
         leave.setRemarks(remarks);
 
@@ -669,7 +672,7 @@ public class LeaveService {
                 leave.getNumberOfDays(), balance.getRemainingLeaves());
 
         // Create notification
-        notificationService.createLeaveApprovalNotification(savedLeave, approvedBy);
+        notificationService.createLeaveApprovalNotification(savedLeave, currentUser.getUsername());
 
         return convertToDTO(savedLeave);
     }

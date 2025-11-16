@@ -573,22 +573,38 @@ BEGIN
             END IF;
         END IF;
         
-        -- Fix approved_by type if it's BIGINT (entity uses String/VARCHAR)
+        -- Ensure approved_by exists and is BIGINT (for foreign key to users.id)
+        -- The entity now uses @ManyToOne relationship to User, storing user ID
         SELECT COUNT(*) INTO column_exists
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE table_schema = 'employee_management_system' 
         AND table_name = 'leaves' 
         AND column_name = 'approved_by';
         
-        IF column_exists > 0 THEN
+        IF column_exists = 0 THEN
+            -- Column doesn't exist - create it as BIGINT from the start
+            SET @sql = 'ALTER TABLE leaves ADD COLUMN approved_by BIGINT NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        ELSE
+            -- Column exists - ensure it's BIGINT (not VARCHAR)
             SELECT DATA_TYPE INTO @data_type
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE table_schema = 'employee_management_system' 
             AND table_name = 'leaves' 
             AND column_name = 'approved_by';
             
-            IF @data_type = 'bigint' THEN
-                SET @sql = 'ALTER TABLE leaves MODIFY COLUMN approved_by VARCHAR(255) NULL';
+            -- If it's VARCHAR or any non-BIGINT type, fix it to BIGINT
+            IF @data_type != 'bigint' THEN
+                -- Clear any existing string values (they're invalid user IDs)
+                SET @sql = 'UPDATE leaves SET approved_by = NULL WHERE approved_by IS NOT NULL';
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+                
+                -- Change column type to BIGINT
+                SET @sql = 'ALTER TABLE leaves MODIFY COLUMN approved_by BIGINT NULL';
                 PREPARE stmt FROM @sql;
                 EXECUTE stmt;
                 DEALLOCATE PREPARE stmt;

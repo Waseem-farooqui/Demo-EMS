@@ -167,10 +167,10 @@ public class LeaveController {
             @PathVariable Long id,
             @RequestBody Map<String, String> request) {
         try {
-            String approvedBy = request.get("approvedBy");
             String remarks = request.get("remarks");
             // Use new method that deducts from balance
-            LeaveDTO approvedLeave = leaveService.approveLeaveAndDeduct(id, approvedBy, remarks);
+            // approvedBy is now automatically set from the current authenticated user
+            LeaveDTO approvedLeave = leaveService.approveLeaveAndDeduct(id, remarks);
             return ResponseEntity.ok(approvedLeave);
         } catch (RuntimeException e) {
             log.error("Error approving leave: {}", e.getMessage());
@@ -188,9 +188,9 @@ public class LeaveController {
             @PathVariable Long id,
             @RequestBody Map<String, String> request) {
         try {
-            String rejectedBy = request.get("rejectedBy");
             String remarks = request.get("remarks");
-            LeaveDTO rejectedLeave = leaveService.rejectLeave(id, rejectedBy, remarks);
+            // rejectedBy is now automatically set from the current authenticated user
+            LeaveDTO rejectedLeave = leaveService.rejectLeave(id, remarks);
             return ResponseEntity.ok(rejectedLeave);
         } catch (RuntimeException e) {
             log.error("Error rejecting leave: {}", e.getMessage());
