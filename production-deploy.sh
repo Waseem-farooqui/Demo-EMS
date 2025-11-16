@@ -489,7 +489,6 @@ CREATE TABLE IF NOT EXISTS documents (
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_type VARCHAR(50),
-    file_size BIGINT,
     file_hash VARCHAR(32),
     issue_date DATE,
     expiry_date DATE,
@@ -737,12 +736,17 @@ else
     print_warning "fix-all-tables-schema.sql not found, skipping comprehensive schema fixes"
 fi
 
-# Remove unused columns (preview_image and extracted_text - no longer stored)
-print_info "Removing unused columns (preview_image, extracted_text)..."
+# Remove unused columns (preview_image, extracted_text, file_size, file_data, extracted_text from rotas)
+print_info "Removing unused columns from documents and rotas tables..."
 docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<EOF 2>/dev/null || true
 USE employee_management_system;
+-- Remove from documents table
 ALTER TABLE documents DROP COLUMN IF EXISTS preview_image;
 ALTER TABLE documents DROP COLUMN IF EXISTS extracted_text;
+ALTER TABLE documents DROP COLUMN IF EXISTS file_size;
+-- Remove from rotas table
+ALTER TABLE rotas DROP COLUMN IF EXISTS file_data;
+ALTER TABLE rotas DROP COLUMN IF EXISTS extracted_text;
 SELECT 'Unused columns removed' AS status;
 EOF
 print_success "Unused columns removed"

@@ -72,8 +72,7 @@ public class ExcelRotaService {
         rota.setDepartment(metadata.getOrDefault("department", "Unknown Department"));
         rota.setFileName(file.getOriginalFilename());
         rota.setFilePath("/uploads/rota/" + UUID.randomUUID() + "_" + file.getOriginalFilename());
-        rota.setFileData(file.getBytes());
-        rota.setExtractedText("Excel file - no OCR needed");
+        // Note: fileData and extractedText removed - files stored in file system
         rota.setStartDate(LocalDate.parse(metadata.get("startDate")));
         rota.setEndDate(LocalDate.parse(metadata.get("endDate")));
         rota.setUploadedDate(LocalDateTime.now());

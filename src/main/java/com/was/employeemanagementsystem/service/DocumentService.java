@@ -253,13 +253,11 @@ public class DocumentService {
 
         Path filePath;
         String fileName;
-        long fileSize = file.getSize();
 
         if (existingFile != null) {
             // File already exists, reuse the existing file path
             log.info("♻️ File already exists in storage (hash: {}), reusing existing file", fileHash);
             log.info("   Existing file path: {}", existingFile.getFilePath());
-            log.info("   Storage saved: {} KB", fileSize / 1024);
 
             filePath = Paths.get(existingFile.getFilePath());
             fileName = existingFile.getFileName();
@@ -282,7 +280,7 @@ public class DocumentService {
                 log.info("   Reusing existing file instead of overwriting");
             } else {
                 Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-                log.info("💾 New file saved to disk: {} (Size: {} KB)", fileName, fileSize / 1024);
+                log.info("💾 New file saved to disk: {}", fileName);
                 log.info("   Format: {MD5_HASH}_{DOCUMENT_TYPE}{EXTENSION}");
             }
         }
@@ -294,7 +292,6 @@ public class DocumentService {
         document.setFileName(file.getOriginalFilename());
         document.setFilePath(filePath.toString());
         document.setFileType(file.getContentType());
-        document.setFileSize(fileSize); // Store file size for tracking
         document.setFileHash(fileHash); // Store MD5 hash for deduplication
         // Note: extractedText is used only temporarily for parsing structured fields, not stored
         document.setUploadedDate(LocalDateTime.now());

@@ -126,8 +126,7 @@ public class RotaService {
         rota.setDepartment(metadata.getOrDefault("department", "Unknown Department"));
         rota.setFileName(file.getOriginalFilename());
         rota.setFilePath("/uploads/rota/" + UUID.randomUUID() + "_" + file.getOriginalFilename());
-        rota.setFileData(imageBytes);
-        rota.setExtractedText(extractedText);
+        // Note: fileData and extractedText removed - files stored in file system, text only used temporarily for parsing
         rota.setStartDate(LocalDate.parse(metadata.get("startDate")));
         rota.setEndDate(LocalDate.parse(metadata.get("endDate")));
         rota.setUploadedDate(LocalDateTime.now());
@@ -180,8 +179,7 @@ public class RotaService {
         rota.setDepartment(department);
         rota.setFileName("Manual Entry");
         rota.setFilePath("/manual-entry");
-        rota.setFileData(new byte[0]);
-        rota.setExtractedText("Manually entered ROTA");
+        // Note: fileData and extractedText removed - not needed for manual entries
         rota.setStartDate(startDate);
         rota.setEndDate(endDate);
         rota.setUploadedDate(LocalDateTime.now());
@@ -901,9 +899,7 @@ public class RotaService {
         details.put("uploadedDate", rota.getUploadedDate());
         details.put("uploadedByName", rota.getUploadedByName());
 
-        // OCR extraction details
-        details.put("extractedText", rota.getExtractedText());
-        details.put("extractedTextLength", rota.getExtractedText() != null ? rota.getExtractedText().length() : 0);
+        // Note: extractedText removed - was only used for debugging
 
         // Schedule statistics
         details.put("totalScheduleRecords", schedules.size());
@@ -948,12 +944,7 @@ public class RotaService {
 
         details.put("employeeSchedules", employeeSchedules);
 
-        // Preview of raw text (first 500 characters)
-        if (rota.getExtractedText() != null && rota.getExtractedText().length() > 500) {
-            details.put("textPreview", rota.getExtractedText().substring(0, 500) + "...");
-        } else {
-            details.put("textPreview", rota.getExtractedText());
-        }
+        // Note: extractedText preview removed - was only used for debugging
 
         log.info("📊 Generated extraction details for ROTA ID: {}", rotaId);
         return details;

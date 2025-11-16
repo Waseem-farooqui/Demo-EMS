@@ -38,9 +38,6 @@ public class Document {
     @Column(name = "file_type")
     private String fileType;
 
-    @Column(name = "file_size")
-    private Long fileSize; // File size in bytes
-
     @Column(name = "file_hash", length = 32)
     private String fileHash; // MD5 hash for deduplication
 

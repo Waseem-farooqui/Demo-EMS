@@ -31,13 +31,6 @@ public class Rota {
     @Column(nullable = false)
     private String filePath;
 
-    @Lob
-    @Column(name = "file_data", columnDefinition = "LONGBLOB")
-    private byte[] fileData;
-
-    @Column(columnDefinition = "TEXT")
-    private String extractedText;
-
     @Column(nullable = false)
     private LocalDate startDate;
 
