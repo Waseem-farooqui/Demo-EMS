@@ -54,7 +54,7 @@ export class LeaveFormComponent implements OnInit {
     private router: Router,
     private route: ActivatedRoute
   ) {
-    // Set today's date for min date validation
+    // Set today's date (kept for reference, but not used as min date restriction)
     const today = new Date();
     this.today = today.toISOString().split('T')[0];
   }
