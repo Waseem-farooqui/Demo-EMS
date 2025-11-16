@@ -159,11 +159,15 @@ export class RotaListComponent implements OnInit {
               employeeMap.set(employeeId, {
                 employeeId: employeeId,
                 employeeName: entry.employeeName || 'Unknown',
-                schedules: {}
+                schedules: {} as { [date: string]: { dayOfWeek: string; duty: string; startTime: string | null; endTime: string | null; isOffDay: boolean; } }
               });
             }
 
             const employee = employeeMap.get(employeeId);
+            if (!employee) {
+              console.warn('Failed to get employee from map:', employeeId);
+              continue;
+            }
             
             // Format time - LocalTime is serialized as "HH:mm:ss" or "HH:mm:ss.SSS"
             let startTimeStr: string | null = null;
@@ -197,7 +201,7 @@ export class RotaListComponent implements OnInit {
           console.log('Successfully transformed schedules:', {
             employeeCount: this.schedules.length,
             dateCount: this.scheduleDates.length,
-            employees: this.schedules.map(e => ({ id: e.employeeId, name: e.employeeName, scheduleCount: Object.keys(e.schedules).length }))
+            employees: this.schedules.map(e => ({ id: e.employeeId, name: e.employeeName, scheduleCount: e.schedules ? Object.keys(e.schedules).length : 0 }))
           });
         } catch (error) {
           console.error('Error transforming schedules:', error);

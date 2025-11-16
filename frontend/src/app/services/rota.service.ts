@@ -16,26 +16,27 @@ export interface Rota {
 }
 
 // Backend returns flat list of RotaScheduleEntryDTO, not grouped format
+// After transformation, this becomes grouped format with schedules object
 export interface RotaSchedule {
   id?: number;
   rotaId?: number;
   employeeId: number;
   employeeName: string;
-  scheduleDate?: string; // For flat format
+  scheduleDate?: string; // For flat format (before transformation)
   dayOfWeek?: string;
   startTime?: string | null;
   endTime?: string | null;
   duty?: string;
   isOffDay?: boolean;
-  // Legacy grouped format (may not be present)
-  schedules?: {
+  // Grouped format (after transformation) - always present after loadSchedules()
+  schedules: {
     [date: string]: {
       dayOfWeek: string;
       duty: string;
       startTime: string | null;
       endTime: string | null;
       isOffDay: boolean;
-    } | undefined;
+    };
   };
 }
 
