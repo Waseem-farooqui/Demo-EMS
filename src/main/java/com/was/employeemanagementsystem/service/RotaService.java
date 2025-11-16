@@ -188,8 +188,15 @@ public class RotaService {
         rota.setOrganizationId(user.getOrganizationId()); // ✅ Set organization for multi-tenancy
 
         // Save ROTA
+        log.info("💾 Saving ROTA entity: hotelName={}, department={}, startDate={}, endDate={}", 
+                hotelName, department, startDate, endDate);
         Rota savedRota = rotaRepository.save(rota);
         log.info("✅ Manual ROTA saved with ID: {} for organization: {}", savedRota.getId(), user.getOrganizationId());
+        
+        // CRITICAL: Flush to ensure Rota is persisted before creating schedules
+        // This prevents any cascade save issues
+        rotaRepository.flush();
+        log.info("✅ ROTA entity flushed to database");
 
         // Parse schedules
         @SuppressWarnings("unchecked")
