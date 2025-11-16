@@ -980,6 +980,33 @@ else
     print_info "Flyway schema history table doesn't exist yet (will be created on first migration)"
 fi
 
+# Fix rotas table structure (remove incorrect fields)
+print_info "Checking rotas table structure..."
+ROTAS_TABLE_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+    -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system' AND table_name = 'rotas';" \
+    2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+
+if [ "$ROTAS_TABLE_EXISTS" = "1" ]; then
+    # Check if rotas table has incorrect fields
+    HAS_EMPLOYEE_ID=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'employee_id';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    HAS_WEEK_START_DATE=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'week_start_date';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    if [ "$HAS_EMPLOYEE_ID" = "1" ] || [ "$HAS_WEEK_START_DATE" = "1" ]; then
+        print_warning "rotas table has incorrect fields (employee_id, week_start_date, etc.)"
+        print_info "These fields belong to rota_schedules table or are unused"
+        print_info "Flyway migration V16 will fix this automatically on backend startup"
+    else
+        print_success "rotas table structure is correct"
+    fi
+else
+    print_info "rotas table doesn't exist yet (will be created by JPA or Flyway)"
+fi
+
 # Fix all other table schemas
 if [ -f "fix-all-tables-schema.sql" ]; then
     print_info "Applying comprehensive schema fixes..."

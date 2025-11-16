@@ -19,31 +19,31 @@ public class Rota {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "hotel_name", nullable = false)
     private String hotelName;
 
-    @Column(nullable = false)
+    @Column(name = "department", nullable = false)
     private String department;
 
-    @Column(nullable = false)
+    @Column(name = "file_name", nullable = false)
     private String fileName;
 
-    @Column(nullable = false)
+    @Column(name = "file_path", nullable = false, length = 500)
     private String filePath;
 
-    @Column(nullable = false)
+    @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
-    @Column(nullable = false)
+    @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    @Column(nullable = false)
+    @Column(name = "uploaded_date", nullable = false)
     private LocalDateTime uploadedDate;
 
-    @Column(nullable = false)
+    @Column(name = "uploaded_by", nullable = false)
     private Long uploadedBy; // User ID who uploaded
 
-    @Column(nullable = false)
+    @Column(name = "uploaded_by_name", nullable = false)
     private String uploadedByName;
 
     @Column(name = "organization_id")
