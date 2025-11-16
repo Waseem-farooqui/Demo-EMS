@@ -15,6 +15,7 @@ import com.was.employeemanagementsystem.security.SecurityUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -211,15 +212,18 @@ public class OrganizationService {
         log.info("✅ Employee profile created for SUPER_ADMIN");
 
         // Create default alert configurations for this organization
+        // Do this in a separate transaction to avoid rolling back organization creation if it fails
         try {
-            alertConfigurationService.createDefaultConfigurationsForOrganization(
+            // Use a separate method with REQUIRES_NEW propagation to run in a new transaction
+            createAlertConfigurationsInNewTransaction(
                 savedOrganization.getId(),
                 request.getContactEmail() != null ? request.getContactEmail() : request.getSuperAdminEmail()
             );
             log.info("✅ Default alert configurations created for organization");
         } catch (Exception e) {
-            log.error("❌ Failed to create default alert configurations: {}", e.getMessage());
+            log.error("❌ Failed to create default alert configurations: {}", e.getMessage(), e);
             // Don't fail organization creation if alert config fails
+            // The organization is already saved and committed
         }
 
         log.info("🎉 Organization setup complete!");
@@ -511,6 +515,15 @@ public class OrganizationService {
                 organization.getName(), id, enabledCount);
 
         return convertToDTO(saved);
+    }
+
+    /**
+     * Create alert configurations in a separate transaction
+     * This prevents alert creation failures from rolling back organization creation
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createAlertConfigurationsInNewTransaction(Long organizationId, String contactEmail) {
+        alertConfigurationService.createDefaultConfigurationsForOrganization(organizationId, contactEmail);
     }
 
     /**

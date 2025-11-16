@@ -622,14 +622,18 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE TABLE IF NOT EXISTS alert_configurations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     organization_id BIGINT NOT NULL,
-    alert_type VARCHAR(50) NOT NULL,
+    document_type VARCHAR(50) NOT NULL,
+    alert_days_before INT NOT NULL,
+    alert_email VARCHAR(255),
     enabled BOOLEAN DEFAULT TRUE,
-    days_before INT,
-    notification_method VARCHAR(50),
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME,
-    UNIQUE KEY uk_org_alert_type (organization_id, alert_type),
+    alert_priority VARCHAR(50) NOT NULL,
+    notification_type VARCHAR(50) NOT NULL,
+    alert_frequency VARCHAR(50),
+    repeat_until_resolved BOOLEAN DEFAULT FALSE,
+    UNIQUE KEY uk_doc_priority (document_type, alert_priority),
+    UNIQUE KEY uk_org_doc_priority (organization_id, document_type, alert_priority),
     INDEX idx_org_id (organization_id),
+    INDEX idx_document_type (document_type),
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS verification_tokens (
@@ -665,6 +669,58 @@ SQL
     fi
 else
     print_success "Database tables already exist ($TABLES_COUNT tables found)"
+fi
+
+# Fix alert_configurations table schema if needed
+print_info "Checking alert_configurations table schema..."
+ALERT_TABLE_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+    -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system' AND table_name = 'alert_configurations';" \
+    2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+
+if [ "$ALERT_TABLE_EXISTS" = "1" ]; then
+    # Check if table has wrong schema (has alert_type column instead of document_type)
+    HAS_ALERT_TYPE=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'alert_configurations' AND column_name = 'alert_type';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    if [ "$HAS_ALERT_TYPE" = "1" ]; then
+        print_warning "alert_configurations table has wrong schema (has alert_type instead of document_type)"
+        print_info "Fixing table schema..."
+        
+        docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<EOF 2>/dev/null || true
+USE employee_management_system;
+-- Drop and recreate table with correct schema
+DROP TABLE IF EXISTS alert_configurations;
+CREATE TABLE alert_configurations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT NOT NULL,
+    document_type VARCHAR(50) NOT NULL,
+    alert_days_before INT NOT NULL,
+    alert_email VARCHAR(255),
+    enabled BOOLEAN DEFAULT TRUE,
+    alert_priority VARCHAR(50) NOT NULL,
+    notification_type VARCHAR(50) NOT NULL,
+    alert_frequency VARCHAR(50),
+    repeat_until_resolved BOOLEAN DEFAULT FALSE,
+    UNIQUE KEY uk_doc_priority (document_type, alert_priority),
+    UNIQUE KEY uk_org_doc_priority (organization_id, document_type, alert_priority),
+    INDEX idx_org_id (organization_id),
+    INDEX idx_document_type (document_type),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+SELECT 'Alert configurations table schema fixed' AS status;
+EOF
+        
+        if [ $? -eq 0 ]; then
+            print_success "alert_configurations table schema fixed"
+        else
+            print_warning "Failed to fix alert_configurations table schema (will be created by JPA)"
+        fi
+    else
+        print_success "alert_configurations table has correct schema"
+    fi
+else
+    print_info "alert_configurations table doesn't exist yet (will be created by JPA)"
 fi
 
 # Configure Tesseract OCR
