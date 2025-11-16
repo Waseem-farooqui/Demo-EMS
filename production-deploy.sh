@@ -667,8 +667,81 @@ else
     print_success "Database tables already exist ($TABLES_COUNT tables found)"
 fi
 
+# Configure Tesseract OCR
+print_step "Step 15/20: Configuring Tesseract OCR"
+
+print_info "Detecting Tesseract installation and tessdata path..."
+
+# Find tessdata path in the already-built backend image
+BACKEND_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "backend|demo-ems|employeemanagementsystem" | head -1)
+
+if [ -n "$BACKEND_IMAGE" ]; then
+    print_info "Checking Tesseract in image: $BACKEND_IMAGE"
+    
+    # Check common tessdata paths
+    TESS_DATA_PATH=""
+    PATHS=(
+        "/usr/share/tesseract-ocr/5/tessdata"
+        "/usr/share/tesseract-ocr/4.00/tessdata"
+        "/usr/share/tesseract-ocr/tessdata"
+    )
+    
+    for path in "${PATHS[@]}"; do
+        if docker run --rm "$BACKEND_IMAGE" test -f "$path/eng.traineddata" 2>/dev/null; then
+            TESS_DATA_PATH="$path"
+            print_success "Found Tesseract tessdata at: $path"
+            break
+        fi
+    done
+    
+    if [ -n "$TESS_DATA_PATH" ]; then
+        # Update .env file
+        if grep -q "^TESSERACT_DATA_PATH=" .env 2>/dev/null; then
+            sed -i "s|^TESSERACT_DATA_PATH=.*|TESSERACT_DATA_PATH=$TESS_DATA_PATH|" .env
+        else
+            echo "TESSERACT_DATA_PATH=$TESS_DATA_PATH" >> .env
+        fi
+        
+        if grep -q "^TESSDATA_PREFIX=" .env 2>/dev/null; then
+            sed -i "s|^TESSDATA_PREFIX=.*|TESSDATA_PREFIX=$TESS_DATA_PATH|" .env
+        else
+            echo "TESSDATA_PREFIX=$TESS_DATA_PATH" >> .env
+        fi
+        
+        print_success "Tesseract configuration updated in .env"
+    else
+        print_warning "Could not detect Tesseract tessdata path automatically"
+        print_info "Using default path: /usr/share/tesseract-ocr/5/tessdata"
+        
+        # Set defaults in .env
+        if ! grep -q "^TESSERACT_DATA_PATH=" .env 2>/dev/null; then
+            echo "TESSERACT_DATA_PATH=/usr/share/tesseract-ocr/5/tessdata" >> .env
+        fi
+        if ! grep -q "^TESSDATA_PREFIX=" .env 2>/dev/null; then
+            echo "TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata" >> .env
+        fi
+    fi
+else
+    print_warning "Could not find backend image, using default Tesseract paths"
+    print_info "Will detect Tesseract after container starts"
+    # Set defaults
+    if ! grep -q "^TESSERACT_DATA_PATH=" .env 2>/dev/null; then
+        echo "TESSERACT_DATA_PATH=/usr/share/tesseract-ocr/5/tessdata" >> .env
+    fi
+    if ! grep -q "^TESSDATA_PREFIX=" .env 2>/dev/null; then
+        echo "TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata" >> .env
+    fi
+fi
+
+# Reload environment variables
+set -a
+source .env 2>/dev/null || true
+set +a
+
+print_success "Tesseract configuration ready"
+
 # Start backend
-print_step "Step 15/20: Starting Backend"
+print_step "Step 16/20: Starting Backend"
 
 print_info "Starting backend container..."
 docker-compose -f "$COMPOSE_FILE" up -d backend
@@ -697,8 +770,30 @@ if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
     docker-compose -f "$COMPOSE_FILE" logs backend --tail=50
 fi
 
+# Verify Tesseract in running container
+print_info "Verifying Tesseract installation in running container..."
+sleep 5
+
+TESS_VERIFY_PATH=""
+if docker-compose -f "$COMPOSE_FILE" ps backend | grep -q "Up"; then
+    # Check if eng.traineddata exists in common paths
+    for path in "/usr/share/tesseract-ocr/5/tessdata" "/usr/share/tesseract-ocr/4.00/tessdata" "/usr/share/tesseract-ocr/tessdata"; do
+        if docker-compose -f "$COMPOSE_FILE" exec -T backend test -f "$path/eng.traineddata" 2>/dev/null; then
+            TESS_VERIFY_PATH="$path"
+            print_success "Verified Tesseract tessdata at: $path"
+            break
+        fi
+    done
+    
+    if [ -z "$TESS_VERIFY_PATH" ]; then
+        print_warning "Could not verify Tesseract tessdata in running container"
+        print_info "This may cause OCR functionality issues"
+        print_info "Check logs: docker-compose logs backend | grep -i tesseract"
+    fi
+fi
+
 # Start frontend
-print_step "Step 16/20: Starting Frontend"
+print_step "Step 17/20: Starting Frontend"
 
 print_info "Starting frontend container..."
 docker-compose -f "$COMPOSE_FILE" up -d frontend
@@ -708,7 +803,7 @@ print_info "Waiting for frontend to start (10 seconds)..."
 sleep 10
 
 # Verify database tables
-print_step "Step 17/20: Verifying Database Tables"
+print_step "Step 18/20: Verifying Database Tables"
 
 print_info "Checking if database tables exist..."
 sleep 10
@@ -725,7 +820,7 @@ else
 fi
 
 # Verify services
-print_step "Step 18/20: Verifying Services"
+print_step "Step 19/20: Verifying Services"
 
 print_info "Checking service status..."
 docker-compose -f "$COMPOSE_FILE" ps
@@ -748,7 +843,7 @@ else
 fi
 
 # Verify production configuration
-print_step "Step 19/20: Verifying Production Configuration"
+print_step "Step 20/20: Verifying Production Configuration"
 
 # Check Spring profile
 if docker-compose -f "$COMPOSE_FILE" logs backend | grep -qi "profile.*prod"; then
@@ -766,6 +861,19 @@ else
     print_info "Could not verify frontend URLs"
 fi
 
+# Verify Tesseract configuration
+print_info "Checking Tesseract configuration in backend logs..."
+sleep 2
+if docker-compose -f "$COMPOSE_FILE" logs backend 2>/dev/null | grep -qi "tesseract.*found\|tesseract.*configured\|tesseract.*success"; then
+    print_success "Tesseract OCR configured successfully"
+elif docker-compose -f "$COMPOSE_FILE" logs backend 2>/dev/null | grep -qi "tesseract.*warning\|tesseract.*error\|tesseract.*not found"; then
+    print_warning "Tesseract may have configuration issues (check logs)"
+    print_info "Run: docker-compose logs backend | grep -i tesseract"
+else
+    print_info "Could not verify Tesseract configuration from logs"
+    print_info "Check manually: docker-compose logs backend | grep -i tesseract"
+fi
+
 # Final verification
 print_step "Step 20/20: Final Verification"
 
@@ -779,7 +887,7 @@ print_info "  Backend API: http://localhost:${BACKEND_PORT:-8080}/api"
 print_info "  Health Check: http://localhost:${BACKEND_PORT:-8080}/api/actuator/health"
 
 # Summary
-print_step "Step 20/20: Deployment Summary"
+print_step "Step 21/21: Deployment Summary"
 
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
@@ -803,6 +911,7 @@ echo "  2. Create ROOT account (first-time setup)"
 echo "  3. Verify all functionality"
 echo "  4. Review logs: docker-compose logs -f"
 echo "  5. Set up automated backups: ./backup.sh"
+echo "  6. Verify Tesseract OCR: docker-compose logs backend | grep -i tesseract"
 echo ""
 
 print_info "🔧 Useful Commands:"
@@ -811,12 +920,14 @@ echo "  • Restart: docker-compose restart"
 echo "  • Stop: docker-compose down"
 echo "  • Backup: ./backup.sh"
 echo "  • Monitor: ./monitor.sh"
+echo "  • Check Tesseract: docker-compose exec backend ls -la /usr/share/tesseract-ocr/*/tessdata/eng.traineddata"
 echo ""
 
 print_info "📚 Documentation:"
 echo "  • Migration Guide: MIGRATION_GUIDE.md"
 echo "  • Environment Setup: ENV_SETUP_GUIDE.md"
 echo "  • Production Checklist: PRODUCTION_READINESS_CHECKLIST.md"
+echo "  • Tesseract Fix: FIX_TESSERACT_PATH.md"
 echo ""
 
 # Check for any warnings
