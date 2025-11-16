@@ -337,7 +337,49 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
             
             // Fix column types
             fixColumnType("leaves", "financial_year", "VARCHAR(20)"); // Fix from VARCHAR(255) to VARCHAR(20)
-            fixColumnType("leaves", "approved_by", "VARCHAR(255)"); // Entity uses String, not BIGINT
+            
+            // CRITICAL FIX: approved_by must be VARCHAR(255), not BIGINT
+            // The entity stores username strings (e.g., "muddisar.mansoor_mshotelman"), not user IDs
+            log.info("🔧 Checking approved_by column type...");
+            try {
+                String checkSql = "SELECT DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS " +
+                                "WHERE table_schema = DATABASE() AND table_name = 'leaves' AND column_name = 'approved_by'";
+                List<Map<String, Object>> results = jdbcTemplate.queryForList(checkSql);
+                
+                if (!results.isEmpty()) {
+                    String currentDataType = (String) results.get(0).get("DATA_TYPE");
+                    String currentColumnType = (String) results.get(0).get("COLUMN_TYPE");
+                    
+                    log.info("  📊 Current approved_by type: {} ({})", currentDataType, currentColumnType);
+                    
+                    // If it's BIGINT or any non-VARCHAR type, fix it
+                    if (!"varchar".equalsIgnoreCase(currentDataType)) {
+                        log.warn("  ⚠️ approved_by is {} but should be VARCHAR(255) - fixing now...", currentDataType);
+                        
+                        // Clear any existing numeric values (they're invalid usernames anyway)
+                        try {
+                            jdbcTemplate.execute("UPDATE leaves SET approved_by = NULL WHERE approved_by IS NOT NULL");
+                            log.info("  ✓ Cleared existing approved_by values");
+                        } catch (Exception e) {
+                            log.warn("  ⚠️ Could not clear approved_by values: {}", e.getMessage());
+                        }
+                        
+                        // Change column type
+                        jdbcTemplate.execute("ALTER TABLE leaves MODIFY COLUMN approved_by VARCHAR(255) NULL");
+                        log.info("  ✅ Fixed approved_by column type to VARCHAR(255)");
+                    } else if (!currentColumnType.equalsIgnoreCase("varchar(255)")) {
+                        // It's VARCHAR but wrong length
+                        jdbcTemplate.execute("ALTER TABLE leaves MODIFY COLUMN approved_by VARCHAR(255) NULL");
+                        log.info("  ✅ Fixed approved_by column length to VARCHAR(255)");
+                    } else {
+                        log.info("  ✅ approved_by column type is already correct (VARCHAR(255))");
+                    }
+                } else {
+                    log.warn("  ⚠️ approved_by column not found - will be created by JPA");
+                }
+            } catch (Exception e) {
+                log.error("  ❌ Error fixing approved_by column: {}", e.getMessage(), e);
+            }
 
             log.info("✅ leaves table structure fixed successfully");
 
