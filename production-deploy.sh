@@ -954,14 +954,34 @@ if [ "$FLYWAY_HISTORY_EXISTS" = "1" ]; then
         docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'FLYWAYREPAIR' 2>/dev/null || true
 USE employee_management_system;
 
+-- Show failed migrations before repair
+SELECT 'Failed migrations before repair:' AS status;
+SELECT installed_rank, version, description, success, installed_on 
+FROM flyway_schema_history 
+WHERE success = 0 
+ORDER BY installed_rank;
+
 -- Update failed migrations to success=1 (repair)
 -- This allows Flyway to proceed with new migrations
 UPDATE flyway_schema_history 
 SET success = 1 
 WHERE success = 0;
 
--- Also update checksum to match current migration files if needed
+-- Also update checksum to NULL for failed migrations so Flyway recalculates
 -- This is safe because we've made migrations idempotent
+UPDATE flyway_schema_history 
+SET checksum = NULL 
+WHERE success = 1 AND checksum IS NOT NULL 
+AND version IN (SELECT version FROM (SELECT version FROM flyway_schema_history WHERE success = 0) AS temp);
+
+-- Verify repair
+SELECT 'Repaired migrations:' AS status;
+SELECT installed_rank, version, description, success, installed_on 
+FROM flyway_schema_history 
+WHERE success = 1 
+ORDER BY installed_rank DESC 
+LIMIT 5;
+
 SELECT 'Flyway schema history repaired' AS status;
 FLYWAYREPAIR
         
