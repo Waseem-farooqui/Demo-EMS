@@ -224,13 +224,19 @@ CREATE TABLE IF NOT EXISTS rotas (
 CREATE TABLE IF NOT EXISTS rota_schedules (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     rota_id BIGINT NOT NULL,
-    day_of_week INT NOT NULL,
+    employee_id BIGINT NOT NULL,
+    employee_name VARCHAR(255) NOT NULL,
+    schedule_date DATE NOT NULL,
+    day_of_week VARCHAR(50) NOT NULL,
     start_time TIME,
     end_time TIME,
-    break_duration INT,
-    notes TEXT,
+    duty VARCHAR(255) NOT NULL,
+    is_off_day BOOLEAN DEFAULT FALSE,
     INDEX idx_rota_id (rota_id),
-    FOREIGN KEY (rota_id) REFERENCES rotas(id) ON DELETE CASCADE
+    INDEX idx_employee_id (employee_id),
+    INDEX idx_schedule_date (schedule_date),
+    FOREIGN KEY (rota_id) REFERENCES rotas(id) ON DELETE CASCADE,
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Rota change logs table
