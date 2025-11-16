@@ -55,7 +55,6 @@ export class AttendanceComponent implements OnInit {
     // SUPER_ADMIN (CEO) doesn't need to check in/out - redirect to dashboard
     const roles = this.currentUser?.roles || [];
     if (roles.includes('SUPER_ADMIN')) {
-      console.log('SUPER_ADMIN redirected from attendance - CEOs do not check in');
       this.toastService.info('As CEO, you do not need to check in/out');
       this.router.navigate(['/dashboard']);
       return;

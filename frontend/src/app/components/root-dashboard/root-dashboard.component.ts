@@ -56,7 +56,6 @@ export class RootDashboardComponent implements OnInit {
       next: (data) => {
         this.dashboardData = data;
         this.loading = false;
-        console.log('✅ ROOT dashboard data loaded:', data);
       },
       error: (err) => {
         console.error('❌ Error loading ROOT dashboard:', err);
@@ -72,12 +71,10 @@ export class RootDashboardComponent implements OnInit {
   }
 
   viewOrganizationDetails(orgId: number): void {
-    console.log('Navigating to organization details for ID:', orgId);
     this.router.navigate(['/root/organizations', orgId]);
   }
 
   createOrganization(): void {
-    console.log('Navigating to create organization form');
     this.router.navigate(['/root/organizations/create']);
   }
 
@@ -91,7 +88,6 @@ export class RootDashboardComponent implements OnInit {
 
     this.http.post<any>(`${this.organizationApiUrl}/${orgId}/deactivate`, {}).subscribe({
       next: (response) => {
-        console.log('✅ Organization deactivated:', response);
         alert(`✅ Organization "${orgName}" has been deactivated successfully.\n\nAll users are now blocked.`);
         this.loadDashboard(); // Reload to show updated status
       },
@@ -114,7 +110,6 @@ export class RootDashboardComponent implements OnInit {
 
     this.http.post<any>(`${this.organizationApiUrl}/${orgId}/activate`, {}).subscribe({
       next: (response) => {
-        console.log('✅ Organization activated:', response);
         alert(`✅ Organization "${orgName}" has been activated successfully.\n\nAll users can now access the system.`);
         this.loadDashboard(); // Reload to show updated status
       },

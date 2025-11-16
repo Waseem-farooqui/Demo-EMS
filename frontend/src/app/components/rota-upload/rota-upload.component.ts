@@ -54,6 +54,10 @@ export class RotaUploadComponent implements OnInit {
   selectMode(mode: 'excel' | 'image' | 'manual'): void {
     this.uploadMode = mode;
     this.clearSelection();
+    // Re-initialize manual form when switching to manual mode
+    if (mode === 'manual') {
+      this.initializeManualForm();
+    }
   }
 
   backToSelection(): void {

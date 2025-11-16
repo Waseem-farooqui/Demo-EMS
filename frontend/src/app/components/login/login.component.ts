@@ -37,15 +37,10 @@ export class LoginComponent {
 
     this.authService.login(this.loginForm.value).subscribe({
       next: (response) => {
-        console.log('✅ Login successful');
-        console.log('Response:', response);
-        console.log('User roles:', response.roles);
-
         // Check temporaryPassword flag from response FIRST, then from storage as fallback
         const hasTemporaryPassword = response.temporaryPassword === true;
 
         if (hasTemporaryPassword) {
-          console.log('🔒 Temporary password detected - Redirecting to password change');
           this.router.navigate(['/change-password']);
           this.loading = false;
           return;
@@ -55,16 +50,12 @@ export class LoginComponent {
         const roles = response.roles || [];
 
         if (roles.includes('ROOT')) {
-          console.log('👑 ROOT user detected - Redirecting to ROOT dashboard');
           this.router.navigate(['/root/dashboard']);
         } else if (roles.includes('SUPER_ADMIN')) {
-          console.log('⭐ SUPER_ADMIN detected - Redirecting to employee dashboard');
           this.router.navigate(['/dashboard']);
         } else if (roles.includes('ADMIN')) {
-          console.log('🔧 ADMIN detected - Redirecting to dashboard');
           this.router.navigate(['/dashboard']);
         } else {
-          console.log('👤 Regular user - Redirecting to employee list');
           this.router.navigate(['/employees']);
         }
 

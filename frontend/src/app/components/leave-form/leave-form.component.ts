@@ -67,7 +67,6 @@ export class LeaveFormComponent implements OnInit {
 
     // SUPER_ADMIN (CEO) cannot apply for leaves - redirect to leave list
     if (isSuperAdmin && !this.route.snapshot.params['id']) {
-      console.log('SUPER_ADMIN redirected from leave application - CEOs do not apply for leaves');
       this.toastService.info('As SUPER_ADMIN, you can review and manage leaves but cannot apply for leaves.');
       this.router.navigate(['/leaves']);
       return;
@@ -112,7 +111,6 @@ export class LeaveFormComponent implements OnInit {
     this.leaveService.getLeaveBalances(employeeId).subscribe({
       next: (balances) => {
         this.leaveBalances = balances;
-        console.log('Leave balances loaded:', balances);
       },
       error: (err) => {
         console.error('Error loading leave balances:', err);
@@ -124,7 +122,6 @@ export class LeaveFormComponent implements OnInit {
     this.leaveService.getBlockedDates(employeeId).subscribe({
       next: (dates) => {
         this.blockedDates = dates;
-        console.log('Blocked dates loaded:', dates);
       },
       error: (err) => {
         console.error('Error loading blocked dates:', err);
@@ -163,7 +160,6 @@ export class LeaveFormComponent implements OnInit {
         return;
       }
       this.selectedFile = file;
-      console.log('Medical certificate selected:', file.name);
     }
   }
 

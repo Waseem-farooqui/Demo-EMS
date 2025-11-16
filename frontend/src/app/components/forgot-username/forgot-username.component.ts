@@ -42,7 +42,6 @@ export class ForgotUsernameComponent {
 
     this.http.post<any>(this.apiUrl, { email: this.email }).subscribe({
       next: (response) => {
-        console.log('✅ Username sent to email successfully');
         this.success = true;
         this.loading = false;
       },

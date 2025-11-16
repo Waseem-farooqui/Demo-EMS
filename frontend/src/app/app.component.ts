@@ -49,46 +49,29 @@ export class AppComponent implements OnInit {
       this.isAdmin = roles.includes('ADMIN') || this.isSuperAdmin;
       this.userName = user?.name || user?.username || user?.email || 'User';
 
-      console.log('🔍 Auth Status:', {
-        isRoot: this.isRoot,
-        isSuperAdmin: this.isSuperAdmin,
-        isAdmin: this.isAdmin,
-        organizationUuid: user?.organizationUuid,
-        username: user?.username
-      });
-
       // Load organization info for non-ROOT users
       if (!this.isRoot && user?.organizationUuid) {
-        console.log('📋 Loading organization info...');
         this.loadOrganizationInfo();
-      } else if (!this.isRoot && !user?.organizationUuid) {
-        console.warn('⚠️ Non-ROOT user has no organizationUuid');
       }
     }
   }
 
   loadOrganizationInfo(): void {
-    console.log('🌐 Calling API: GET /api/organizations/my-organization');
     // Use the /my-organization endpoint which doesn't require organization ID
     this.http.get<any>(`${environment.apiUrl}/organizations/my-organization`).subscribe({
       next: (org) => {
-        console.log('✅ Organization info loaded:', org);
         this.organizationName = org.name || 'EMS';
         if (org.logoUrl) {
           // If logoUrl is relative, prepend the API base URL
           this.organizationLogoUrl = org.logoUrl.startsWith('http')
             ? org.logoUrl
             : `${environment.apiBaseUrl}${org.logoUrl}`;
-          console.log('🖼️ Organization logo URL:', this.organizationLogoUrl);
         } else {
           this.organizationLogoUrl = '';
-          console.log('ℹ️ No organization logo available');
         }
       },
       error: (err) => {
-        console.error('❌ Failed to load organization info:', err);
-        console.error('❌ Error status:', err.status);
-        console.error('❌ Error message:', err.error);
+        console.error('Failed to load organization info');
         this.organizationName = 'EMS';
         this.organizationLogoUrl = '';
       }

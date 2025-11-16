@@ -57,7 +57,6 @@ export class OrganizationDetailComponent implements OnInit {
 
     this.http.get<Organization>(`${this.apiUrl}/${this.organizationId}`).subscribe({
       next: (data) => {
-        console.log('✅ Organization details loaded:', data);
         this.organization = data;
 
         // Fix logo URL - prepend API base URL if it's a relative path
@@ -89,7 +88,6 @@ export class OrganizationDetailComponent implements OnInit {
     this.loading = true;
     this.http.post<any>(`${this.apiUrl}/${this.organizationId}/deactivate`, {}).subscribe({
       next: (response) => {
-        console.log('✅ Organization deactivated:', response);
         alert(`✅ Organization deactivated successfully`);
         this.loadOrganizationDetails(); // Reload to show updated status
       },
@@ -111,7 +109,6 @@ export class OrganizationDetailComponent implements OnInit {
     this.loading = true;
     this.http.post<any>(`${this.apiUrl}/${this.organizationId}/activate`, {}).subscribe({
       next: (response) => {
-        console.log('✅ Organization activated:', response);
         alert(`✅ Organization activated successfully`);
         this.loadOrganizationDetails(); // Reload to show updated status
       },

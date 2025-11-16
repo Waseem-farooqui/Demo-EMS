@@ -52,9 +52,6 @@ export class UserCreateComponent implements OnInit {
     const roles = this.currentUser?.roles || [];
     this.isSuperAdmin = roles.includes('SUPER_ADMIN');
 
-    console.log('Current User:', this.currentUser);
-    console.log('User Roles:', roles);
-    console.log('Is Super Admin:', this.isSuperAdmin);
 
     this.initForm();
     this.loadDepartments();
@@ -131,7 +128,6 @@ export class UserCreateComponent implements OnInit {
           });
         }
 
-        console.log('Loaded departments:', this.departments);
       },
       error: (err) => {
         console.error('Error loading departments:', err);
