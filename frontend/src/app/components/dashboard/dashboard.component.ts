@@ -118,6 +118,9 @@ export class DashboardComponent implements OnInit {
     if (!canvas || !this.dashboardStats?.employeesByDepartment) return;
 
     const data = this.dashboardStats.employeesByDepartment;
+    // Add null/undefined check before Object.keys
+    if (!data || typeof data !== 'object') return;
+    
     const labels = Object.keys(data);
     const values = Object.values(data) as number[];
 
@@ -169,6 +172,9 @@ export class DashboardComponent implements OnInit {
     if (!canvas || !this.dashboardStats?.employeesByWorkLocation) return;
 
     const data = this.dashboardStats.employeesByWorkLocation;
+    // Add null/undefined check before Object.keys
+    if (!data || typeof data !== 'object') return;
+    
     const labels = Object.keys(data);
     const values = Object.values(data) as number[];
 

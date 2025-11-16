@@ -65,19 +65,56 @@ export class RotaListComponent implements OnInit {
     this.loadingSchedules = true;
     this.rotaService.getRotaSchedules(rotaId).subscribe({
       next: (data) => {
-        this.schedules = data;
-
-        // Extract dates from schedules
-        if (data.length > 0) {
-          const firstEmployee = data[0];
-          this.scheduleDates = Object.keys(firstEmployee.schedules).sort();
+        // Backend returns flat list of RotaScheduleEntryDTO
+        // Transform to grouped format expected by template
+        if (!data || data.length === 0) {
+          this.schedules = [];
+          this.scheduleDates = [];
+          this.loadingSchedules = false;
+          return;
         }
+
+        // Group schedules by employee
+        const employeeMap = new Map<number, any>();
+        const dateSet = new Set<string>();
+
+        for (const entry of data) {
+          // Extract date (handle both date string and datetime)
+          const dateStr = entry.scheduleDate ? entry.scheduleDate.split('T')[0] : null;
+          if (!dateStr) continue;
+
+          dateSet.add(dateStr);
+
+          const employeeId = entry.employeeId;
+          if (!employeeMap.has(employeeId)) {
+            employeeMap.set(employeeId, {
+              employeeId: employeeId,
+              employeeName: entry.employeeName || 'Unknown',
+              schedules: {}
+            });
+          }
+
+          const employee = employeeMap.get(employeeId);
+          employee.schedules[dateStr] = {
+            dayOfWeek: entry.dayOfWeek || '',
+            duty: entry.duty || 'OFF',
+            startTime: entry.startTime || null,
+            endTime: entry.endTime || null,
+            isOffDay: entry.isOffDay || false
+          };
+        }
+
+        // Convert map to array and sort dates
+        this.schedules = Array.from(employeeMap.values());
+        this.scheduleDates = Array.from(dateSet).sort();
 
         this.loadingSchedules = false;
       },
       error: (err) => {
         this.toastService.error('Failed to load schedules');
         this.loadingSchedules = false;
+        this.schedules = [];
+        this.scheduleDates = [];
       }
     });
   }
