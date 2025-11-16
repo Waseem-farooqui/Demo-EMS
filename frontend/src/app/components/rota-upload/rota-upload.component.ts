@@ -275,7 +275,12 @@ export class RotaUploadComponent implements OnInit {
     const scheduleGroup = this.fb.group({
       employeeId: ['', Validators.required],
       shifts: this.fb.array(
-        this.weekDates.map(() => this.fb.control(''))
+        this.weekDates.map((date) => {
+          // Set default values: Monday-Friday = 08:00-18:00, Saturday-Sunday = OFF
+          const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+          const defaultValue = (dayOfWeek === 0 || dayOfWeek === 6) ? 'OFF' : '08:00-18:00';
+          return this.fb.control(defaultValue);
+        })
       )
     });
     this.schedules.push(scheduleGroup);

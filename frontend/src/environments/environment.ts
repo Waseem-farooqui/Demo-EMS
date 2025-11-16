@@ -18,7 +18,7 @@ export const environment = {
     departments: '/departments',
     leaves: '/leaves',
     documents: '/documents',
-    rotas: '/rotas',
+    rotas: '/rota',
     attendance: '/attendance',
     notifications: '/notifications',
     dashboard: '/dashboard'
