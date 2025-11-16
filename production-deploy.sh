@@ -731,6 +731,190 @@ else
     print_info "alert_configurations table doesn't exist yet (will be created by JPA)"
 fi
 
+# Fix rota_schedules table schema if needed
+print_info "Checking rota_schedules table schema..."
+ROTA_SCHEDULES_TABLE_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+    -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules';" \
+    2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+
+if [ "$ROTA_SCHEDULES_TABLE_EXISTS" = "1" ]; then
+    # Check if table is missing required columns
+    HAS_EMPLOYEE_ID=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules' AND column_name = 'employee_id';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    HAS_EMPLOYEE_NAME=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules' AND column_name = 'employee_name';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    HAS_SCHEDULE_DATE=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules' AND column_name = 'schedule_date';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    HAS_DUTY=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules' AND column_name = 'duty';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+    
+    # Check if day_of_week is INT (should be VARCHAR)
+    DAY_OF_WEEK_TYPE=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+        -e "USE employee_management_system; SELECT DATA_TYPE FROM information_schema.columns WHERE table_schema = 'employee_management_system' AND table_name = 'rota_schedules' AND column_name = 'day_of_week';" \
+        2>/dev/null | tail -1 | tr -d ' ' || echo "")
+    
+    if [ "$HAS_EMPLOYEE_ID" = "0" ] || [ "$HAS_EMPLOYEE_NAME" = "0" ] || [ "$HAS_SCHEDULE_DATE" = "0" ] || [ "$HAS_DUTY" = "0" ] || [ "$DAY_OF_WEEK_TYPE" = "int" ]; then
+        print_warning "rota_schedules table is missing required columns or has wrong schema"
+        print_info "Fixing table schema..."
+        
+        docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'ROTAFIX' 2>/dev/null || true
+USE employee_management_system;
+
+-- Add missing columns using idempotent approach
+SET @dbname = DATABASE();
+SET @tablename = 'rota_schedules';
+
+-- Add employee_id if missing
+SET @columnname = 'employee_id';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (column_name = @columnname)
+  ) > 0,
+  "SELECT 'Column employee_id already exists.' AS message",
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " BIGINT NOT NULL AFTER rota_id")
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add employee_name if missing
+SET @columnname = 'employee_name';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (column_name = @columnname)
+  ) > 0,
+  "SELECT 'Column employee_name already exists.' AS message",
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " VARCHAR(255) NOT NULL AFTER employee_id")
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add schedule_date if missing
+SET @columnname = 'schedule_date';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (column_name = @columnname)
+  ) > 0,
+  "SELECT 'Column schedule_date already exists.' AS message",
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " DATE NOT NULL AFTER employee_name")
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Modify day_of_week from INT to VARCHAR if needed
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (column_name = 'day_of_week') AND (DATA_TYPE = 'int')
+  ) IS NOT NULL,
+  CONCAT("ALTER TABLE ", @tablename, " MODIFY COLUMN day_of_week VARCHAR(50) NOT NULL"),
+  "SELECT 'Column day_of_week is already VARCHAR or does not exist.' AS message"
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add duty if missing
+SET @columnname = 'duty';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (column_name = @columnname)
+  ) > 0,
+  "SELECT 'Column duty already exists.' AS message",
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " VARCHAR(255) NOT NULL AFTER end_time")
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add is_off_day if missing
+SET @columnname = 'is_off_day';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (column_name = @columnname)
+  ) > 0,
+  "SELECT 'Column is_off_day already exists.' AS message",
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " BOOLEAN DEFAULT FALSE AFTER duty")
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add indexes if missing
+SET @indexname = 'idx_employee_id';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (index_name = @indexname)
+  ) > 0,
+  "SELECT 'Index idx_employee_id already exists.' AS message",
+  CONCAT("CREATE INDEX ", @indexname, " ON ", @tablename, " (employee_id)")
+));
+PREPARE createIndexIfNotExists FROM @preparedStatement;
+EXECUTE createIndexIfNotExists;
+DEALLOCATE PREPARE createIndexIfNotExists;
+
+SET @indexname = 'idx_schedule_date';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE (table_name = @tablename) AND (table_schema = @dbname) AND (index_name = @indexname)
+  ) > 0,
+  "SELECT 'Index idx_schedule_date already exists.' AS message",
+  CONCAT("CREATE INDEX ", @indexname, " ON ", @tablename, " (schedule_date)")
+));
+PREPARE createIndexIfNotExists FROM @preparedStatement;
+EXECUTE createIndexIfNotExists;
+DEALLOCATE PREPARE createIndexIfNotExists;
+
+-- Add foreign key constraint if missing
+SET @constraint_exists = (
+    SELECT COUNT(*) 
+    FROM information_schema.TABLE_CONSTRAINTS 
+    WHERE CONSTRAINT_SCHEMA = @dbname
+    AND TABLE_NAME = @tablename
+    AND CONSTRAINT_NAME = 'fk_rota_schedules_employee'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+
+SET @sql = IF(@constraint_exists = 0,
+    CONCAT('ALTER TABLE ', @tablename, ' ADD CONSTRAINT fk_rota_schedules_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE'),
+    'SELECT "Foreign key constraint already exists" AS message'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SELECT 'rota_schedules table schema fixed' AS status;
+ROTAFIX
+        
+        if [ $? -eq 0 ]; then
+            print_success "rota_schedules table schema fixed"
+        else
+            print_warning "Failed to fix rota_schedules table schema (will be fixed by Flyway migration V14)"
+        fi
+    else
+        print_success "rota_schedules table has correct schema"
+    fi
+else
+    print_info "rota_schedules table doesn't exist yet (will be created by JPA or Flyway)"
+fi
+
 # Fix all other table schemas
 if [ -f "fix-all-tables-schema.sql" ]; then
     print_info "Applying comprehensive schema fixes..."

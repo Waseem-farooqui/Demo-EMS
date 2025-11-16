@@ -109,8 +109,9 @@ services:
       # Spring Profile
       SPRING_PROFILES_ACTIVE: prod
       
-      # JPA Configuration - Ensure tables are created
-      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      # JPA Configuration - Use 'validate' with Flyway (Flyway handles migrations)
+      # Set to 'update' only if you want JPA to create tables (not recommended with Flyway)
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-validate}
       # Enable SQL logging for debugging (set to false in production)
       JPA_SHOW_SQL: ${JPA_SHOW_SQL:-false}
       JPA_FORMAT_SQL: ${JPA_FORMAT_SQL:-false}
