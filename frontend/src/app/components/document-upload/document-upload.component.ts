@@ -94,9 +94,10 @@ export class DocumentUploadComponent implements OnInit {
         return;
       }
 
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        this.error = 'File size must be less than 10MB.';
+      // Validate file size (max 20MB - supports high-resolution scans, multi-page PDFs)
+      if (file.size > 20 * 1024 * 1024) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        this.error = `File size must be less than 20MB. Current size: ${fileSizeMB} MB`;
         this.selectedFile = null;
         this.fileName = '';
         return;

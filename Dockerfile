@@ -16,9 +16,18 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:11-jre
 
 # Install Tesseract OCR, curl for health checks, netcat for MySQL wait script, and mysql-client for MySQL connectivity testing
+# Add ImageMagick for better image processing performance
 RUN apt-get update && \
-    apt-get install -y tesseract-ocr tesseract-ocr-eng curl netcat-openbsd default-mysql-client && \
+    apt-get install -y tesseract-ocr tesseract-ocr-eng curl netcat-openbsd default-mysql-client imagemagick && \
     rm -rf /var/lib/apt/lists/*
+
+# Configure ImageMagick for better memory efficiency
+RUN sed -i 's/<policy domain="resource" name="memory" value="256MiB"\/>/<policy domain="resource" name="memory" value="512MiB"\/>/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true && \
+    sed -i 's/<policy domain="resource" name="map" value="512MiB"\/>/<policy domain="resource" name="map" value="1GiB"\/>/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
+
+# Set JVM options for document processing workloads
+# Optimize for memory-intensive operations (OCR, image processing)
+ENV JAVA_OPTS="-Xms1g -Xmx3g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Djava.awt.headless=true"
 
 # Detect and set Tesseract tessdata path
 # Tesseract 5.x uses /usr/share/tesseract-ocr/5/tessdata
@@ -108,9 +117,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
 # Run application with MySQL wait script
 # Note: Use 'mysql' (service name) not 'ems-mysql' (container name) for DNS resolution
 # The wait script will ensure MySQL is ready before starting Spring Boot
-ENTRYPOINT ["/app/wait-for-mysql.sh", "mysql", "3306", "java", \
-    "-Djava.security.egd=file:/dev/./urandom", \
-    "-Dspring.profiles.active=prod", \
-    "-jar", \
-    "app.jar"]
+# JVM options optimized for document processing: G1GC, memory settings, headless mode
+ENTRYPOINT ["/app/wait-for-mysql.sh", "mysql", "3306", "sh", "-c", \
+        "exec java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -Dspring.profiles.active=prod -jar app.jar"]
 

@@ -72,11 +72,14 @@ CREATE TABLE IF NOT EXISTS employees (
     user_id BIGINT,
     organization_id BIGINT,
     organization_uuid VARCHAR(36),
+    department_id BIGINT,
     UNIQUE KEY uk_work_email_org (work_email, organization_id),
     INDEX idx_org_id (organization_id),
     INDEX idx_user_id (user_id),
+    INDEX idx_department_id (department_id),
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Departments table
@@ -109,8 +112,6 @@ CREATE TABLE IF NOT EXISTS documents (
     file_type VARCHAR(50),
     file_size BIGINT,
     file_hash VARCHAR(32),
-    preview_image BLOB,
-    extracted_text TEXT,
     issue_date DATE,
     expiry_date DATE,
     issuing_country VARCHAR(100),
@@ -132,6 +133,8 @@ CREATE TABLE IF NOT EXISTS documents (
     INDEX idx_employee_id (employee_id),
     INDEX idx_document_type (document_type),
     INDEX idx_expiry_date (expiry_date),
+    INDEX idx_uploaded_date (uploaded_date),
+    INDEX idx_file_hash (file_hash),
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -142,33 +145,40 @@ CREATE TABLE IF NOT EXISTS leaves (
     leave_type VARCHAR(50) NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    days_taken DECIMAL(5,2) NOT NULL,
+    number_of_days INT NOT NULL,
     status VARCHAR(50) NOT NULL,
-    reason TEXT,
-    applied_date DATETIME NOT NULL,
-    approved_by BIGINT,
-    approved_date DATETIME,
+    reason VARCHAR(500),
+    applied_date DATE NOT NULL,
+    approved_by VARCHAR(255),
+    approval_date DATE,
+    remarks TEXT,
     rejection_reason TEXT,
+    medical_certificate LONGBLOB,
+    certificate_file_name VARCHAR(255),
+    certificate_content_type VARCHAR(100),
+    financial_year VARCHAR(20),
     organization_id BIGINT,
     INDEX idx_employee_id (employee_id),
     INDEX idx_status (status),
     INDEX idx_dates (start_date, end_date),
-    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
-    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+    INDEX idx_applied_date (applied_date),
+    INDEX idx_org_id (organization_id),
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Leave balances table
 CREATE TABLE IF NOT EXISTS leave_balances (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     employee_id BIGINT NOT NULL,
+    financial_year VARCHAR(20) NOT NULL,
     leave_type VARCHAR(50) NOT NULL,
-    total_allocated DECIMAL(5,2) NOT NULL DEFAULT 0,
-    used DECIMAL(5,2) NOT NULL DEFAULT 0,
-    remaining DECIMAL(5,2) NOT NULL DEFAULT 0,
-    year INT NOT NULL,
+    total_allocated INT NOT NULL DEFAULT 0,
+    used_leaves INT NOT NULL DEFAULT 0,
+    remaining_leaves INT NOT NULL DEFAULT 0,
     organization_id BIGINT,
-    UNIQUE KEY uk_employee_leave_year (employee_id, leave_type, year),
+    UNIQUE KEY uk_employee_leave_year (employee_id, financial_year, leave_type),
     INDEX idx_employee_id (employee_id),
+    INDEX idx_org_id (organization_id),
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -176,34 +186,41 @@ CREATE TABLE IF NOT EXISTS leave_balances (
 CREATE TABLE IF NOT EXISTS attendance (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     employee_id BIGINT NOT NULL,
-    date DATE NOT NULL,
-    check_in_time DATETIME,
+    check_in_time DATETIME NOT NULL,
     check_out_time DATETIME,
-    status VARCHAR(50),
-    hours_worked DECIMAL(5,2),
-    notes TEXT,
+    work_date DATE NOT NULL,
+    work_location VARCHAR(50) NOT NULL,
+    hours_worked DOUBLE,
+    notes VARCHAR(500),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME,
+    updated_at DATETIME,
     organization_id BIGINT,
-    UNIQUE KEY uk_employee_date (employee_id, date),
-    INDEX idx_date (date),
-    INDEX idx_status (status),
+    UNIQUE KEY uk_employee_date (employee_id, work_date),
+    INDEX idx_work_date (work_date),
+    INDEX idx_org_id (organization_id),
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Rotas table
 CREATE TABLE IF NOT EXISTS rotas (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    employee_id BIGINT NOT NULL,
-    week_start_date DATE NOT NULL,
-    week_end_date DATE NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    created_by BIGINT,
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME,
+    hotel_name VARCHAR(255) NOT NULL,
+    department VARCHAR(255) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_data LONGBLOB,
+    extracted_text TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    uploaded_date DATETIME NOT NULL,
+    uploaded_by BIGINT NOT NULL,
+    uploaded_by_name VARCHAR(255) NOT NULL,
     organization_id BIGINT,
-    INDEX idx_employee_id (employee_id),
-    INDEX idx_week_dates (week_start_date, week_end_date),
-    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    INDEX idx_start_date (start_date),
+    INDEX idx_end_date (end_date),
+    INDEX idx_org_id (organization_id),
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Rota schedules table
@@ -239,16 +256,20 @@ CREATE TABLE IF NOT EXISTS rota_change_logs (
 CREATE TABLE IF NOT EXISTS notifications (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
+    type VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
-    message TEXT NOT NULL,
-    type VARCHAR(50),
+    message VARCHAR(500) NOT NULL,
+    reference_id BIGINT,
+    reference_type VARCHAR(50),
     is_read BOOLEAN DEFAULT FALSE,
-    created_at DATETIME NOT NULL,
+    created_at DATETIME,
     read_at DATETIME,
     organization_id BIGINT,
     INDEX idx_user_id (user_id),
     INDEX idx_is_read (is_read),
     INDEX idx_created_at (created_at),
+    INDEX idx_reference_id (reference_id),
+    INDEX idx_org_id (organization_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

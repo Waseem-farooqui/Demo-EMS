@@ -491,8 +491,6 @@ CREATE TABLE IF NOT EXISTS documents (
     file_type VARCHAR(50),
     file_size BIGINT,
     file_hash VARCHAR(32),
-    preview_image BLOB,
-    extracted_text TEXT,
     issue_date DATE,
     expiry_date DATE,
     issuing_country VARCHAR(100),
@@ -671,6 +669,11 @@ else
     print_success "Database tables already exist ($TABLES_COUNT tables found)"
 fi
 
+# Fix all table schemas to match entities
+print_step "Step 14.5/20: Fixing Table Schemas"
+
+print_info "Checking and fixing all table schemas to match entity definitions..."
+
 # Fix alert_configurations table schema if needed
 print_info "Checking alert_configurations table schema..."
 ALERT_TABLE_EXISTS=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
@@ -722,6 +725,27 @@ EOF
 else
     print_info "alert_configurations table doesn't exist yet (will be created by JPA)"
 fi
+
+# Fix all other table schemas
+if [ -f "fix-all-tables-schema.sql" ]; then
+    print_info "Applying comprehensive schema fixes..."
+    docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" < fix-all-tables-schema.sql 2>/dev/null || {
+        print_warning "Some schema fixes may have failed (tables may already be correct)"
+    }
+    print_success "Schema fixes applied"
+else
+    print_warning "fix-all-tables-schema.sql not found, skipping comprehensive schema fixes"
+fi
+
+# Remove unused columns (preview_image and extracted_text - no longer stored)
+print_info "Removing unused columns (preview_image, extracted_text)..."
+docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<EOF 2>/dev/null || true
+USE employee_management_system;
+ALTER TABLE documents DROP COLUMN IF EXISTS preview_image;
+ALTER TABLE documents DROP COLUMN IF EXISTS extracted_text;
+SELECT 'Unused columns removed' AS status;
+EOF
+print_success "Unused columns removed"
 
 # Configure Tesseract OCR
 print_step "Step 15/20: Configuring Tesseract OCR"

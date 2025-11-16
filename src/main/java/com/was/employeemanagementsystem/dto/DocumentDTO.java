@@ -18,7 +18,6 @@ public class DocumentDTO {
     private String documentNumber;
     private String fileName;
     private String fileType;
-    private String extractedText;
     private LocalDate issueDate;
     private LocalDate expiryDate;
     private String issuingCountry;

@@ -44,16 +44,6 @@ public class Document {
     @Column(name = "file_hash", length = 32)
     private String fileHash; // MD5 hash for deduplication
 
-    // Store preview image for quick display (small thumbnail only)
-    @Lob
-    @Column(name = "preview_image", columnDefinition = "BLOB")
-    private byte[] previewImage; // Small thumbnail for display (max 200KB)
-
-    // Store extracted text for search functionality
-    @Lob
-    @Column(name = "extracted_text", columnDefinition = "CLOB")
-    private String extractedText;
-
     @Column(name = "issue_date")
     private LocalDate issueDate;
 

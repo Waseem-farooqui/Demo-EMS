@@ -8,18 +8,11 @@ import com.was.employeemanagementsystem.repository.DocumentRepository;
 import com.was.employeemanagementsystem.repository.EmployeeRepository;
 import com.was.employeemanagementsystem.security.SecurityUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.rendering.ImageType;
-import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.tika.exception.TikaException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -294,19 +287,6 @@ public class DocumentService {
             }
         }
 
-        // Extract preview image if PDF (for frontend display - thumbnail only)
-        byte[] previewImage = null;
-        if (file.getContentType() != null && file.getContentType().equals("application/pdf")) {
-            previewImage = extractPdfPreviewImage(file);
-            if (previewImage != null) {
-                log.info("✓ PDF preview image extracted: {} KB", previewImage.length / 1024);
-            }
-        } else {
-            // For regular images, create a small thumbnail (not full image)
-            previewImage = createThumbnail(file);
-            log.info("✓ Thumbnail created for image preview");
-        }
-
         // Create document entity
         Document document = new Document();
         document.setEmployee(employee);
@@ -316,8 +296,7 @@ public class DocumentService {
         document.setFileType(file.getContentType());
         document.setFileSize(fileSize); // Store file size for tracking
         document.setFileHash(fileHash); // Store MD5 hash for deduplication
-        document.setPreviewImage(previewImage); // Store small thumbnail only
-        document.setExtractedText(extractedText);
+        // Note: extractedText is used only temporarily for parsing structured fields, not stored
         document.setUploadedDate(LocalDateTime.now());
 
         // Set extracted information
@@ -679,34 +658,15 @@ public class DocumentService {
     }
 
     /**
-     * Get preview thumbnail from database (small, fast)
-     * Use this for list views and quick previews
+     * @deprecated Preview images are no longer stored in database.
+     * Use getDocumentImage() instead which loads from file system.
+     * This method redirects to getDocumentImage() for backward compatibility.
      */
+    @Deprecated
     public byte[] getDocumentPreview(Long id) {
-        log.info("🔍 Retrieving document preview for ID: {}", id);
-
-        Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
-
-        Employee employee = employeeRepository.findById(document.getEmployee().getId())
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
-
-        // Check access permissions
-        if (!canAccessEmployee(employee)) {
-            log.warn("❌ Unauthorized document preview access attempt for document ID: {}", id);
-            throw new RuntimeException("Access denied. You can only access your own documents.");
-        }
-
-        byte[] preview = document.getPreviewImage();
-
-        if (preview != null && preview.length > 0) {
-            log.info("✓ Retrieved preview from database - ID: {}, Size: {} KB", id, preview.length / 1024);
-            return preview;
-        } else {
-            log.warn("⚠ No preview available for document ID: {}, falling back to full file", id);
-            // Fallback to full file if no preview
-            return getDocumentImage(id);
-        }
+        log.warn("⚠️ getDocumentPreview() is deprecated. Use getDocumentImage() instead.");
+        // Redirect to full image from file system
+        return getDocumentImage(id);
     }
 
     private boolean canAccessEmployee(Employee employee) {
@@ -782,101 +742,6 @@ public class DocumentService {
         return isOwnDocument;
     }
 
-    /**
-     * Extract the first page of a PDF as a JPEG image for preview
-     * This allows PDFs to be displayed in the frontend without a PDF viewer
-     */
-    private byte[] extractPdfPreviewImage(MultipartFile file) throws IOException {
-        if (file.getContentType() == null || !file.getContentType().equals("application/pdf")) {
-            return null; // Not a PDF, no preview needed
-        }
-
-        log.info("📄 Extracting preview image from PDF: {}", file.getOriginalFilename());
-
-        try (InputStream inputStream = file.getInputStream();
-             PDDocument document = PDDocument.load(inputStream)) {
-
-            if (document.getNumberOfPages() == 0) {
-                log.warn("⚠ PDF has no pages");
-                return null;
-            }
-
-            // Render first page at 200 DPI (good quality for preview)
-            PDFRenderer pdfRenderer = new PDFRenderer(document);
-            BufferedImage image = pdfRenderer.renderImageWithDPI(0, 200, ImageType.RGB);
-
-            // Convert to JPEG with good quality
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            javax.imageio.ImageWriter jpgWriter = ImageIO.getImageWritersByFormatName("jpg").next();
-            javax.imageio.ImageWriteParam jpgWriteParam = jpgWriter.getDefaultWriteParam();
-            jpgWriteParam.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
-            jpgWriteParam.setCompressionQuality(0.90f); // 90% quality for good preview
-
-            jpgWriter.setOutput(ImageIO.createImageOutputStream(baos));
-            jpgWriter.write(null, new javax.imageio.IIOImage(image, null, null), jpgWriteParam);
-            jpgWriter.dispose();
-
-            byte[] previewImage = baos.toByteArray();
-            log.info("✓ Preview image created: {} KB", previewImage.length / 1024);
-
-            return previewImage;
-
-        } catch (Exception e) {
-            log.error("✗ Failed to extract PDF preview: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Create a thumbnail image for preview (max 200KB)
-     * This is stored in database for quick preview display
-     */
-    private byte[] createThumbnail(MultipartFile file) {
-        try {
-            BufferedImage originalImage = ImageIO.read(file.getInputStream());
-            if (originalImage == null) {
-                log.warn("⚠ Could not read image for thumbnail creation");
-                return null;
-            }
-
-            // Calculate thumbnail size (max 300px width, maintain aspect ratio)
-            int maxWidth = 300;
-            int originalWidth = originalImage.getWidth();
-            int originalHeight = originalImage.getHeight();
-
-            if (originalWidth <= maxWidth) {
-                // Image is already small, use as is
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(originalImage, "jpg", baos);
-                return baos.toByteArray();
-            }
-
-            // Calculate proportional height
-            int newWidth = maxWidth;
-            int newHeight = (originalHeight * newWidth) / originalWidth;
-
-            // Create thumbnail
-            BufferedImage thumbnailImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
-            thumbnailImage.createGraphics().drawImage(
-                originalImage.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH),
-                0, 0, null
-            );
-
-            // Convert to JPEG
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(thumbnailImage, "jpg", baos);
-
-            byte[] thumbnail = baos.toByteArray();
-            log.info("✓ Thumbnail created: {} KB (from original {} KB)",
-                    thumbnail.length / 1024, file.getSize() / 1024);
-
-            return thumbnail;
-
-        } catch (Exception e) {
-            log.error("✗ Failed to create thumbnail: {}", e.getMessage());
-            return null;
-        }
-    }
 
     private DocumentDTO convertToDTO(Document document) {
         DocumentDTO dto = new DocumentDTO();
@@ -887,7 +752,6 @@ public class DocumentService {
         dto.setDocumentNumber(document.getDocumentNumber());
         dto.setFileName(document.getFileName());
         dto.setFileType(document.getFileType());
-        dto.setExtractedText(document.getExtractedText());
         dto.setIssueDate(document.getIssueDate());
         dto.setExpiryDate(document.getExpiryDate());
         dto.setIssuingCountry(document.getIssuingCountry());

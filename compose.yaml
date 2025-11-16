@@ -4,12 +4,22 @@ services:
     image: mysql:8.0
     container_name: ems-mysql
     restart: unless-stopped
+    # Resource limits for database operations
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
     environment:
       MYSQL_DATABASE: ${DB_NAME:-employee_management_system}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
       MYSQL_USER: ${DB_USERNAME:-emsuser}
       MYSQL_PASSWORD: ${DB_PASSWORD:-emspassword}
       TZ: UTC
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=1G --innodb-log-file-size=256M --innodb-flush-log-at-trx-commit=2 --max-connections=200
     ports:
       - "${DB_PORT:-3307}:3306"
     volumes:
@@ -32,6 +42,15 @@ services:
       dockerfile: Dockerfile
     container_name: ems-backend
     restart: unless-stopped
+    # Resource limits for document processing workloads
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '2.0'
+          memory: 2G
     environment:
       # Database Configuration
       # SPRING_DATASOURCE_URL can be set in .env to override default (uses 'mysql' service name by default)
@@ -91,6 +110,9 @@ services:
       
       # JPA Configuration - Ensure tables are created
       JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      # Enable SQL logging for debugging (set to false in production)
+      JPA_SHOW_SQL: ${JPA_SHOW_SQL:-false}
+      JPA_FORMAT_SQL: ${JPA_FORMAT_SQL:-false}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     volumes:

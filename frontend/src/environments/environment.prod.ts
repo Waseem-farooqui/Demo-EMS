@@ -26,8 +26,9 @@ export const environment = {
   },
 
   // File upload limits
+  // Support documents up to 20MB (high-resolution scans, multi-page PDFs)
   fileUpload: {
-    maxSizeMB: 10,
+    maxSizeMB: 20,
     allowedDocumentTypes: ['.pdf', '.jpg', '.jpeg', '.png'],
     allowedImageTypes: ['.jpg', '.jpeg', '.png', '.gif']
   },
