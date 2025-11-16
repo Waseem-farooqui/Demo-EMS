@@ -76,12 +76,33 @@ SELECT installed_rank, version, description, success, installed_on, checksum
 FROM flyway_schema_history 
 WHERE version = '16' AND success = 0;
 
+-- First, manually drop the foreign key constraint if it exists
+-- This is needed because the migration failed partway through
+SET @fk_name = (
+    SELECT CONSTRAINT_NAME 
+    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'rotas' 
+    AND column_name = 'employee_id'
+    AND referenced_table_name IS NOT NULL
+    LIMIT 1
+);
+
+SET @sql = IF(@fk_name IS NOT NULL,
+    CONCAT('ALTER TABLE rotas DROP FOREIGN KEY ', @fk_name),
+    'SELECT "No foreign key constraint found on employee_id" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- Delete the failed migration record (we'll let Flyway re-run it)
 DELETE FROM flyway_schema_history 
 WHERE version = '16' AND success = 0;
 
 -- Verify deletion
 SELECT 'V16 migration record removed - Flyway will re-run it on next startup' AS status;
+SELECT 'Foreign key constraint dropped (if it existed)' AS status;
 REPAIR
     
     if [ $? -eq 0 ]; then
