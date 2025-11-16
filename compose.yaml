@@ -5,13 +5,14 @@ services:
     container_name: ems-mysql
     restart: unless-stopped
     # Resource limits for database operations
+    # Note: Adjusted for systems with limited CPUs (minimum 2 CPUs recommended)
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: '1.0'
           memory: 2G
         reservations:
-          cpus: '1.0'
+          cpus: '0.5'
           memory: 1G
     environment:
       MYSQL_DATABASE: ${DB_NAME:-employee_management_system}
@@ -42,13 +43,14 @@ services:
     container_name: ems-backend
     restart: unless-stopped
     # Resource limits for document processing workloads
+    # Note: Adjusted for systems with limited CPUs (minimum 2 CPUs recommended)
     deploy:
       resources:
         limits:
-          cpus: '4.0'
+          cpus: '2.0'
           memory: 4G
         reservations:
-          cpus: '2.0'
+          cpus: '1.0'
           memory: 2G
     environment:
       # Database Configuration
