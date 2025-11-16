@@ -479,6 +479,30 @@ BEGIN
             DEALLOCATE PREPARE stmt;
         END IF;
         
+        -- Drop 'approved_date' (DATETIME) column if it exists (entity uses 'approval_date' DATE instead)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'approved_date';
+        
+        IF column_exists > 0 THEN
+            -- Check if it's DATETIME type (entity uses approval_date DATE)
+            SELECT DATA_TYPE INTO @data_type
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE table_schema = 'employee_management_system' 
+            AND table_name = 'leaves' 
+            AND column_name = 'approved_date';
+            
+            -- Only drop if it's DATETIME, keep if it's DATE (as approval_date)
+            IF @data_type = 'datetime' THEN
+                SET @sql = 'ALTER TABLE leaves DROP COLUMN `approved_date`';
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            END IF;
+        END IF;
+        
         -- Ensure number_of_days exists and is INT NOT NULL
         SELECT COUNT(*) INTO column_exists
         FROM INFORMATION_SCHEMA.COLUMNS 
@@ -515,6 +539,56 @@ BEGIN
             
             IF column_type != 'varchar(20)' THEN
                 SET @sql = 'ALTER TABLE leaves MODIFY COLUMN financial_year VARCHAR(20) NULL';
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            END IF;
+        END IF;
+        
+        -- Ensure approval_date exists and is DATE (not DATETIME)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'approval_date';
+        
+        IF column_exists = 0 THEN
+            SET @sql = 'ALTER TABLE leaves ADD COLUMN approval_date DATE NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        ELSE
+            -- Fix type if it's not DATE
+            SELECT DATA_TYPE INTO @data_type
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE table_schema = 'employee_management_system' 
+            AND table_name = 'leaves' 
+            AND column_name = 'approval_date';
+            
+            IF @data_type != 'date' THEN
+                SET @sql = 'ALTER TABLE leaves MODIFY COLUMN approval_date DATE NULL';
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            END IF;
+        END IF;
+        
+        -- Fix approved_by type if it's BIGINT (entity uses String/VARCHAR)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'approved_by';
+        
+        IF column_exists > 0 THEN
+            SELECT DATA_TYPE INTO @data_type
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE table_schema = 'employee_management_system' 
+            AND table_name = 'leaves' 
+            AND column_name = 'approved_by';
+            
+            IF @data_type = 'bigint' THEN
+                SET @sql = 'ALTER TABLE leaves MODIFY COLUMN approved_by VARCHAR(255) NULL';
                 PREPARE stmt FROM @sql;
                 EXECUTE stmt;
                 DEALLOCATE PREPARE stmt;

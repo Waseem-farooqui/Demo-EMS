@@ -287,15 +287,22 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
 
             // Get all columns in leaves table
             List<String> columnsToRemove = new ArrayList<>();
+            List<String> allColumns = new ArrayList<>();
             try (ResultSet columns = metaData.getColumns(databaseName, null, "leaves", null)) {
                 while (columns.next()) {
                     String columnName = columns.getString("COLUMN_NAME");
+                    String dataType = columns.getString("TYPE_NAME");
+                    allColumns.add(columnName + " (" + dataType + ")");
+                    
                     // Check if this column should not be in leaves table
-                    if (isIncorrectLeavesColumn(columnName)) {
+                    if (isIncorrectLeavesColumn(columnName, dataType)) {
                         columnsToRemove.add(columnName);
+                        log.info("  ⚠️ Found incorrect column: {} ({})", columnName, dataType);
                     }
                 }
             }
+            
+            log.info("  📋 All columns in leaves table: {}", allColumns);
 
             if (columnsToRemove.isEmpty()) {
                 log.info("✅ leaves table structure is correct");
@@ -322,15 +329,15 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
                 }
             }
 
-            // Ensure financial_year column exists (it should be nullable)
+            // Ensure correct columns exist with correct types
             ensureColumnExists("leaves", "financial_year", "VARCHAR(20)");
-            // Ensure organization_id column exists
             ensureColumnExists("leaves", "organization_id", "BIGINT");
-            // Ensure number_of_days column exists (it should be INT NOT NULL)
             ensureColumnExists("leaves", "number_of_days", "INT");
+            ensureColumnExists("leaves", "approval_date", "DATE"); // Entity uses approval_date (DATE), not approved_date (DATETIME)
             
-            // Fix financial_year type if it's VARCHAR(255) instead of VARCHAR(20)
-            fixColumnType("leaves", "financial_year", "VARCHAR(20)");
+            // Fix column types
+            fixColumnType("leaves", "financial_year", "VARCHAR(20)"); // Fix from VARCHAR(255) to VARCHAR(20)
+            fixColumnType("leaves", "approved_by", "VARCHAR(255)"); // Entity uses String, not BIGINT
 
             log.info("✅ leaves table structure fixed successfully");
 
@@ -343,11 +350,38 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
     /**
      * Check if a column name is incorrect for leaves table
      */
-    private boolean isIncorrectLeavesColumn(String columnName) {
-        // These columns don't belong to leaves table
-        // 'year' is incorrect - should be 'financial_year'
-        // 'days_taken' is incorrect - entity uses 'number_of_days'
-        return columnName.equals("year") || columnName.equals("days_taken");
+    private boolean isIncorrectLeavesColumn(String columnName, String dataType) {
+        // These columns don't belong to leaves table based on Leave entity:
+        // - 'year' is incorrect - entity uses 'financial_year'
+        // - 'days_taken' is incorrect - entity uses 'number_of_days'
+        // - 'approved_date' (DATETIME) is incorrect - entity uses 'approval_date' (DATE)
+        // Entity columns: id, employee_id, leave_type, start_date, end_date, number_of_days,
+        // reason, status, applied_date, approved_by (String), approval_date (DATE),
+        // remarks, medical_certificate, certificate_file_name, certificate_content_type,
+        // financial_year, organization_id
+        
+        // Use case-insensitive comparison for column names
+        String colNameLower = columnName.toLowerCase();
+        
+        // Remove 'year' column
+        if (colNameLower.equals("year")) {
+            log.debug("  → Marking 'year' for removal (entity uses 'financial_year')");
+            return true;
+        }
+        
+        // Remove 'days_taken' column (entity uses 'number_of_days')
+        if (colNameLower.equals("days_taken")) {
+            log.debug("  → Marking 'days_taken' for removal (entity uses 'number_of_days')");
+            return true;
+        }
+        
+        // Only remove 'approved_date' if it's DATETIME (entity uses 'approval_date' DATE)
+        if (colNameLower.equals("approved_date") && "DATETIME".equalsIgnoreCase(dataType)) {
+            log.debug("  → Marking 'approved_date' (DATETIME) for removal (entity uses 'approval_date' DATE)");
+            return true;
+        }
+        
+        return false;
     }
 
     /**

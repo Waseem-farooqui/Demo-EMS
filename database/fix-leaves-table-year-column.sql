@@ -108,6 +108,56 @@ BEGIN
             DEALLOCATE PREPARE stmt;
         END IF;
         
+        -- Ensure approval_date exists and is DATE (not DATETIME)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'approval_date';
+        
+        IF column_exists = 0 THEN
+            SET @sql = 'ALTER TABLE leaves ADD COLUMN approval_date DATE NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        ELSE
+            -- Fix type if it's not DATE
+            SELECT DATA_TYPE INTO @data_type
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE table_schema = 'employee_management_system' 
+            AND table_name = 'leaves' 
+            AND column_name = 'approval_date';
+            
+            IF @data_type != 'date' THEN
+                SET @sql = 'ALTER TABLE leaves MODIFY COLUMN approval_date DATE NULL';
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            END IF;
+        END IF;
+        
+        -- Fix approved_by type if it's BIGINT (entity uses String/VARCHAR)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'approved_by';
+        
+        IF column_exists > 0 THEN
+            SELECT DATA_TYPE INTO @data_type
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE table_schema = 'employee_management_system' 
+            AND table_name = 'leaves' 
+            AND column_name = 'approved_by';
+            
+            IF @data_type = 'bigint' THEN
+                SET @sql = 'ALTER TABLE leaves MODIFY COLUMN approved_by VARCHAR(255) NULL';
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            END IF;
+        END IF;
+        
         SELECT 'leaves table structure fixed successfully' AS status;
     ELSE
         SELECT 'leaves table does not exist' AS status;
