@@ -326,6 +326,11 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
             ensureColumnExists("leaves", "financial_year", "VARCHAR(20)");
             // Ensure organization_id column exists
             ensureColumnExists("leaves", "organization_id", "BIGINT");
+            // Ensure number_of_days column exists (it should be INT NOT NULL)
+            ensureColumnExists("leaves", "number_of_days", "INT");
+            
+            // Fix financial_year type if it's VARCHAR(255) instead of VARCHAR(20)
+            fixColumnType("leaves", "financial_year", "VARCHAR(20)");
 
             log.info("✅ leaves table structure fixed successfully");
 
@@ -341,7 +346,8 @@ public class DatabaseSchemaFixer implements CommandLineRunner {
     private boolean isIncorrectLeavesColumn(String columnName) {
         // These columns don't belong to leaves table
         // 'year' is incorrect - should be 'financial_year'
-        return columnName.equals("year");
+        // 'days_taken' is incorrect - entity uses 'number_of_days'
+        return columnName.equals("year") || columnName.equals("days_taken");
     }
 
     /**

@@ -443,6 +443,109 @@ CALL fix_leave_balances_table();
 DROP PROCEDURE IF EXISTS fix_leave_balances_table;
 
 -- ===================================================================
+-- Cleanup Leaves Table Structure
+-- ===================================================================
+-- Remove incorrect/unused columns from leaves table
+-- The entity uses 'number_of_days' not 'days_taken'
+-- The entity uses 'financial_year' VARCHAR(20) not VARCHAR(255)
+-- Using stored procedure approach for conditional logic
+
+DELIMITER //
+
+CREATE PROCEDURE IF NOT EXISTS fix_leaves_table()
+BEGIN
+    DECLARE table_exists INT DEFAULT 0;
+    DECLARE column_exists INT DEFAULT 0;
+    DECLARE column_type VARCHAR(100);
+    
+    -- Check if leaves table exists
+    SELECT COUNT(*) INTO table_exists
+    FROM INFORMATION_SCHEMA.TABLES 
+    WHERE table_schema = 'employee_management_system' 
+    AND table_name = 'leaves';
+    
+    IF table_exists > 0 THEN
+        -- Drop 'days_taken' column if it exists (entity uses 'number_of_days' instead)
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'days_taken';
+        
+        IF column_exists > 0 THEN
+            SET @sql = 'ALTER TABLE leaves DROP COLUMN `days_taken`';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Ensure number_of_days exists and is INT NOT NULL
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'number_of_days';
+        
+        IF column_exists = 0 THEN
+            SET @sql = 'ALTER TABLE leaves ADD COLUMN number_of_days INT NOT NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+        
+        -- Ensure financial_year exists and is VARCHAR(20) (not VARCHAR(255))
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'financial_year';
+        
+        IF column_exists = 0 THEN
+            SET @sql = 'ALTER TABLE leaves ADD COLUMN financial_year VARCHAR(20) NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        ELSE
+            -- Fix type if it's not VARCHAR(20)
+            SELECT COLUMN_TYPE INTO column_type
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE table_schema = 'employee_management_system' 
+            AND table_name = 'leaves' 
+            AND column_name = 'financial_year';
+            
+            IF column_type != 'varchar(20)' THEN
+                SET @sql = 'ALTER TABLE leaves MODIFY COLUMN financial_year VARCHAR(20) NULL';
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            END IF;
+        END IF;
+        
+        -- Ensure organization_id exists
+        SELECT COUNT(*) INTO column_exists
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE table_schema = 'employee_management_system' 
+        AND table_name = 'leaves' 
+        AND column_name = 'organization_id';
+        
+        IF column_exists = 0 THEN
+            SET @sql = 'ALTER TABLE leaves ADD COLUMN organization_id BIGINT NULL';
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        END IF;
+    END IF;
+END //
+
+DELIMITER ;
+
+-- Execute the procedure
+CALL fix_leaves_table();
+
+-- Drop the procedure after use
+DROP PROCEDURE IF EXISTS fix_leaves_table;
+
+-- ===================================================================
 -- Verify Setup
 -- ===================================================================
 
