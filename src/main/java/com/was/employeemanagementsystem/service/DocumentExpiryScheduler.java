@@ -20,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -206,19 +207,61 @@ public class DocumentExpiryScheduler {
         // Send email alert if configured (wrapped in try-catch to prevent email failures from blocking in-app notifications)
         if ("EMAIL".equals(config.getNotificationType()) || "BOTH".equals(config.getNotificationType())) {
             try {
-                emailService.sendDocumentExpiryAlert(
-                    config.getAlertEmail(),
-                    employeeName,
-                    documentType,
-                    documentNumber,
-                    expiryDate,
-                    daysUntilExpiry
-                );
-                log.info("📧 Sent email alert for {} - Employee: {}, Days until expiry: {}",
-                    documentType, employeeName, daysUntilExpiry);
+                // Collect all email recipients: Admin, Super Admin, and Document Owner
+                List<String> emailRecipients = new ArrayList<>();
+                
+                // 1. Add configured alert email if provided
+                if (config.getAlertEmail() != null && !config.getAlertEmail().isEmpty()) {
+                    emailRecipients.add(config.getAlertEmail());
+                }
+                
+                // 2. Find all ADMIN and SUPER_ADMIN users in the same organization
+                String organizationUuid = document.getEmployee().getOrganizationUuid();
+                List<User> adminUsers = userRepository.findAll().stream()
+                    .filter(u -> {
+                        Set<String> roles = u.getRoles();
+                        return (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN")) &&
+                               organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid());
+                    })
+                    .collect(Collectors.toList());
+                
+                for (User adminUser : adminUsers) {
+                    if (adminUser.getEmail() != null && !adminUser.getEmail().isEmpty()) {
+                        emailRecipients.add(adminUser.getEmail());
+                        log.info("📧 Added admin email: {} (Role: {})", adminUser.getEmail(), adminUser.getRoles());
+                    }
+                }
+                
+                // 3. Add document owner's email if they have a user account
+                Employee employee = document.getEmployee();
+                if (employee.getUserId() != null) {
+                    User employeeUser = userRepository.findById(employee.getUserId()).orElse(null);
+                    if (employeeUser != null && employeeUser.getEmail() != null && !employeeUser.getEmail().isEmpty()) {
+                        emailRecipients.add(employeeUser.getEmail());
+                        log.info("📧 Added document owner email: {} (Employee: {})", employeeUser.getEmail(), employeeName);
+                    }
+                }
+                
+                // Remove duplicates
+                emailRecipients = emailRecipients.stream().distinct().collect(Collectors.toList());
+                
+                if (!emailRecipients.isEmpty()) {
+                    emailService.sendDocumentExpiryAlertToMultiple(
+                        emailRecipients.toArray(new String[0]),
+                        employeeName,
+                        documentType,
+                        documentNumber,
+                        expiryDate,
+                        daysUntilExpiry
+                    );
+                    log.info("📧 Sent email alert to {} recipient(s) for {} - Employee: {}, Days until expiry: {}",
+                        emailRecipients.size(), documentType, employeeName, daysUntilExpiry);
+                } else {
+                    log.warn("⚠️ No email recipients found for document expiry alert");
+                }
             } catch (Exception e) {
                 log.error("❌ Failed to send email alert (but continuing with in-app notifications): {}", e.getMessage());
-                log.error("   Email: {}, Document: {}, Employee: {}", config.getAlertEmail(), documentType, employeeName);
+                log.error("   Document: {}, Employee: {}", documentType, employeeName);
             }
         }
 
@@ -226,7 +269,7 @@ public class DocumentExpiryScheduler {
         if ("NOTIFICATION".equals(config.getNotificationType()) || "BOTH".equals(config.getNotificationType())) {
             String organizationUuid = document.getEmployee().getOrganizationUuid();
 
-            // Find the employee's user account to determine their role
+            // Find the employee's user account
             Employee employee = document.getEmployee();
             User employeeUser = employee.getUserId() != null ?
                 userRepository.findById(employee.getUserId()).orElse(null) : null;
@@ -242,35 +285,23 @@ public class DocumentExpiryScheduler {
             notifyUsers.addAll(superAdmins);
             log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationUuid);
 
-            // 2. Notify the document owner (if they have a user account)
+            // 2. Find all ADMIN users in the same organization (not just department admins)
+            List<User> admins = userRepository.findAll().stream()
+                    .filter(u -> {
+                        Set<String> roles = u.getRoles();
+                        return roles.contains("ADMIN") && !roles.contains("SUPER_ADMIN") &&
+                               organizationUuid != null && organizationUuid.equals(u.getOrganizationUuid());
+                    })
+                    .collect(Collectors.toList());
+
+            notifyUsers.addAll(admins);
+            log.info("🔔 Found {} ADMIN users in organization {}", admins.size(), organizationUuid);
+
+            // 3. Notify the document owner (if they have a user account)
             if (employeeUser != null) {
                 notifyUsers.add(employeeUser);
-                log.info("📧 Added document owner: {} (User ID: {}, Roles: {})",
+                log.info("🔔 Added document owner: {} (User ID: {}, Roles: {})",
                     employeeUser.getUsername(), employeeUser.getId(), employeeUser.getRoles());
-            }
-
-            // 3. If employee is a USER, also notify their department ADMIN
-            if (employeeUser != null && employeeUser.getRoles().contains("USER") &&
-                employee.getDepartment() != null) {
-
-                log.info("📋 Employee is USER role, finding department ADMIN");
-
-                // Find ADMINs in the same department
-                List<Employee> deptEmployees = document.getEmployee().getDepartment() != null ?
-                    employeeRepository.findByDepartmentId(document.getEmployee().getDepartment().getId()) :
-                    new ArrayList<>();
-
-                for (Employee emp : deptEmployees) {
-                    if (emp.getUserId() != null) {
-                        User user = userRepository.findById(emp.getUserId()).orElse(null);
-                        if (user != null && user.getRoles().contains("ADMIN") &&
-                            !user.getRoles().contains("SUPER_ADMIN")) {
-                            notifyUsers.add(user);
-                            log.info("📧 Added department ADMIN: {} (User ID: {})",
-                                user.getUsername(), user.getId());
-                        }
-                    }
-                }
             }
 
             // Remove duplicates

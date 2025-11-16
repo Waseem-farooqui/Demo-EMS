@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -131,20 +132,21 @@ public class DocumentExpiryNotificationService {
         if (employeeUser != null && employeeUser.getOrganizationId() != null) {
             Long organizationId = employeeUser.getOrganizationId();
 
-            // 3. Notify department ADMIN if employee has a department
-            if (employee.getDepartment() != null) {
-                List<User> deptAdmins = userRepository.findAll().stream()
-                    .filter(u -> u.getRoles().contains("ADMIN"))
-                    .filter(u -> !u.getRoles().contains("SUPER_ADMIN"))
-                    .filter(u -> organizationId.equals(u.getOrganizationId()))
-                    .collect(Collectors.toList());
+            // 2. Notify all ADMIN users in the organization (not just department admins)
+            List<User> admins = userRepository.findAll().stream()
+                .filter(u -> {
+                    Set<String> roles = u.getRoles();
+                    return roles.contains("ADMIN") && !roles.contains("SUPER_ADMIN") &&
+                           organizationId.equals(u.getOrganizationId());
+                })
+                .collect(Collectors.toList());
 
-                notifyUserIds.addAll(deptAdmins.stream()
-                    .map(User::getId)
-                    .collect(Collectors.toList()));
-            }
+            notifyUserIds.addAll(admins.stream()
+                .map(User::getId)
+                .collect(Collectors.toList()));
+            log.info("🔔 Found {} ADMIN users in organization {}", admins.size(), organizationId);
 
-            // 4. Notify all SUPER_ADMINs in the organization
+            // 3. Notify all SUPER_ADMINs in the organization
             List<User> superAdmins = userRepository.findAll().stream()
                 .filter(u -> u.getRoles().contains("SUPER_ADMIN"))
                 .filter(u -> organizationId.equals(u.getOrganizationId()))
@@ -153,6 +155,7 @@ public class DocumentExpiryNotificationService {
             notifyUserIds.addAll(superAdmins.stream()
                 .map(User::getId)
                 .collect(Collectors.toList()));
+            log.info("🔔 Found {} SUPER_ADMIN users in organization {}", superAdmins.size(), organizationId);
         }
 
         // Remove duplicates

@@ -15,6 +15,8 @@ export class LoginComponent {
   loginForm: FormGroup;
   loading = false;
   error: string | null = null;
+  showLogo = true; // Start with logo visible, will hide if it fails to load
+  logoSrc = 'assets/logo.png'; // Try PNG first, fallback to SVG if needed
 
   constructor(
     private fb: FormBuilder,
@@ -25,6 +27,21 @@ export class LoginComponent {
       username: ['', Validators.required],
       password: ['', Validators.required]
     });
+  }
+
+  onLogoError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    
+    // If PNG fails, try SVG
+    if (this.logoSrc.endsWith('.png')) {
+      this.logoSrc = 'assets/logo.svg';
+      img.src = this.logoSrc;
+      return;
+    }
+    
+    // If both fail, hide logo and show fallback icon
+    this.showLogo = false;
+    console.log('Logo image not found, showing fallback icon');
   }
 
   onSubmit(): void {

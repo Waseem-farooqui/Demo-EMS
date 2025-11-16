@@ -9,8 +9,14 @@
     <div class="login-card">
       <div class="login-header">
         <div class="logo-container">
-          <img src="assets/logo.png" alt="Vertex Digital Systems" class="company-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-          <div class="logo-fallback" style="display: none;">
+          <img 
+            [src]="logoSrc" 
+            alt="Vertex Digital Systems" 
+            class="company-logo"
+            (error)="onLogoError($event)"
+            [style.display]="showLogo ? 'block' : 'none'"
+            loading="lazy">
+          <div class="logo-fallback" [style.display]="showLogo ? 'none' : 'flex'">
             <span class="logo-icon">🏢</span>
           </div>
           <h1 class="brand-name">VDS</h1>
