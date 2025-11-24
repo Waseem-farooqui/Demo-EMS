@@ -15,9 +15,20 @@ export interface Rota {
   totalEmployees: number;
 }
 
+// Backend returns flat list of RotaScheduleEntryDTO, not grouped format
+// After transformation, this becomes grouped format with schedules object
 export interface RotaSchedule {
+  id?: number;
+  rotaId?: number;
   employeeId: number;
   employeeName: string;
+  scheduleDate?: string; // For flat format (before transformation)
+  dayOfWeek?: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  duty?: string;
+  isOffDay?: boolean;
+  // Grouped format (after transformation) - always present after loadSchedules()
   schedules: {
     [date: string]: {
       dayOfWeek: string;
@@ -25,7 +36,7 @@ export interface RotaSchedule {
       startTime: string | null;
       endTime: string | null;
       isOffDay: boolean;
-    } | undefined; // Make schedule entries optional
+    };
   };
 }
 

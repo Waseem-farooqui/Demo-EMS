@@ -75,8 +75,6 @@ export class AuthService {
 
   public saveUser(user: any): void {
     if (isPlatformBrowser(this.platformId)) {
-      console.log('💾 Saving user to localStorage:', user);
-      console.log('💾 Organization UUID being saved:', user.organizationUuid);
       localStorage.removeItem(USER_KEY);
       localStorage.setItem(USER_KEY, JSON.stringify(user));
     }
@@ -87,8 +85,6 @@ export class AuthService {
       const user = localStorage.getItem(USER_KEY);
       if (user) {
         const parsedUser = JSON.parse(user);
-        console.log('📖 Retrieved user from localStorage:', parsedUser);
-        console.log('📖 Organization UUID retrieved:', parsedUser.organizationUuid);
         return parsedUser;
       }
     }

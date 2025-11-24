@@ -111,6 +111,45 @@ public class EmailService {
         }
     }
 
+    /**
+     * Send document expiry alert to multiple recipients
+     */
+    public void sendDocumentExpiryAlertToMultiple(String[] toEmails, String employeeName, String documentType,
+                                                 String documentNumber, String expiryDate, int daysUntilExpiry) {
+        if (toEmails == null || toEmails.length == 0) {
+            log.warn("⚠️ No email recipients provided for document expiry alert");
+            return;
+        }
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(emailFromAddress);
+            message.setTo(toEmails);
+            message.setSubject("URGENT: Document Expiry Alert - " + documentType);
+
+            String emailBody = "DOCUMENT EXPIRY ALERT\n\n" +
+                    "Employee: " + employeeName + "\n" +
+                    "Document Type: " + documentType + "\n" +
+                    "Document Number: " + (documentNumber != null ? documentNumber : "N/A") + "\n" +
+                    "Expiry Date: " + expiryDate + "\n" +
+                    "Days Until Expiry: " + daysUntilExpiry + " days\n\n" +
+                    "ACTION REQUIRED:\n" +
+                    "Please ensure the document is renewed before it expires.\n\n" +
+                    "This is an automated alert from the " + emailFromName + ".\n" +
+                    "Please do not reply to this email.\n\n" +
+                    "Best regards,\n" +
+                    emailFromName;
+
+            message.setText(emailBody);
+
+            mailSender.send(message);
+            log.info("✓ Document expiry alert sent successfully to {} recipient(s) for {} from: {}",
+                    toEmails.length, documentType, emailFromAddress);
+        } catch (Exception e) {
+            log.error("✗ Failed to send expiry alert to multiple recipients from: {}", emailFromAddress, e);
+        }
+    }
+
     public void sendAccountCreationEmail(String toEmail, String fullName, String username, String temporaryPassword) {
         try {
             SimpleMailMessage message = createMessage(toEmail, "Your Employee Account Has Been Created");

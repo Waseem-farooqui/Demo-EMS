@@ -95,11 +95,9 @@ export class ConfigService {
     return environment.company;
   }
 
-  // Helper method to log in dev mode only
+  // Helper method to log in dev mode only (disabled for security)
   log(...args: any[]): void {
-    if (this.loggingEnabled && !this.isProduction) {
-      console.log('[Config]', ...args);
-    }
+    // Logging disabled to prevent PII exposure
   }
 }
 

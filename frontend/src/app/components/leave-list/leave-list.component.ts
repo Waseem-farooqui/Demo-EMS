@@ -80,8 +80,6 @@ export class LeaveListComponent implements OnInit {
 
     if (confirm(`Approve leave for ${leave.employeeName}?`)) {
       const request: LeaveApprovalRequest = {
-        approvedBy: this.currentUser.username,
-        rejectedBy: undefined,
         remarks: 'Approved'
       };
 
@@ -154,7 +152,7 @@ export class LeaveListComponent implements OnInit {
 
     switch (this.actionType) {
       case 'APPROVE':
-        request.approvedBy = this.currentUser.username;
+        // approvedBy is now automatically set by backend from current authenticated user
         this.leaveService.approveLeave(this.selectedLeave.id!, request).subscribe({
           next: () => {
             this.closeCommentModal();
@@ -168,7 +166,7 @@ export class LeaveListComponent implements OnInit {
         break;
 
       case 'REJECT':
-        request.rejectedBy = this.currentUser.username;
+        // rejectedBy is now automatically set by backend from current authenticated user
         this.leaveService.rejectLeave(this.selectedLeave.id!, request).subscribe({
           next: () => {
             this.closeCommentModal();

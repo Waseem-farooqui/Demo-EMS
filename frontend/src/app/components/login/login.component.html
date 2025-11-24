@@ -9,10 +9,20 @@
     <div class="login-card">
       <div class="login-header">
         <div class="logo-container">
-          <span class="logo-icon">👥</span>
-          <h1 class="brand-name">EMS</h1>
+          <img 
+            [src]="logoSrc" 
+            alt="Vertex Digital Systems" 
+            class="company-logo"
+            (error)="onLogoError($event)"
+            [style.display]="showLogo ? 'block' : 'none'"
+            loading="lazy">
+          <div class="logo-fallback" [style.display]="showLogo ? 'none' : 'flex'">
+            <span class="logo-icon">🏢</span>
+          </div>
+          <h1 class="brand-name">VDS</h1>
         </div>
-        <h2 class="login-title">Welcome Back</h2>
+        <h2 class="company-name">Vertex Digital Systems</h2>
+        <h3 class="login-title">Welcome Back</h3>
         <p class="login-subtitle">Sign in to your account</p>
       </div>
 
@@ -77,7 +87,7 @@
       <!-- Signup removed - Users are created by administrators -->
 
       <div class="login-footer">
-        <p class="footer-text">Employee Management System © 2025</p>
+        <p class="footer-text">Vertex Digital Systems © 2025</p>
         <p class="footer-note">Contact your administrator for access</p>
       </div>
     </div>

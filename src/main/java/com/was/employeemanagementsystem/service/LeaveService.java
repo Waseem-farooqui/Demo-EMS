@@ -93,7 +93,7 @@ public class LeaveService {
         return convertToDTO(savedLeave);
     }
 
-    public LeaveDTO approveLeave(Long leaveId, String approvedBy, String remarks) {
+    public LeaveDTO approveLeave(Long leaveId, String remarks) {
         User currentUser = securityUtils.getCurrentUser();
 
         // Only admins and super admins can approve leaves
@@ -146,19 +146,19 @@ public class LeaveService {
         }
 
         leave.setStatus("APPROVED");
-        leave.setApprovedBy(approvedBy);
+        leave.setApprovedBy(currentUser); // Store user ID via relationship
         leave.setApprovalDate(LocalDate.now());
         leave.setRemarks(remarks);
 
         Leave updatedLeave = leaveRepository.save(leave);
 
         // Create approval notification for the employee
-        notificationService.createLeaveApprovalNotification(updatedLeave, approvedBy);
+        notificationService.createLeaveApprovalNotification(updatedLeave, currentUser.getUsername());
 
         return convertToDTO(updatedLeave);
     }
 
-    public LeaveDTO rejectLeave(Long leaveId, String rejectedBy, String remarks) {
+    public LeaveDTO rejectLeave(Long leaveId, String remarks) {
         User currentUser = securityUtils.getCurrentUser();
 
         // Only admins and super admins can reject leaves
@@ -211,14 +211,14 @@ public class LeaveService {
         }
 
         leave.setStatus("REJECTED");
-        leave.setApprovedBy(rejectedBy);
+        leave.setApprovedBy(currentUser); // Store user ID via relationship (used for both approval and rejection)
         leave.setApprovalDate(LocalDate.now());
         leave.setRemarks(remarks);
 
         Leave updatedLeave = leaveRepository.save(leave);
 
         // Create rejection notification for the employee
-        notificationService.createLeaveRejectionNotification(updatedLeave, rejectedBy, remarks);
+        notificationService.createLeaveRejectionNotification(updatedLeave, currentUser.getUsername(), remarks);
 
         return convertToDTO(updatedLeave);
     }
@@ -365,7 +365,8 @@ public class LeaveService {
         dto.setReason(leave.getReason());
         dto.setStatus(leave.getStatus());
         dto.setAppliedDate(leave.getAppliedDate());
-        dto.setApprovedBy(leave.getApprovedBy());
+        // Extract username from User object for display
+        dto.setApprovedBy(leave.getApprovedBy() != null ? leave.getApprovedBy().getUsername() : null);
         dto.setApprovalDate(leave.getApprovalDate());
         dto.setRemarks(leave.getRemarks());
         dto.setHasMedicalCertificate(leave.getMedicalCertificate() != null);
@@ -392,7 +393,7 @@ public class LeaveService {
         }
 
         User currentUser = securityUtils.getCurrentUser();
-        Long organizationId = currentUser != null ? currentUser.getOrganizationId() : null;
+        Long organizationId = currentUser != null ? currentUser.getOrganizationId() : employee.getOrganizationId();
 
         // Create leave balances for all types
         createLeaveBalance(employee, currentFinancialYear, LEAVE_TYPE_ANNUAL, ANNUAL_LEAVE_ALLOCATION, organizationId);
@@ -402,6 +403,48 @@ public class LeaveService {
 
         log.info("✅ Leave balances initialized for employee: {} - Total: {} leaves",
                 employee.getFullName(), TOTAL_LEAVE_ALLOCATION);
+    }
+
+    /**
+     * Initialize leave balances for all employees who don't have them
+     * This is useful for fixing existing employees who were created before leave balance initialization was added
+     */
+    public void initializeLeaveBalancesForAllEmployees() {
+        log.info("🔍 Checking for employees without leave balances...");
+        String currentFinancialYear = getCurrentFinancialYear();
+        
+        List<Employee> allEmployees = employeeRepository.findAll();
+        int initializedCount = 0;
+        int skippedCount = 0;
+        
+        for (Employee employee : allEmployees) {
+            // Skip if already initialized
+            if (leaveBalanceRepository.existsByEmployeeIdAndFinancialYear(employee.getId(), currentFinancialYear)) {
+                skippedCount++;
+                continue;
+            }
+            
+            try {
+                // Use employee's organization ID if available
+                Long organizationId = employee.getOrganizationId();
+                
+                // Create leave balances for all types
+                createLeaveBalance(employee, currentFinancialYear, LEAVE_TYPE_ANNUAL, ANNUAL_LEAVE_ALLOCATION, organizationId);
+                createLeaveBalance(employee, currentFinancialYear, LEAVE_TYPE_SICK, SICK_LEAVE_ALLOCATION, organizationId);
+                createLeaveBalance(employee, currentFinancialYear, LEAVE_TYPE_CASUAL, CASUAL_LEAVE_ALLOCATION, organizationId);
+                createLeaveBalance(employee, currentFinancialYear, LEAVE_TYPE_OTHER, OTHER_LEAVE_ALLOCATION, organizationId);
+                
+                initializedCount++;
+                log.info("✅ Initialized leave balances for employee: {} (ID: {})", 
+                        employee.getFullName(), employee.getId());
+            } catch (Exception e) {
+                log.error("❌ Failed to initialize leave balances for employee {} (ID: {}): {}", 
+                        employee.getFullName(), employee.getId(), e.getMessage());
+            }
+        }
+        
+        log.info("✅ Leave balance initialization complete - Initialized: {}, Already had balances: {}", 
+                initializedCount, skippedCount);
     }
 
     /**
@@ -434,30 +477,60 @@ public class LeaveService {
      * Apply leave with comprehensive validation
      */
     public LeaveDTO applyLeaveWithValidation(LeaveDTO leaveDTO, MultipartFile medicalCertificate) throws IOException {
+        log.info("📝 Starting leave application process...");
+        log.info("  - Employee ID: {}", leaveDTO.getEmployeeId());
+        log.info("  - Leave Type: {}", leaveDTO.getLeaveType());
+        log.info("  - Start Date: {}", leaveDTO.getStartDate());
+        log.info("  - End Date: {}", leaveDTO.getEndDate());
+        log.info("  - Reason: {}", leaveDTO.getReason());
+        log.info("  - Medical Certificate: {}", medicalCertificate != null ? "Provided" : "Not provided");
+
         Employee employee = employeeRepository.findById(leaveDTO.getEmployeeId())
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
+                .orElseThrow(() -> {
+                    log.error("❌ Employee not found with ID: {}", leaveDTO.getEmployeeId());
+                    return new RuntimeException("Employee not found");
+                });
+
+        log.info("✅ Employee found: {} (ID: {})", employee.getFullName(), employee.getId());
 
         if (!canAccessEmployee(employee)) {
+            log.error("❌ Access denied for employee: {}", employee.getId());
             throw new RuntimeException("Access denied");
         }
 
         String financialYear = getCurrentFinancialYear();
+        log.info("📅 Current Financial Year: {}", financialYear);
+        
         int leaveDays = calculateLeaveDays(leaveDTO.getStartDate(), leaveDTO.getEndDate());
+        log.info("📊 Calculated leave days: {}", leaveDays);
 
         // Initialize leave balance if not exists
         if (!leaveBalanceRepository.existsByEmployeeIdAndFinancialYear(employee.getId(), financialYear)) {
+            log.info("🔄 Leave balances not found, initializing...");
             initializeLeaveBalances(employee.getId());
+        } else {
+            log.info("✅ Leave balances already exist");
         }
 
         // Validate leave type
         validateLeaveType(leaveDTO.getLeaveType());
+        log.info("✅ Leave type validated: {}", leaveDTO.getLeaveType());
 
         // Check leave balance
         LeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndFinancialYearAndLeaveType(
                 employee.getId(), financialYear, leaveDTO.getLeaveType())
-                .orElseThrow(() -> new RuntimeException("Leave balance not found"));
+                .orElseThrow(() -> {
+                    log.error("❌ Leave balance not found - Employee: {}, FY: {}, Type: {}", 
+                            employee.getId(), financialYear, leaveDTO.getLeaveType());
+                    return new RuntimeException("Leave balance not found");
+                });
+
+        log.info("💰 Leave balance found - Total: {}, Used: {}, Remaining: {}", 
+                balance.getTotalAllocated(), balance.getUsedLeaves(), balance.getRemainingLeaves());
 
         if (balance.getRemainingLeaves() < leaveDays) {
+            log.error("❌ Insufficient leave balance - Available: {}, Requested: {}", 
+                    balance.getRemainingLeaves(), leaveDays);
             throw new RuntimeException(String.format(
                     "Insufficient %s leave balance. Available: %d days, Requested: %d days",
                     leaveDTO.getLeaveType(), balance.getRemainingLeaves(), leaveDays));
@@ -466,26 +539,32 @@ public class LeaveService {
         // Rule: Sick leave > 2 days requires medical certificate
         if (LEAVE_TYPE_SICK.equals(leaveDTO.getLeaveType()) && leaveDays > 2) {
             if (medicalCertificate == null || medicalCertificate.isEmpty()) {
+                log.error("❌ Medical certificate required for sick leave > 2 days");
                 throw new RuntimeException(
                         "Medical certificate is required for sick leave more than 2 days");
             }
+            log.info("✅ Medical certificate validated");
         }
 
         // Rule: Casual leave cannot be consecutive
         if (LEAVE_TYPE_CASUAL.equals(leaveDTO.getLeaveType())) {
             if (leaveDays > 1) {
+                log.error("❌ Casual leave cannot be > 1 day");
                 throw new RuntimeException(
                         "Casual leave cannot be taken for more than 1 consecutive day");
             }
 
             // Check if there's adjacent casual leave
             if (hasAdjacentCasualLeave(employee.getId(), leaveDTO.getStartDate(), leaveDTO.getEndDate())) {
+                log.error("❌ Adjacent casual leave found");
                 throw new RuntimeException(
                         "Cannot apply consecutive casual leaves. Please choose a different date.");
             }
+            log.info("✅ Casual leave validation passed");
         }
 
         // Create leave request
+        log.info("🔨 Creating Leave entity...");
         Leave leave = new Leave();
         leave.setEmployee(employee);
         leave.setLeaveType(leaveDTO.getLeaveType());
@@ -498,28 +577,69 @@ public class LeaveService {
         leave.setFinancialYear(financialYear);
         leave.setOrganizationId(employee.getOrganizationId());
 
+        log.info("📋 Leave entity created with values:");
+        log.info("  - Employee ID: {}", leave.getEmployee() != null ? leave.getEmployee().getId() : "NULL");
+        log.info("  - Leave Type: {}", leave.getLeaveType());
+        log.info("  - Start Date: {}", leave.getStartDate());
+        log.info("  - End Date: {}", leave.getEndDate());
+        log.info("  - Number of Days: {}", leave.getNumberOfDays());
+        log.info("  - Status: {}", leave.getStatus());
+        log.info("  - Applied Date: {}", leave.getAppliedDate());
+        log.info("  - Financial Year: {}", leave.getFinancialYear());
+        log.info("  - Organization ID: {}", leave.getOrganizationId());
+        log.info("  - Reason: {}", leave.getReason());
+        log.info("  - Medical Certificate: {}", leave.getMedicalCertificate() != null ? "Set" : "NULL");
+        log.info("  - Certificate File Name: {}", leave.getCertificateFileName());
+        log.info("  - Certificate Content Type: {}", leave.getCertificateContentType());
+
         // Store medical certificate if provided
         if (medicalCertificate != null && !medicalCertificate.isEmpty()) {
             leave.setMedicalCertificate(medicalCertificate.getBytes());
             leave.setCertificateFileName(medicalCertificate.getOriginalFilename());
             leave.setCertificateContentType(medicalCertificate.getContentType());
-            log.info("📄 Medical certificate attached: {}", medicalCertificate.getOriginalFilename());
+            log.info("📄 Medical certificate attached: {} ({} bytes)", 
+                    medicalCertificate.getOriginalFilename(), medicalCertificate.getSize());
         }
 
-        Leave savedLeave = leaveRepository.save(leave);
-        log.info("✅ Leave application submitted - Employee: {}, Type: {}, Days: {}",
-                employee.getFullName(), leaveDTO.getLeaveType(), leaveDays);
+        try {
+            log.info("💾 Attempting to save Leave entity to database...");
+            Leave savedLeave = leaveRepository.save(leave);
+            log.info("✅ Leave saved successfully - ID: {}", savedLeave.getId());
+            log.info("✅ Leave application submitted - Employee: {}, Type: {}, Days: {}",
+                    employee.getFullName(), leaveDTO.getLeaveType(), leaveDays);
 
-        // Create notification
-        notificationService.createLeaveRequestNotification(savedLeave);
+            // Create notification
+            try {
+                notificationService.createLeaveRequestNotification(savedLeave);
+                log.info("✅ Notification created");
+            } catch (Exception e) {
+                log.warn("⚠️ Failed to create notification: {}", e.getMessage());
+                // Don't fail the leave creation if notification fails
+            }
 
-        return convertToDTO(savedLeave);
+            return convertToDTO(savedLeave);
+        } catch (Exception e) {
+            log.error("❌ ERROR SAVING LEAVE ENTITY:");
+            log.error("  - Error Type: {}", e.getClass().getName());
+            log.error("  - Error Message: {}", e.getMessage());
+            if (e.getCause() != null) {
+                log.error("  - Cause: {}", e.getCause().getClass().getName());
+                log.error("  - Cause Message: {}", e.getCause().getMessage());
+            }
+            log.error("  - Stack Trace:", e);
+            
+            // Log the actual SQL error if available
+            
+            throw e;
+        }
     }
 
     /**
      * Approve leave and deduct from balance
      */
-    public LeaveDTO approveLeaveAndDeduct(Long leaveId, String approvedBy, String remarks) {
+    public LeaveDTO approveLeaveAndDeduct(Long leaveId, String remarks) {
+        User currentUser = securityUtils.getCurrentUser();
+        
         Leave leave = leaveRepository.findById(leaveId)
                 .orElseThrow(() -> new RuntimeException("Leave not found"));
 
@@ -532,7 +652,7 @@ public class LeaveService {
 
         // Approve leave
         leave.setStatus("APPROVED");
-        leave.setApprovedBy(approvedBy);
+        leave.setApprovedBy(currentUser); // Store user ID via relationship
         leave.setApprovalDate(LocalDate.now());
         leave.setRemarks(remarks);
 
@@ -552,7 +672,7 @@ public class LeaveService {
                 leave.getNumberOfDays(), balance.getRemainingLeaves());
 
         // Create notification
-        notificationService.createLeaveApprovalNotification(savedLeave, approvedBy);
+        notificationService.createLeaveApprovalNotification(savedLeave, currentUser.getUsername());
 
         return convertToDTO(savedLeave);
     }

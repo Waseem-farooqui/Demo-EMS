@@ -1,8 +1,10 @@
 package com.was.employeemanagementsystem.service;
 
 import com.was.employeemanagementsystem.dto.EmployeeDTO;
+import com.was.employeemanagementsystem.dto.EmploymentRecordDTO;
 import com.was.employeemanagementsystem.entity.Department;
 import com.was.employeemanagementsystem.entity.Employee;
+import com.was.employeemanagementsystem.entity.EmploymentRecord;
 import com.was.employeemanagementsystem.entity.User;
 import com.was.employeemanagementsystem.exception.DuplicateResourceException;
 import com.was.employeemanagementsystem.exception.ResourceNotFoundException;
@@ -384,6 +386,15 @@ public class EmployeeService {
         employee.setDateOfBirth(employeeDTO.getDateOfBirth());
         employee.setNationality(employeeDTO.getNationality());
         employee.setAddress(employeeDTO.getAddress());
+        employee.setPresentAddress(employeeDTO.getPresentAddress());
+        employee.setPreviousAddress(employeeDTO.getPreviousAddress());
+
+        boolean hasMedicalCondition = Boolean.TRUE.equals(employeeDTO.getHasMedicalCondition());
+        employee.setHasMedicalCondition(hasMedicalCondition);
+        employee.setMedicalConditionDetails(hasMedicalCondition ? employeeDTO.getMedicalConditionDetails() : null);
+        employee.setNextOfKinName(employeeDTO.getNextOfKinName());
+        employee.setNextOfKinContact(employeeDTO.getNextOfKinContact());
+        employee.setNextOfKinAddress(employeeDTO.getNextOfKinAddress());
 
         // Update job information
         employee.setJobTitle(employeeDTO.getJobTitle());
@@ -398,6 +409,8 @@ public class EmployeeService {
         if (securityUtils.isAdminOrSuperAdmin() && employeeDTO.getUserId() != null) {
             employee.setUserId(employeeDTO.getUserId());
         }
+
+        synchronizeEmploymentRecords(employee, employeeDTO.getEmploymentRecords());
 
         Employee updatedEmployee = employeeRepository.save(employee);
         log.info("✓ Employee updated - ID: {}, Name: {}", updatedEmployee.getId(), updatedEmployee.getFullName());
@@ -464,6 +477,13 @@ public class EmployeeService {
         dto.setDateOfBirth(employee.getDateOfBirth());
         dto.setNationality(employee.getNationality());
         dto.setAddress(employee.getAddress());
+        dto.setPresentAddress(employee.getPresentAddress());
+        dto.setPreviousAddress(employee.getPreviousAddress());
+        dto.setHasMedicalCondition(Boolean.TRUE.equals(employee.getHasMedicalCondition()));
+        dto.setMedicalConditionDetails(employee.getMedicalConditionDetails());
+        dto.setNextOfKinName(employee.getNextOfKinName());
+        dto.setNextOfKinContact(employee.getNextOfKinContact());
+        dto.setNextOfKinAddress(employee.getNextOfKinAddress());
 
         // Job information
         dto.setJobTitle(employee.getJobTitle());
@@ -488,6 +508,14 @@ public class EmployeeService {
             dto.setDepartmentName(employee.getDepartment().getName());
         }
 
+        if (employee.getEmploymentRecords() != null && !employee.getEmploymentRecords().isEmpty()) {
+            dto.setEmploymentRecords(employee.getEmploymentRecords().stream()
+                    .map(this::convertEmploymentRecordToDTO)
+                    .collect(Collectors.toList()));
+        } else {
+            dto.setEmploymentRecords(new ArrayList<>());
+        }
+
         return dto;
     }
 
@@ -503,6 +531,15 @@ public class EmployeeService {
         employee.setDateOfBirth(dto.getDateOfBirth());
         employee.setNationality(dto.getNationality());
         employee.setAddress(dto.getAddress());
+        employee.setPresentAddress(dto.getPresentAddress());
+        employee.setPreviousAddress(dto.getPreviousAddress());
+
+        boolean hasMedicalCondition = Boolean.TRUE.equals(dto.getHasMedicalCondition());
+        employee.setHasMedicalCondition(hasMedicalCondition);
+        employee.setMedicalConditionDetails(hasMedicalCondition ? dto.getMedicalConditionDetails() : null);
+        employee.setNextOfKinName(dto.getNextOfKinName());
+        employee.setNextOfKinContact(dto.getNextOfKinContact());
+        employee.setNextOfKinAddress(dto.getNextOfKinAddress());
 
         // Job information
         employee.setJobTitle(dto.getJobTitle());
@@ -519,7 +556,70 @@ public class EmployeeService {
             departmentRepository.findById(dto.getDepartmentId()).ifPresent(employee::setDepartment);
         }
 
+        employee.setEmploymentRecords(buildEmploymentRecordsFromDto(dto.getEmploymentRecords(), employee));
+
         return employee;
+    }
+
+    private void synchronizeEmploymentRecords(Employee employee, List<EmploymentRecordDTO> recordDTOs) {
+        if (employee.getEmploymentRecords() == null) {
+            employee.setEmploymentRecords(new ArrayList<>());
+        } else {
+            employee.getEmploymentRecords().clear();
+        }
+        if (recordDTOs == null || recordDTOs.isEmpty()) {
+            return;
+        }
+
+        List<EmploymentRecord> records = recordDTOs.stream()
+                .filter(dto -> !isEmploymentRecordEmpty(dto))
+                .map(dto -> convertToEmploymentRecordEntity(dto, employee))
+                .collect(Collectors.toList());
+
+        employee.getEmploymentRecords().addAll(records);
+    }
+
+    private List<EmploymentRecord> buildEmploymentRecordsFromDto(List<EmploymentRecordDTO> recordDTOs, Employee employee) {
+        if (recordDTOs == null || recordDTOs.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return recordDTOs.stream()
+                .filter(dto -> !isEmploymentRecordEmpty(dto))
+                .map(dto -> convertToEmploymentRecordEntity(dto, employee))
+                .collect(Collectors.toList());
+    }
+
+    private EmploymentRecord convertToEmploymentRecordEntity(EmploymentRecordDTO dto, Employee employee) {
+        EmploymentRecord record = new EmploymentRecord();
+        record.setId(dto.getId());
+        record.setJobTitle(dto.getJobTitle());
+        record.setEmploymentPeriod(dto.getEmploymentPeriod());
+        record.setEmployerName(dto.getEmployerName());
+        record.setEmployerAddress(dto.getEmployerAddress());
+        record.setEmployee(employee);
+        return record;
+    }
+
+    private EmploymentRecordDTO convertEmploymentRecordToDTO(EmploymentRecord record) {
+        EmploymentRecordDTO dto = new EmploymentRecordDTO();
+        dto.setId(record.getId());
+        dto.setJobTitle(record.getJobTitle());
+        dto.setEmploymentPeriod(record.getEmploymentPeriod());
+        dto.setEmployerName(record.getEmployerName());
+        dto.setEmployerAddress(record.getEmployerAddress());
+        return dto;
+    }
+
+    private boolean isEmploymentRecordEmpty(EmploymentRecordDTO dto) {
+        if (dto == null) {
+            return true;
+        }
+
+        return (dto.getJobTitle() == null || dto.getJobTitle().trim().isEmpty())
+                && (dto.getEmploymentPeriod() == null || dto.getEmploymentPeriod().trim().isEmpty())
+                && (dto.getEmployerName() == null || dto.getEmployerName().trim().isEmpty())
+                && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty());
     }
 }
 

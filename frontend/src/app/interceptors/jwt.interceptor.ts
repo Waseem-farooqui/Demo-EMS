@@ -19,16 +19,9 @@ export class JwtInterceptor implements HttpInterceptor {
         Authorization: `Bearer ${token}`
       };
 
-      // Debug logging
-      console.log('🔍 JWT Interceptor - User object:', user);
-      console.log('🔍 JWT Interceptor - Organization UUID:', user?.organizationUuid);
-      console.log('🔍 JWT Interceptor - User roles:', user?.roles);
-
       // Check if user has roles (not ROOT) but missing organizationUuid
       if (user && user.roles && !user.roles.includes('ROOT') && !user.organizationUuid) {
         console.error('❌ CRITICAL: Non-ROOT user missing organizationUuid!');
-        console.error('User needs to log out and log back in to refresh their session.');
-        console.error('Username:', user.username);
 
         // Show alert to user
         if (typeof window !== 'undefined') {
@@ -44,11 +37,6 @@ export class JwtInterceptor implements HttpInterceptor {
       // Add organization UUID if user has one (not ROOT user)
       if (user && user.organizationUuid) {
         headers['X-Organization-UUID'] = user.organizationUuid;
-        console.log('✅ Added X-Organization-UUID header:', user.organizationUuid);
-      } else if (user && user.roles && user.roles.includes('ROOT')) {
-        console.log('👑 ROOT user - No organization UUID needed');
-      } else {
-        console.warn('⚠️ No organization UUID found in user object!');
       }
 
       request = request.clone({

@@ -63,8 +63,6 @@ export class OrganizationCreateComponent {
 
     this.http.post<any>(this.apiUrl, formData).subscribe({
       next: (response) => {
-        console.log('✅ Organization created successfully:', response);
-
         // Store generated credentials to display on screen
         if (response.credentials) {
           this.generatedCredentials = {
@@ -136,7 +134,6 @@ export class OrganizationCreateComponent {
 
     this.http.post<any>(`${this.apiUrl}/${organizationId}/logo`, formData).subscribe({
       next: () => {
-        console.log('✅ Logo uploaded successfully');
         this.success = true;
         this.loading = false;
       },

@@ -3,6 +3,7 @@ package com.was.employeemanagementsystem.entity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import javax.persistence.*;
 import java.time.LocalDate;
@@ -47,6 +48,27 @@ public class Employee {
     @Column(name = "address")
     private String address;
 
+    @Column(name = "present_address")
+    private String presentAddress;
+
+    @Column(name = "previous_address")
+    private String previousAddress;
+
+    @Column(name = "has_medical_condition")
+    private Boolean hasMedicalCondition = false;
+
+    @Column(name = "medical_condition_details", columnDefinition = "TEXT")
+    private String medicalConditionDetails;
+
+    @Column(name = "next_of_kin_name")
+    private String nextOfKinName;
+
+    @Column(name = "next_of_kin_contact")
+    private String nextOfKinContact;
+
+    @Column(name = "next_of_kin_address")
+    private String nextOfKinAddress;
+
     // Job Information
     @Column(name = "job_title", nullable = false)
     private String jobTitle;
@@ -88,5 +110,9 @@ public class Employee {
 
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Leave> leaves = new ArrayList<>();
+
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
+    private List<EmploymentRecord> employmentRecords = new ArrayList<>();
 }
 

@@ -114,7 +114,21 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.company-logo {
+  height: 60px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+.logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-icon {
@@ -131,6 +145,14 @@
   background-clip: text;
   margin: 0;
   letter-spacing: -1px;
+}
+
+.company-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin: 0 0 1rem 0;
+  letter-spacing: 0.5px;
 }
 
 .login-title {
@@ -425,12 +447,21 @@
     border-radius: 1rem;
   }
 
+  .company-logo {
+    height: 50px;
+    max-width: 150px;
+  }
+
   .logo-icon {
     font-size: 2.5rem;
   }
 
   .brand-name {
     font-size: 2rem;
+  }
+
+  .company-name {
+    font-size: 1rem;
   }
 
   .login-title {

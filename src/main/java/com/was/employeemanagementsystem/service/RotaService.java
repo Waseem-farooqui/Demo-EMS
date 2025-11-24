@@ -126,8 +126,7 @@ public class RotaService {
         rota.setDepartment(metadata.getOrDefault("department", "Unknown Department"));
         rota.setFileName(file.getOriginalFilename());
         rota.setFilePath("/uploads/rota/" + UUID.randomUUID() + "_" + file.getOriginalFilename());
-        rota.setFileData(imageBytes);
-        rota.setExtractedText(extractedText);
+        // Note: fileData and extractedText removed - files stored in file system, text only used temporarily for parsing
         rota.setStartDate(LocalDate.parse(metadata.get("startDate")));
         rota.setEndDate(LocalDate.parse(metadata.get("endDate")));
         rota.setUploadedDate(LocalDateTime.now());
@@ -180,8 +179,7 @@ public class RotaService {
         rota.setDepartment(department);
         rota.setFileName("Manual Entry");
         rota.setFilePath("/manual-entry");
-        rota.setFileData(new byte[0]);
-        rota.setExtractedText("Manually entered ROTA");
+        // Note: fileData and extractedText removed - not needed for manual entries
         rota.setStartDate(startDate);
         rota.setEndDate(endDate);
         rota.setUploadedDate(LocalDateTime.now());
@@ -190,8 +188,15 @@ public class RotaService {
         rota.setOrganizationId(user.getOrganizationId()); // ✅ Set organization for multi-tenancy
 
         // Save ROTA
+        log.info("💾 Saving ROTA entity: hotelName={}, department={}, startDate={}, endDate={}", 
+                hotelName, department, startDate, endDate);
         Rota savedRota = rotaRepository.save(rota);
         log.info("✅ Manual ROTA saved with ID: {} for organization: {}", savedRota.getId(), user.getOrganizationId());
+        
+        // CRITICAL: Flush to ensure Rota is persisted before creating schedules
+        // This prevents any cascade save issues
+        rotaRepository.flush();
+        log.info("✅ ROTA entity flushed to database");
 
         // Parse schedules
         @SuppressWarnings("unchecked")
@@ -201,24 +206,82 @@ public class RotaService {
             List<RotaSchedule> schedules = new ArrayList<>();
 
             for (Map<String, Object> scheduleData : schedulesData) {
-                Long employeeId = Long.valueOf(scheduleData.get("employeeId").toString());
+                // Extract employeeId - handle both string and number formats
+                Object employeeIdObj = scheduleData.get("employeeId");
+                if (employeeIdObj == null) {
+                    log.error("❌ Missing employeeId in schedule data: {}", scheduleData);
+                    throw new RuntimeException("Missing employeeId in schedule data");
+                }
+                
+                Long employeeId;
+                try {
+                    employeeId = Long.valueOf(employeeIdObj.toString());
+                } catch (NumberFormatException e) {
+                    log.error("❌ Invalid employeeId format: {}", employeeIdObj);
+                    throw new RuntimeException("Invalid employeeId format: " + employeeIdObj, e);
+                }
+                
+                log.debug("🔍 Looking up employee with ID: {}", employeeId);
+                
                 @SuppressWarnings("unchecked")
                 List<String> shifts = (List<String>) scheduleData.get("shifts");
+                
+                if (shifts == null || shifts.isEmpty()) {
+                    log.warn("⚠️ No shifts provided for employee ID: {}", employeeId);
+                    continue;
+                }
 
+                // Find employee and verify it belongs to the same organization
                 Employee employee = employeeRepository.findById(employeeId)
-                        .orElseThrow(() -> new RuntimeException("Employee not found: " + employeeId));
+                        .orElseThrow(() -> {
+                            log.error("❌ Employee not found with ID: {}", employeeId);
+                            log.error("User organization ID: {}", user.getOrganizationId());
+                            List<Employee> availableEmployees = employeeRepository.findByOrganizationId(user.getOrganizationId());
+                            log.error("Available employees in organization {}: {}", 
+                                    user.getOrganizationId(),
+                                    availableEmployees.stream()
+                                            .map(e -> e.getId() + ":" + e.getFullName())
+                                            .collect(Collectors.joining(", ")));
+                            return new RuntimeException("Employee not found with ID: " + employeeId);
+                        });
+
+                // Verify employee belongs to the same organization (multi-tenancy security)
+                if (!employee.getOrganizationId().equals(user.getOrganizationId())) {
+                    log.error("❌ Employee {} belongs to different organization ({} vs {})", 
+                            employeeId, employee.getOrganizationId(), user.getOrganizationId());
+                    throw new RuntimeException("Employee " + employeeId + " does not belong to your organization");
+                }
+
+                if (employee.getId() == null) {
+                    log.error("❌ Employee found but ID is null for employee: {}", employee.getFullName());
+                    throw new RuntimeException("Employee ID is null for employee: " + employee.getFullName());
+                }
+
+                log.debug("✅ Found employee: ID={}, Name={}, Organization={}", 
+                        employee.getId(), employee.getFullName(), employee.getOrganizationId());
 
                 // Generate dates
                 List<LocalDate> dates = generateDateRange(startDate, endDate);
 
                 for (int i = 0; i < Math.min(shifts.size(), dates.size()); i++) {
                     String shift = shifts.get(i);
-                    if (shift == null || shift.trim().isEmpty()) continue;
+                    if (shift == null || shift.trim().isEmpty()) {
+                        log.debug("Skipping empty shift at index {}", i);
+                        continue;
+                    }
 
                     LocalDate date = dates.get(i);
                     RotaSchedule schedule = new RotaSchedule();
                     schedule.setRota(savedRota);
-                    schedule.setEmployeeId(employee.getId());
+                    
+                    // CRITICAL: Set employeeId - verify it's not null
+                    Long empId = employee.getId();
+                    if (empId == null) {
+                        log.error("❌ CRITICAL: employee.getId() returned null for employee: {}", employee.getFullName());
+                        throw new RuntimeException("Employee ID is null - cannot create ROTA schedule");
+                    }
+                    
+                    schedule.setEmployeeId(empId);
                     schedule.setEmployeeName(employee.getFullName());
                     schedule.setScheduleDate(date);
                     schedule.setDayOfWeek(date.getDayOfWeek().toString());
@@ -227,12 +290,37 @@ public class RotaService {
                     // Parse time if available
                     parseTimeFromDuty(schedule, shift);
 
+                    // Verify employeeId is set before adding to list
+                    if (schedule.getEmployeeId() == null) {
+                        log.error("❌ CRITICAL: RotaSchedule employeeId is null after setting! Employee: {}", employee.getFullName());
+                        throw new RuntimeException("Failed to set employeeId on RotaSchedule");
+                    }
+
+                    log.debug("📅 Creating schedule: EmployeeId={}, Date={}, Duty={}", schedule.getEmployeeId(), date, shift);
                     schedules.add(schedule);
                 }
             }
 
+            // Final validation before saving
+            for (RotaSchedule schedule : schedules) {
+                if (schedule.getEmployeeId() == null) {
+                    log.error("❌ CRITICAL: Found RotaSchedule with null employeeId before save!");
+                    log.error("Schedule details: RotaId={}, EmployeeName={}, Date={}, Duty={}", 
+                            schedule.getRota() != null ? schedule.getRota().getId() : "null",
+                            schedule.getEmployeeName(),
+                            schedule.getScheduleDate(),
+                            schedule.getDuty());
+                    throw new RuntimeException("Cannot save RotaSchedule with null employeeId");
+                }
+                if (schedule.getRota() == null || schedule.getRota().getId() == null) {
+                    log.error("❌ CRITICAL: Found RotaSchedule with null rota before save!");
+                    throw new RuntimeException("Cannot save RotaSchedule with null rota");
+                }
+            }
+            
+            log.info("💾 Saving {} manual schedule entries (all validated)", schedules.size());
             rotaScheduleRepository.saveAll(schedules);
-            log.info("✅ Saved {} manual schedule entries", schedules.size());
+            log.info("✅ Saved {} manual schedule entries successfully", schedules.size());
         }
 
         return savedRota;
@@ -901,9 +989,7 @@ public class RotaService {
         details.put("uploadedDate", rota.getUploadedDate());
         details.put("uploadedByName", rota.getUploadedByName());
 
-        // OCR extraction details
-        details.put("extractedText", rota.getExtractedText());
-        details.put("extractedTextLength", rota.getExtractedText() != null ? rota.getExtractedText().length() : 0);
+        // Note: extractedText removed - was only used for debugging
 
         // Schedule statistics
         details.put("totalScheduleRecords", schedules.size());
@@ -948,12 +1034,7 @@ public class RotaService {
 
         details.put("employeeSchedules", employeeSchedules);
 
-        // Preview of raw text (first 500 characters)
-        if (rota.getExtractedText() != null && rota.getExtractedText().length() > 500) {
-            details.put("textPreview", rota.getExtractedText().substring(0, 500) + "...");
-        } else {
-            details.put("textPreview", rota.getExtractedText());
-        }
+        // Note: extractedText preview removed - was only used for debugging
 
         log.info("📊 Generated extraction details for ROTA ID: {}", rotaId);
         return details;

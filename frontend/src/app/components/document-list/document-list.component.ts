@@ -38,7 +38,6 @@ export class DocumentListComponent implements OnInit {
     this.route.queryParams.subscribe(params => {
       if (params['expiryFilter']) {
         this.expiryFilter = params['expiryFilter'];
-        console.log('Filtering by expiry:', this.expiryFilter);
       }
     });
 

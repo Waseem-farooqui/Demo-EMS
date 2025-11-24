@@ -12,6 +12,8 @@ public interface AlertConfigurationRepository extends JpaRepository<AlertConfigu
     Optional<AlertConfiguration> findByDocumentType(String documentType);
     List<AlertConfiguration> findAllByDocumentType(String documentType);
     boolean existsByDocumentTypeAndAlertPriority(String documentType, String alertPriority);
+    boolean existsByOrganizationIdAndDocumentTypeAndAlertPriority(Long organizationId, String documentType, String alertPriority);
     List<AlertConfiguration> findByDocumentTypeAndEnabled(String documentType, boolean enabled);
+    List<AlertConfiguration> findByOrganizationId(Long organizationId);
 }
 

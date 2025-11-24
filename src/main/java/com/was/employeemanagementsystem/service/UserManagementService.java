@@ -38,6 +38,7 @@ public class UserManagementService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
     private final EmailService emailService;
+    private final LeaveService leaveService;
 
     /**
      * Create a new user with employee profile
@@ -174,6 +175,15 @@ public class UserManagementService {
         savedEmployee.setUserId(savedUser.getId());
         employeeRepository.save(savedEmployee);
         log.info("✓ Employee linked to user");
+
+        // Initialize leave balances for new employee
+        try {
+            leaveService.initializeLeaveBalances(savedEmployee.getId());
+            log.info("✅ Leave balances initialized for new employee: {}", savedEmployee.getFullName());
+        } catch (Exception e) {
+            log.error("❌ Failed to initialize leave balances: {}", e.getMessage());
+            // Don't fail user creation if leave balance initialization fails
+        }
 
         // Send email with credentials
         boolean emailSent = false;

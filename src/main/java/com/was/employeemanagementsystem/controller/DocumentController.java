@@ -65,9 +65,11 @@ public class DocumentController {
                 return ResponseEntity.badRequest().body("Only image files (PNG, JPG, JPEG), PDF files, and Word documents (DOC, DOCX) are allowed");
             }
 
-            if (file.getSize() > 10 * 1024 * 1024) {
-                log.warn("File too large: {} bytes", file.getSize());
-                return ResponseEntity.badRequest().body("File size must be less than 10MB");
+            // Support documents up to 20MB (high-resolution scans, multi-page PDFs)
+            if (file.getSize() > 20 * 1024 * 1024) {
+                log.warn("File too large: {} bytes ({} MB)", file.getSize(), file.getSize() / (1024 * 1024));
+                return ResponseEntity.badRequest().body("File size must be less than 20MB. Current size: " + 
+                    String.format("%.2f", file.getSize() / (1024.0 * 1024.0)) + " MB");
             }
 
             boolean isValidDocument = documentService.validateDocumentType(file, documentType);
@@ -189,26 +191,17 @@ public class DocumentController {
         }
     }
 
+    /**
+     * @deprecated Preview images are no longer stored in database.
+     * This endpoint redirects to /{id}/image for backward compatibility.
+     * Use /{id}/image instead.
+     */
+    @Deprecated
     @GetMapping("/{id}/preview")
     public ResponseEntity<byte[]> getDocumentPreview(@PathVariable Long id) {
-        try {
-            log.info("📸 Document preview request - ID: {}", id);
-
-            byte[] previewData = documentService.getDocumentPreview(id);
-
-            if (previewData == null || previewData.length == 0) {
-                log.warn("No preview data found for document ID: {}", id);
-                return ResponseEntity.notFound().build();
-            }
-
-            return ResponseEntity.ok()
-                    .contentType(org.springframework.http.MediaType.IMAGE_JPEG)
-                    .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
-                    .body(previewData);
-        } catch (RuntimeException e) {
-            log.error("✗ Failed to retrieve document preview: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        log.warn("⚠️ /preview endpoint is deprecated. Redirecting to /image endpoint.");
+        // Redirect to full image endpoint
+        return getDocumentImage(id);
     }
 
     @GetMapping("/{id}/image")

@@ -118,6 +118,9 @@ export class DashboardComponent implements OnInit {
     if (!canvas || !this.dashboardStats?.employeesByDepartment) return;
 
     const data = this.dashboardStats.employeesByDepartment;
+    // Add null/undefined check before Object.keys
+    if (!data || typeof data !== 'object') return;
+    
     const labels = Object.keys(data);
     const values = Object.values(data) as number[];
 
@@ -169,6 +172,9 @@ export class DashboardComponent implements OnInit {
     if (!canvas || !this.dashboardStats?.employeesByWorkLocation) return;
 
     const data = this.dashboardStats.employeesByWorkLocation;
+    // Add null/undefined check before Object.keys
+    if (!data || typeof data !== 'object') return;
+    
     const labels = Object.keys(data);
     const values = Object.values(data) as number[];
 
@@ -318,14 +324,12 @@ export class DashboardComponent implements OnInit {
           // Profile exists! Load it
           this.hasProfile = true;
           this.employeeProfile = employeeProfile;
-          console.log('✅ Employee profile found for user:', userEmail);
           this.loadDocuments();
           this.loadAttendanceStatus();
         } else {
           // No profile exists - user needs to create one
           this.hasProfile = false;
           this.loading = false;
-          console.log('⚠️ No employee profile found for user:', userEmail);
         }
       },
       error: (err) => {
@@ -392,7 +396,6 @@ export class DashboardComponent implements OnInit {
    * Handle click on department chart segment
    */
   onDepartmentChartClick(departmentName: string): void {
-    console.log('Department chart clicked:', departmentName);
     // Navigate to employees page with department filter
     this.router.navigate(['/employees'], {
       queryParams: { department: departmentName }
@@ -403,7 +406,6 @@ export class DashboardComponent implements OnInit {
    * Handle click on document expiry chart segment
    */
   onDocumentExpiryChartClick(index: number): void {
-    console.log('Document expiry chart clicked, index:', index);
     let filter: string;
 
     switch(index) {

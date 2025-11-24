@@ -173,15 +173,16 @@ public class RotaController {
     }
 
     /**
-     * Get ROTA schedules by ID for editing
-     * Only ADMIN and SUPER_ADMIN can access for editing
+     * Get ROTA schedules by ID for viewing
+     * All authenticated users can view schedules
      */
     @GetMapping("/{rotaId}/schedules")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<?> getRotaSchedulesForEdit(@PathVariable Long rotaId) {
         try {
             log.info("📋 Fetching schedules for rota ID: {}", rotaId);
             List<RotaScheduleEntryDTO> schedules = rotaService.getRotaSchedules(rotaId);
+            log.info("✅ Returning {} schedules for rota ID: {}", schedules.size(), rotaId);
             return ResponseEntity.ok(schedules);
         } catch (Exception e) {
             log.error("❌ Error fetching ROTA schedules", e);

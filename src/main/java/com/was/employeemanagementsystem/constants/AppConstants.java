@@ -49,7 +49,8 @@ public final class AppConstants {
     public static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 
     // File Upload
-    public static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    // Support documents up to 20MB (high-resolution scans, multi-page PDFs)
+    public static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
     public static final String UPLOAD_DIR = "uploads";
     public static final String DOCUMENTS_DIR = UPLOAD_DIR + "/documents";
 

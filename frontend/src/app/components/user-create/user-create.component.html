@@ -32,7 +32,7 @@
         <label>Email:</label>
         <div class="credential-value-row">
           <span class="credential-value">{{ createdCredentials.email }}</span>
-          <button (click)="copyToClipboard(createdCredentials.email, 'Email')" class="btn-copy">
+          <button type="button" (click)="copyToClipboard(createdCredentials.email, 'Email')" class="btn-copy">
             📋 Copy
           </button>
         </div>
@@ -42,7 +42,7 @@
         <label>Username:</label>
         <div class="credential-value-row">
           <span class="credential-value">{{ createdCredentials.username }}</span>
-          <button (click)="copyToClipboard(createdCredentials.username, 'Username')" class="btn-copy">
+          <button type="button" (click)="copyToClipboard(createdCredentials.username, 'Username')" class="btn-copy">
             📋 Copy
           </button>
         </div>
@@ -52,7 +52,7 @@
         <label>Temporary Password:</label>
         <div class="credential-value-row">
           <span class="credential-value password">{{ createdCredentials.temporaryPassword }}</span>
-          <button (click)="copyToClipboard(createdCredentials.temporaryPassword, 'Password')" class="btn-copy">
+          <button type="button" (click)="copyToClipboard(createdCredentials.temporaryPassword, 'Password')" class="btn-copy">
             📋 Copy
           </button>
         </div>

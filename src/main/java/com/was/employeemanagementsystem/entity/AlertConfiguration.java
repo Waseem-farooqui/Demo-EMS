@@ -8,7 +8,10 @@ import javax.persistence.*;
 
 @Entity
 @Table(name = "alert_configurations",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"document_type", "alert_priority"}))
+       uniqueConstraints = {
+           @UniqueConstraint(columnNames = {"document_type", "alert_priority"}),
+           @UniqueConstraint(columnNames = {"organization_id", "document_type", "alert_priority"})
+       })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -42,7 +45,7 @@ public class AlertConfiguration {
     @Column(name = "repeat_until_resolved")
     private boolean repeatUntilResolved = false; // Keep sending alerts until document is updated
 
-    @Column(name = "organization_id")
+    @Column(name = "organization_id", nullable = false)
     private Long organizationId; // Multi-tenancy support
 
     public AlertConfiguration(String documentType, Integer alertDaysBefore, String alertEmail,

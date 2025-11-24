@@ -104,11 +104,11 @@
                 <td class="employee-name">
                   <span class="name-badge">👤 {{ employee.employeeName }}</span>
                 </td>
-                <td *ngFor="let date of scheduleDates" [ngClass]="getDutyClass(employee.schedules[date]?.duty)">
+                <td *ngFor="let date of scheduleDates" [ngClass]="getDutyClass(employee.schedules?.[date]?.duty || undefined)">
                   <div class="duty-cell">
-                    <span class="duty-text">{{ employee.schedules[date]?.duty || '-' }}</span>
-                    <span class="duty-time" *ngIf="employee.schedules[date]?.startTime && employee.schedules[date]?.endTime">
-                      {{ employee.schedules[date]?.startTime }} - {{ employee.schedules[date]?.endTime }}
+                    <span class="duty-text">{{ employee.schedules?.[date]?.duty || '-' }}</span>
+                    <span class="duty-time" *ngIf="employee.schedules?.[date]?.startTime && employee.schedules?.[date]?.endTime">
+                      {{ employee.schedules?.[date]?.startTime }} - {{ employee.schedules?.[date]?.endTime }}
                     </span>
                   </div>
                 </td>

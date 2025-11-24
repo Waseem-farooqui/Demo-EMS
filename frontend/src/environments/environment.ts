@@ -18,15 +18,16 @@ export const environment = {
     departments: '/departments',
     leaves: '/leaves',
     documents: '/documents',
-    rotas: '/rotas',
+    rotas: '/rota',
     attendance: '/attendance',
     notifications: '/notifications',
     dashboard: '/dashboard'
   },
 
   // File upload limits
+  // Support documents up to 20MB (high-resolution scans, multi-page PDFs)
   fileUpload: {
-    maxSizeMB: 10,
+    maxSizeMB: 20,
     allowedDocumentTypes: ['.pdf', '.jpg', '.jpeg', '.png'],
     allowedImageTypes: ['.jpg', '.jpeg', '.png', '.gif']
   },

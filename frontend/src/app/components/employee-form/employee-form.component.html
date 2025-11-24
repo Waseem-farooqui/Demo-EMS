@@ -104,6 +104,86 @@
     </div>
 
     <div class="form-group">
+      <label for="presentAddress">Present Address</label>
+      <textarea
+        id="presentAddress"
+        formControlName="presentAddress"
+        rows="3"
+        placeholder="Current residential address"
+      ></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="previousAddress">Previous Address</label>
+      <textarea
+        id="previousAddress"
+        formControlName="previousAddress"
+        rows="3"
+        placeholder="Previous residential address"
+      ></textarea>
+    </div>
+
+    <div class="section-card">
+      <h3>Medical Information</h3>
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" formControlName="hasMedicalCondition">
+          Employee has a medical condition
+        </label>
+      </div>
+
+      <div class="form-group" *ngIf="shouldShowMedicalDetails()">
+        <label for="medicalConditionDetails">
+          Medical Condition Description
+          <span class="required">*</span>
+        </label>
+        <textarea
+          id="medicalConditionDetails"
+          formControlName="medicalConditionDetails"
+          rows="3"
+          [class.invalid]="isFieldInvalid('medicalConditionDetails')"
+          placeholder="Provide relevant information"
+        ></textarea>
+        <div class="error" *ngIf="isFieldInvalid('medicalConditionDetails')">
+          Please describe the medical condition.
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <h3>Next of Kin</h3>
+      <div class="form-group">
+        <label for="nextOfKinName">Name</label>
+        <input
+          type="text"
+          id="nextOfKinName"
+          formControlName="nextOfKinName"
+          placeholder="Full name"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="nextOfKinContact">Contact Number</label>
+        <input
+          type="text"
+          id="nextOfKinContact"
+          formControlName="nextOfKinContact"
+          placeholder="e.g., +44 20 1234 5678"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="nextOfKinAddress">Address</label>
+        <textarea
+          id="nextOfKinAddress"
+          formControlName="nextOfKinAddress"
+          rows="3"
+          placeholder="Address of next of kin"
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="form-group">
       <label for="jobTitle">Job Title <span class="required">*</span></label>
       <input
         type="text"
@@ -185,6 +265,71 @@
         formControlName="holidayAllowance"
         min="0"
       >
+    </div>
+
+    <div class="section-card">
+      <div class="section-header">
+        <h3>Employment History</h3>
+        <button type="button" class="btn btn-link" (click)="addEmploymentRecord()">
+          + Add Previous Employment
+        </button>
+      </div>
+
+      <div formArrayName="employmentRecords">
+        <div
+          class="employment-record"
+          *ngFor="let recordGroup of employmentRecords.controls; let i = index"
+          [formGroupName]="i"
+        >
+          <div class="record-header">
+            <h4>Employment {{ i + 1 }}</h4>
+            <button
+              type="button"
+              class="btn-remove"
+              (click)="removeEmploymentRecord(i)"
+              *ngIf="employmentRecords.length > 1"
+            >
+              Remove
+            </button>
+          </div>
+          <div class="form-group">
+            <label for="jobTitle-{{ i }}">Job Title</label>
+            <input
+              type="text"
+              [id]="'jobTitle-' + i"
+              formControlName="jobTitle"
+              placeholder="e.g., Senior Developer"
+            >
+          </div>
+          <div class="form-group">
+            <label for="employmentPeriod-{{ i }}">Employment Period</label>
+            <input
+              type="text"
+              [id]="'employmentPeriod-' + i"
+              formControlName="employmentPeriod"
+              placeholder="e.g., Jan 2020 - Mar 2023"
+            >
+          </div>
+          <div class="form-group">
+            <label for="employerName-{{ i }}">Employer Name</label>
+            <input
+              type="text"
+              [id]="'employerName-' + i"
+              formControlName="employerName"
+              placeholder="Company name"
+            >
+          </div>
+          <div class="form-group">
+            <label for="employerAddress-{{ i }}">Employer Address</label>
+            <textarea
+              [id]="'employerAddress-' + i"
+              formControlName="employerAddress"
+              rows="2"
+              placeholder="Company address"
+            ></textarea>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="form-actions">

@@ -23,25 +23,28 @@ public class RotaSchedule {
     @JoinColumn(name = "rota_id", nullable = false)
     private Rota rota;
 
-    @Column(nullable = false)
+    @Column(name = "employee_id", nullable = false)
     private Long employeeId;
 
-    @Column(nullable = false)
+    @Column(name = "employee_name", nullable = false)
     private String employeeName;
 
-    @Column(nullable = false)
+    @Column(name = "schedule_date", nullable = false)
     private LocalDate scheduleDate;
 
-    @Column(nullable = false)
+    @Column(name = "day_of_week", nullable = false)
     private String dayOfWeek;
 
+    @Column(name = "start_time")
     private LocalTime startTime;
 
+    @Column(name = "end_time")
     private LocalTime endTime;
 
-    @Column(nullable = false)
+    @Column(name = "duty", nullable = false)
     private String duty; // Original duty string from ROTA (e.g., "08:00-18:00", "17:00-03:00", "Set-Ups")
 
+    @Column(name = "is_off_day")
     private Boolean isOffDay = false;
 }
 

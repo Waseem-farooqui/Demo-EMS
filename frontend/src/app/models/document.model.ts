@@ -7,7 +7,6 @@ export interface Document {
   fileName: string;
   filePath?: string;
   fileType?: string;
-  extractedText?: string;
   issueDate?: string;
   expiryDate?: string;
   issuingCountry?: string;

@@ -1,6 +1,7 @@
-import {ApplicationConfig, importProvidersFrom} from '@angular/core';
+import {ApplicationConfig, importProvidersFrom, isDevMode} from '@angular/core';
 import {provideRouter} from '@angular/router';
 import {HTTP_INTERCEPTORS, HttpClientModule, provideHttpClient, withFetch} from '@angular/common/http';
+import {provideServiceWorker} from '@angular/service-worker';
 
 import {routes} from './app.routes';
 import {provideClientHydration} from '@angular/platform-browser';
@@ -16,6 +17,10 @@ export const appConfig: ApplicationConfig = {
       provide: HTTP_INTERCEPTORS,
       useClass: JwtInterceptor,
       multi: true
-    }
+    },
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000'
+    })
   ]
 };
