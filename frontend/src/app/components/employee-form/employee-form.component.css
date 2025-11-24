@@ -1,5 +1,5 @@
 .form-container {
-  max-width: 600px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -27,6 +27,33 @@
 
 .form-group {
   margin-bottom: 20px;
+}
+
+.section-card {
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+  background-color: #fafafa;
+}
+
+.section-card h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: #333;
 }
 
 .form-group label {
@@ -72,6 +99,33 @@
   margin-top: 5px;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.employment-record {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+
+.record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.record-header h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
 .form-actions {
   display: flex;
   gap: 10px;
@@ -108,5 +162,30 @@
 
 .btn-secondary:hover:not(:disabled) {
   background-color: #5a6268;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #007bff;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-remove:hover {
+  text-decoration: underline;
 }
 
