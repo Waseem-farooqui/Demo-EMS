@@ -146,43 +146,49 @@
   overflow: visible;
 }
 
-.btn-primary {
-  background: var(--primary-color, #4f46e5) !important;
+/* Override any conflicting styles for SMTP config buttons */
+.smtp-config-container .btn-primary,
+.smtp-config-container .btn-primary.save-btn {
+  background-color: #4f46e5 !important;
+  background: #4f46e5 !important;
   color: #ffffff !important;
+  border: none !important;
 }
 
-.btn-primary,
-.btn-primary *,
-.btn-primary span,
-.btn-primary .btn-text {
+.smtp-config-container .btn-primary *,
+.smtp-config-container .btn-primary ng-container,
+.smtp-config-container .btn-primary.save-btn *,
+.smtp-config-container .btn-primary.save-btn ng-container {
   color: #ffffff !important;
-  display: inline-block;
   visibility: visible !important;
   opacity: 1 !important;
+  display: inline !important;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-dark, #4338ca) !important;
+.smtp-config-container .btn-primary:hover:not(:disabled),
+.smtp-config-container .btn-primary.save-btn:hover:not(:disabled) {
+  background-color: #4338ca !important;
+  background: #4338ca !important;
+  color: #ffffff !important;
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
-.btn-primary:hover:not(:disabled),
-.btn-primary:hover:not(:disabled) *,
-.btn-primary:hover:not(:disabled) span,
-.btn-primary:hover:not(:disabled) .btn-text {
+.smtp-config-container .btn-primary:hover:not(:disabled) *,
+.smtp-config-container .btn-primary.save-btn:hover:not(:disabled) * {
   color: #ffffff !important;
 }
 
-.btn-primary:disabled {
+.smtp-config-container .btn-primary:disabled,
+.smtp-config-container .btn-primary.save-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  background-color: #4f46e5 !important;
+  background: #4f46e5 !important;
 }
 
-.btn-primary:disabled,
-.btn-primary:disabled *,
-.btn-primary:disabled span,
-.btn-primary:disabled .btn-text {
+.smtp-config-container .btn-primary:disabled *,
+.smtp-config-container .btn-primary.save-btn:disabled * {
   color: #ffffff !important;
   opacity: 1 !important;
 }
