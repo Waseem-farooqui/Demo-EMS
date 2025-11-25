@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,5 +22,23 @@ public class CreateUserRequest {
     private String contractType; // PERMANENT, TEMPORARY, FIXED_TERM
     private String workingTiming;
     private Integer holidayAllowance;
+
+    // Extended profile fields
+    private String personalEmail;
+    private String phoneNumber;
+    private String dateOfBirth;
+    private String nationality;
+    private String address;
+    private String presentAddress;
+    private String previousAddress;
+    private Boolean hasMedicalCondition;
+    private String medicalConditionDetails;
+    private String nextOfKinName;
+    private String nextOfKinContact;
+    private String nextOfKinAddress;
+    private String bloodGroup;
+    private String allottedOrganization;
+
+    private List<EmploymentRecordDTO> employmentRecords;
 }
 

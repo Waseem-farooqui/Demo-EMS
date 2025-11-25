@@ -25,6 +25,8 @@ public class LeaveDTO {
     private String remarks;
     private boolean hasMedicalCertificate;
     private String certificateFileName;
+    private boolean hasHolidayForm;
+    private String holidayFormFileName;
     private String financialYear;
 }
 

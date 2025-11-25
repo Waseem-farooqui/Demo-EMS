@@ -2,6 +2,7 @@ package com.was.employeemanagementsystem.controller;
 
 import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.DocumentDTO;
+import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.service.DocumentService;
 import com.was.employeemanagementsystem.service.DocumentExpiryNotificationService;
 import lombok.extern.slf4j.Slf4j;
@@ -72,7 +73,11 @@ public class DocumentController {
                     String.format("%.2f", file.getSize() / (1024.0 * 1024.0)) + " MB");
             }
 
-            boolean isValidDocument = documentService.validateDocumentType(file, documentType);
+            // Validate document type and get extracted text in one call to avoid duplicate OCR processing
+            var validationResult = documentService.validateDocumentTypeWithText(file, documentType);
+            boolean isValidDocument = validationResult.getKey();
+            String extractedText = validationResult.getValue();
+            
             if (!isValidDocument) {
                 log.warn("Document validation failed - does not appear to be a valid {} document", documentType);
                 return ResponseEntity.badRequest()
@@ -80,7 +85,8 @@ public class DocumentController {
                           " document. Please upload a clear photo or scan of your " + documentType.toLowerCase());
             }
 
-            DocumentDTO document = documentService.uploadDocument(employeeId, documentType, file);
+            // Pass pre-extracted text to avoid duplicate OCR processing
+            DocumentDTO document = documentService.uploadDocument(employeeId, documentType, file, extractedText);
             log.info("✓ Document uploaded successfully - ID: {}, Type: {}", document.getId(), documentType);
             return new ResponseEntity<>(document, HttpStatus.CREATED);
 
@@ -98,6 +104,18 @@ public class DocumentController {
     @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<List<DocumentDTO>> getAllDocuments() {
         List<DocumentDTO> documents = documentService.getAllDocuments();
+        return ResponseEntity.ok(documents);
+    }
+
+    /**
+     * Get all documents with pagination - Only USER, ADMIN, SUPER_ADMIN
+     */
+    @GetMapping("/paginated")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<PageResponse<DocumentDTO>> getAllDocumentsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageResponse<DocumentDTO> documents = documentService.getAllDocumentsPaginated(page, size);
         return ResponseEntity.ok(documents);
     }
 

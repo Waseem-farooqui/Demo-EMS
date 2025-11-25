@@ -55,6 +55,56 @@
           </div>
         </div>
       </div>
+
+      <!-- Pagination Controls for ROTA List -->
+      <div class="pagination-container" *ngIf="usePagination && totalPages > 1">
+        <div class="pagination-info">
+          <span>Page {{ currentPage + 1 }} of {{ totalPages }}</span>
+          <select class="page-size-select" [value]="pageSize" (change)="onPageSizeChange(+$any($event.target).value)">
+            <option value="5">5 per page</option>
+            <option value="10">10 per page</option>
+            <option value="25">25 per page</option>
+            <option value="50">50 per page</option>
+          </select>
+        </div>
+        <div class="pagination-controls">
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(0)"
+            title="First Page">
+            ««
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(currentPage - 1)"
+            title="Previous Page">
+            ‹
+          </button>
+          <button 
+            *ngFor="let pageNum of pageNumbers"
+            class="pagination-btn"
+            [class.active]="pageNum === currentPage"
+            (click)="onPageChange(pageNum)">
+            {{ pageNum + 1 }}
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(currentPage + 1)"
+            title="Next Page">
+            ›
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(totalPages - 1)"
+            title="Last Page">
+            »»
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Main Content - Schedule Table -->
@@ -104,11 +154,11 @@
                 <td class="employee-name">
                   <span class="name-badge">👤 {{ employee.employeeName }}</span>
                 </td>
-                <td *ngFor="let date of scheduleDates" [ngClass]="getDutyClass(employee.schedules?.[date]?.duty || undefined)">
+                <td *ngFor="let date of scheduleDates" [ngClass]="getDutyClass(employee.schedules[date]?.duty || undefined)">
                   <div class="duty-cell">
-                    <span class="duty-text">{{ employee.schedules?.[date]?.duty || '-' }}</span>
-                    <span class="duty-time" *ngIf="employee.schedules?.[date]?.startTime && employee.schedules?.[date]?.endTime">
-                      {{ employee.schedules?.[date]?.startTime }} - {{ employee.schedules?.[date]?.endTime }}
+                    <span class="duty-text">{{ employee.schedules[date]?.duty || '-' }}</span>
+                    <span class="duty-time" *ngIf="employee.schedules[date]?.startTime && employee.schedules[date]?.endTime">
+                      {{ employee.schedules[date]?.startTime }} - {{ employee.schedules[date]?.endTime }}
                     </span>
                   </div>
                 </td>

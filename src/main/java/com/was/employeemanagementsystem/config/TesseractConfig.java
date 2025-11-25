@@ -10,7 +10,7 @@ import java.io.File;
 @Configuration
 public class TesseractConfig {
 
-    @Value("${ocr.tesseract.datapath:C:\\Users\\waseem.uddin\\AppData\\Local\\Programs\\Tesseract-OCR\\tessdata}")
+    @Value("${ocr.tesseract.datapath:${user.home}/AppData/Local/Programs/Tesseract-OCR/tessdata}")
     private String tesseractDataPath;
 
     @Value("${ocr.tesseract.language:eng}")

@@ -26,12 +26,15 @@ export interface Employee {
   nextOfKinName?: string;
   nextOfKinContact?: string;
   nextOfKinAddress?: string;
+  bloodGroup?: string;
   workingTiming?: string;
   holidayAllowance?: number;
   employmentStatus?: string;
   contractType?: string;
+  allottedOrganization?: string;
   userId?: number;
   username?: string;  // Add username for display
+  role?: string;  // User role (USER, ADMIN, SUPER_ADMIN)
   departmentId?: number;
   departmentName?: string;
   employmentRecords?: EmploymentRecord[];

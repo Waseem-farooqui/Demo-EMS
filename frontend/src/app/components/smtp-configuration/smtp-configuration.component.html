@@ -1,0 +1,218 @@
+<div class="smtp-config-container">
+  <div class="config-header">
+    <h2>📧 SMTP Email Configuration</h2>
+    <p class="subtitle">Configure email server settings for sending emails to employees</p>
+  </div>
+
+  <div class="config-card">
+    <form [formGroup]="smtpForm" (ngSubmit)="onSubmit()">
+      <!-- Use Default Option -->
+      <div class="use-default-section">
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            formControlName="useDefault"
+            (change)="toggleUseDefault()"
+            class="checkbox-input">
+          <span class="checkbox-text">
+            <strong>Use Default SMTP Settings</strong>
+            <small>Use SMTP configuration from environment variables (configured by ROOT user)</small>
+          </span>
+        </label>
+      </div>
+
+      <div *ngIf="!smtpForm.get('useDefault')?.value">
+        <!-- Provider Selection -->
+        <div class="form-group">
+          <label for="provider">Email Provider <span class="required">*</span></label>
+          <select id="provider" formControlName="provider" class="form-control">
+            <option value="GMAIL">Gmail</option>
+            <option value="OUTLOOK">Outlook / Office 365</option>
+            <option value="CUSTOM">Custom SMTP Server</option>
+          </select>
+        </div>
+
+        <!-- Instructions Toggle -->
+        <div class="instructions-toggle">
+          <button type="button" class="btn btn-link" (click)="toggleInstructions()">
+            {{ showInstructions ? '▼' : '▶' }} How to Generate App Password / Token
+          </button>
+        </div>
+
+        <!-- Instructions Panel -->
+        <div class="instructions-panel" *ngIf="showInstructions">
+          <div class="instruction-tabs">
+            <button
+              type="button"
+              class="tab-btn"
+              [class.active]="selectedProvider === 'GMAIL'"
+              (click)="selectedProvider = 'GMAIL'; smtpForm.patchValue({provider: 'GMAIL'})">
+              Gmail Instructions
+            </button>
+            <button
+              type="button"
+              class="tab-btn"
+              [class.active]="selectedProvider === 'OUTLOOK'"
+              (click)="selectedProvider = 'OUTLOOK'; smtpForm.patchValue({provider: 'OUTLOOK'})">
+              Outlook Instructions
+            </button>
+          </div>
+
+          <div class="instruction-content" *ngIf="selectedProvider === 'GMAIL'">
+            <h4>📧 Gmail App Password Setup</h4>
+            <ol>
+              <li>Go to your <a href="https://myaccount.google.com/" target="_blank">Google Account</a></li>
+              <li>Click on <strong>Security</strong> in the left navigation</li>
+              <li>Under "Signing in to Google", enable <strong>2-Step Verification</strong> (if not already enabled)
+              </li>
+              <li>After enabling 2-Step Verification, go back to Security settings</li>
+              <li>Under "Signing in to Google", click on <strong>App passwords</strong></li>
+              <li>Select <strong>Mail</strong> as the app and <strong>Other (Custom name)</strong> as the device</li>
+              <li>Enter "Employee Management System" as the custom name</li>
+              <li>Click <strong>Generate</strong></li>
+              <li>Copy the 16-character password (it will look like: <code>abcd efgh ijkl mnop</code>)</li>
+              <li>Paste this password in the "Password" field below (remove spaces)</li>
+            </ol>
+            <div class="note">
+              <strong>Note:</strong> You cannot use your regular Gmail password. You must use an App Password.
+            </div>
+          </div>
+
+          <div class="instruction-content" *ngIf="selectedProvider === 'OUTLOOK'">
+            <h4>📧 Outlook App Password Setup</h4>
+            <ol>
+              <li>Go to your <a href="https://account.microsoft.com/security" target="_blank">Microsoft Account
+                Security</a></li>
+              <li>Click on <strong>Advanced security options</strong></li>
+              <li>Under "App passwords", click on <strong>Create a new app password</strong></li>
+              <li>If prompted, verify your identity</li>
+              <li>Enter "Employee Management System" as the app name</li>
+              <li>Click <strong>Generate</strong></li>
+              <li>Copy the generated password (it will be a 16-character code)</li>
+              <li>Paste this password in the "Password" field below</li>
+            </ol>
+            <div class="note">
+              <strong>Note:</strong> For Office 365 business accounts, you may need to contact your IT administrator to
+              enable app passwords.
+            </div>
+          </div>
+        </div>
+
+        <!-- SMTP Configuration Fields -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="host">SMTP Host <span class="required">*</span></label>
+            <input
+              type="text"
+              id="host"
+              formControlName="host"
+              class="form-control"
+              placeholder="smtp.gmail.com"
+              [readonly]="selectedProvider !== 'CUSTOM'">
+            <small class="form-hint" *ngIf="selectedProvider !== 'CUSTOM'">
+              Automatically set for {{ selectedProvider }}
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label for="port">SMTP Port <span class="required">*</span></label>
+            <input
+              type="number"
+              id="port"
+              formControlName="port"
+              class="form-control"
+              placeholder="587"
+              [readonly]="selectedProvider !== 'CUSTOM'">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="username">Email Address / Username <span class="required">*</span></label>
+            <input
+              type="email"
+              id="username"
+              formControlName="username"
+              class="form-control"
+              placeholder="your-email@gmail.com">
+          </div>
+
+          <div class="form-group">
+            <label for="password">App Password / Token <span class="required">*</span></label>
+            <input
+              type="password"
+              id="password"
+              formControlName="password"
+              class="form-control"
+              placeholder="Enter app password (not your regular password)">
+            <small class="form-hint">
+              Use the app password generated from the instructions above
+            </small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fromEmail">From Email Address <span class="required">*</span></label>
+            <input
+              type="email"
+              id="fromEmail"
+              formControlName="fromEmail"
+              class="form-control"
+              placeholder="noreply@yourcompany.com">
+            <small class="form-hint">
+              Email address that will appear as sender
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label for="fromName">From Name</label>
+            <input
+              type="text"
+              id="fromName"
+              formControlName="fromName"
+              class="form-control"
+              placeholder="Employee Management System">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" formControlName="enabled" class="checkbox-input">
+            <span class="checkbox-text">Enable SMTP Configuration</span>
+          </label>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="saving || smtpForm.invalid">
+            <span *ngIf="!saving">💾 Save Configuration</span>
+            <span *ngIf="saving">Saving...</span>
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="loadSmtpConfiguration()" [disabled]="saving">
+            🔄 Reset
+          </button>
+        </div>
+
+        <!-- Use Default Info -->
+        <div *ngIf="smtpForm.get('useDefault')?.value" class="default-info">
+          <p>✅ Using default SMTP settings from environment variables</p>
+          <p class="info-text">These settings are configured by the ROOT user in the system environment.</p>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="saving || smtpForm.invalid">
+            <span *ngIf="!saving">💾 Save Configuration</span>
+            <span *ngIf="saving">Saving...</span>
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="loadSmtpConfiguration()" [disabled]="saving"
+                  *ngIf="!smtpForm.get('useDefault')?.value">
+            🔄 Reset
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+

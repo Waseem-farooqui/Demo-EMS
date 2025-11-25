@@ -10,40 +10,11 @@
 
   <div class="filter-section">
     <button
+      *ngFor="let filter of documentTypeFilters"
       class="filter-btn"
-      [class.active]="filterType === 'ALL'"
-      (click)="filterByType('ALL')">
-      All Documents
-    </button>
-    <button
-      class="filter-btn filter-passport"
-      [class.active]="filterType === 'PASSPORT'"
-      (click)="filterByType('PASSPORT')">
-      Passports
-    </button>
-    <button
-      class="filter-btn filter-visa"
-      [class.active]="filterType === 'VISA'"
-      (click)="filterByType('VISA')">
-      Visas
-    </button>
-    <button
-      class="filter-btn filter-contract"
-      [class.active]="filterType === 'CONTRACT'"
-      (click)="filterByType('CONTRACT')">
-      Contracts
-    </button>
-    <button
-      class="filter-btn filter-resume"
-      [class.active]="filterType === 'RESUME'"
-      (click)="filterByType('RESUME')">
-      Resumes
-    </button>
-    <button
-      class="filter-btn filter-share-code"
-      [class.active]="filterType === 'SHARE_CODE'"
-      (click)="filterByType('SHARE_CODE')">
-      Share Codes
+      [class.active]="filterType === filter.value"
+      (click)="filterByType(filter.value)">
+      {{ filter.label }}
     </button>
   </div>
 
@@ -73,10 +44,10 @@
              [class.type-contract]="doc.documentType === 'CONTRACT'"
              [class.type-resume]="doc.documentType === 'RESUME'"
              [class.type-share-code]="doc.documentType === 'SHARE_CODE'">
-          {{ doc.documentType === 'SHARE_CODE' ? 'SHARE CODE' : doc.documentType }}
+          {{ getDocumentTypeLabel(doc.documentType) }}
         </div>
-        <!-- Only show expiry badge for PASSPORT and VISA -->
-        <div *ngIf="doc.documentType !== 'CONTRACT' && doc.documentType !== 'RESUME'"
+        <!-- Only show expiry badge for documents that track expiry -->
+        <div *ngIf="shouldShowExpiryBadge(doc)"
              class="expiry-badge"
              [ngClass]="getExpiryStatus(doc.daysUntilExpiry)">
           {{ getExpiryStatusText(doc.daysUntilExpiry) }}
@@ -126,6 +97,60 @@
     </div>
   </div>
 
+  <!-- Pagination Controls -->
+  <div class="pagination-container" *ngIf="usePagination && totalPages > 1">
+    <div class="pagination-info">
+      <span>Page {{ currentPage + 1 }} of {{ totalPages }}</span>
+      <span class="results-count">
+        Showing {{ (currentPage * pageSize) + 1 }} - {{ Math.min((currentPage + 1) * pageSize, totalElements) }} of {{ totalElements }} documents
+      </span>
+      <select class="page-size-select" [value]="pageSize" (change)="onPageSizeChange(+$any($event.target).value)">
+        <option value="5">5 per page</option>
+        <option value="10">10 per page</option>
+        <option value="25">25 per page</option>
+        <option value="50">50 per page</option>
+        <option value="100">100 per page</option>
+      </select>
+    </div>
+    <div class="pagination-controls">
+      <button 
+        class="pagination-btn"
+        [disabled]="currentPage === 0"
+        (click)="onPageChange(0)"
+        title="First Page">
+        ««
+      </button>
+      <button 
+        class="pagination-btn"
+        [disabled]="currentPage === 0"
+        (click)="onPageChange(currentPage - 1)"
+        title="Previous Page">
+        ‹
+      </button>
+      <button 
+        *ngFor="let pageNum of pageNumbers"
+        class="pagination-btn"
+        [class.active]="pageNum === currentPage"
+        (click)="onPageChange(pageNum)">
+        {{ pageNum + 1 }}
+      </button>
+      <button 
+        class="pagination-btn"
+        [disabled]="currentPage >= totalPages - 1"
+        (click)="onPageChange(currentPage + 1)"
+        title="Next Page">
+        ›
+      </button>
+      <button 
+        class="pagination-btn"
+        [disabled]="currentPage >= totalPages - 1"
+        (click)="onPageChange(totalPages - 1)"
+        title="Last Page">
+        »»
+      </button>
+    </div>
+  </div>
+
   <!-- Document Details Modal -->
   <div *ngIf="selectedDocument" class="modal-overlay" (click)="closeDetails()">
     <div class="modal-content" (click)="$event.stopPropagation()">
@@ -144,7 +169,7 @@
             </div>
             <div class="detail-item">
               <label>Document Type:</label>
-              <span class="badge-type">{{ selectedDocument.documentType }}</span>
+              <span class="badge-type">{{ getDocumentTypeLabel(selectedDocument.documentType) }}</span>
             </div>
             <div class="detail-item" *ngIf="selectedDocument.documentType !== 'CONTRACT' && selectedDocument.documentNumber">
               <label>Document Number:</label>

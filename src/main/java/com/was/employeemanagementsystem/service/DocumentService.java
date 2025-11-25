@@ -1,6 +1,7 @@
 package com.was.employeemanagementsystem.service;
 
 import com.was.employeemanagementsystem.dto.DocumentDTO;
+import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.entity.Document;
 import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.User;
@@ -26,7 +27,9 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,6 +37,26 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class DocumentService {
+
+    private static final Set<String> SUPPORTED_DOCUMENT_TYPES = Set.of(
+            "PASSPORT",
+            "VISA",
+            "CONTRACT",
+            "RESUME",
+            "SHARE_CODE",
+            "PROOF_OF_ADDRESS",
+            "REGISTRATION_FORM",
+            "CERTIFICATE",
+            "NATIONAL_INSURANCE",
+            "BANK_STATEMENT",
+            "OTHERS"
+    );
+
+    private static final Set<String> OCR_ENABLED_DOCUMENT_TYPES = Set.of(
+            "PASSPORT",
+            "VISA",
+            "CONTRACT"
+    );
 
     private final DocumentRepository documentRepository;
     private final EmployeeRepository employeeRepository;
@@ -62,22 +85,34 @@ public class DocumentService {
     /**
      * Validates that the uploaded file is actually a travel document (passport/visa/contract)
      * by checking for common keywords and patterns found in such documents
+     * @return A pair containing (isValid, extractedText) to avoid duplicate OCR processing
      */
-    public boolean validateDocumentType(MultipartFile file, String expectedType) {
+    public java.util.AbstractMap.SimpleEntry<Boolean, String> validateDocumentTypeWithText(MultipartFile file, String expectedType) {
+        if (expectedType == null) {
+            return new java.util.AbstractMap.SimpleEntry<>(false, null);
+        }
+        String normalizedType = expectedType.toUpperCase(Locale.ROOT);
+
+        // Documents that don't require OCR validation
+        if (!OCR_ENABLED_DOCUMENT_TYPES.contains(normalizedType)) {
+            log.debug("Skipping OCR validation for document type: {}", normalizedType);
+            return new java.util.AbstractMap.SimpleEntry<>(true, null);
+        }
+
         try {
             // Extract text from the document
             // For CONTRACT documents, only extract from first page (optimization)
-            boolean firstPageOnly = "CONTRACT".equals(expectedType);
+            boolean firstPageOnly = "CONTRACT".equals(normalizedType);
             String extractedText = ocrService.extractTextFromDocument(file, firstPageOnly);
 
             if (extractedText == null || extractedText.trim().isEmpty()) {
                 log.warn("No text extracted from document - cannot validate");
-                return false; // If no text extracted, might not be a valid document
+                return new java.util.AbstractMap.SimpleEntry<>(false, null); // If no text extracted, might not be a valid document
             }
 
             String textUpper = extractedText.toUpperCase();
 
-            if ("PASSPORT".equals(expectedType)) {
+            if ("PASSPORT".equals(normalizedType)) {
                 // Check for passport-specific keywords
                 boolean hasPassportKeywords = textUpper.contains("PASSPORT") ||
                                              textUpper.contains("PASSEPORT") ||
@@ -100,9 +135,10 @@ public class DocumentService {
                 log.debug("Passport validation - Keywords: {}, Fields: {}, Number: {}",
                     hasPassportKeywords, hasCommonFields, hasPassportNumber);
 
-                return hasPassportKeywords || hasCommonFields || hasPassportNumber;
+                boolean isValid = hasPassportKeywords || hasCommonFields || hasPassportNumber;
+                return new java.util.AbstractMap.SimpleEntry<>(isValid, extractedText);
 
-            } else if ("VISA".equals(expectedType)) {
+            } else if ("VISA".equals(normalizedType)) {
                 // Check for visa-specific keywords
                 boolean hasVisaKeywords = textUpper.contains("PERMISSION TO WORK") ||
                         textUpper.contains("VISA") ||
@@ -118,9 +154,10 @@ public class DocumentService {
                 log.debug("Visa validation - Keywords: {}, Fields: {}",
                     hasVisaKeywords, hasCommonFields);
 
-                return hasVisaKeywords || hasCommonFields;
+                boolean isValid = hasVisaKeywords || hasCommonFields;
+                return new java.util.AbstractMap.SimpleEntry<>(isValid, extractedText);
 
-            } else if ("CONTRACT".equals(expectedType)) {
+            } else if ("CONTRACT".equals(normalizedType)) {
                 // Check for employment contract keywords
                 boolean hasContractKeywords = textUpper.contains("CONTRACT") ||
                         textUpper.contains("AGREEMENT") ||
@@ -137,23 +174,44 @@ public class DocumentService {
                 log.debug("Contract validation - Keywords: {}, Fields: {}",
                     hasContractKeywords, hasCommonFields);
 
-                return hasContractKeywords || hasCommonFields;
+                boolean isValid = hasContractKeywords || hasCommonFields;
+                return new java.util.AbstractMap.SimpleEntry<>(isValid, extractedText);
             }
 
-            return true; // Default to true for unknown types
+            return new java.util.AbstractMap.SimpleEntry<>(true, extractedText);
 
         } catch (Exception e) {
             log.error("Error validating document type", e);
             // In case of error, allow upload (fail open)
-            return true;
+            return new java.util.AbstractMap.SimpleEntry<>(true, null);
         }
+    }
+
+    /**
+     * Validates that the uploaded file is actually a travel document (passport/visa/contract)
+     * by checking for common keywords and patterns found in such documents
+     * @deprecated Use validateDocumentTypeWithText to avoid duplicate OCR processing
+     */
+    @Deprecated
+    public boolean validateDocumentType(MultipartFile file, String expectedType) {
+        return validateDocumentTypeWithText(file, expectedType).getKey();
     }
 
     public DocumentDTO uploadDocument(Long employeeId, String documentType, MultipartFile file)
             throws IOException, TikaException {
+        return uploadDocument(employeeId, documentType, file, null);
+    }
+
+    public DocumentDTO uploadDocument(Long employeeId, String documentType, MultipartFile file, String preExtractedText)
+            throws IOException, TikaException {
 
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found with id: " + employeeId));
+
+        if (documentType == null) {
+            throw new RuntimeException("Document type is required");
+        }
+        documentType = documentType.trim().toUpperCase(Locale.ROOT);
 
         // CRITICAL: Validate organization UUID (unless ROOT)
         if (!securityUtils.isRoot()) {
@@ -178,23 +236,29 @@ public class DocumentService {
         }
 
         // Validate document type
-        if (!documentType.equals("PASSPORT") && !documentType.equals("VISA") &&
-            !documentType.equals("CONTRACT") && !documentType.equals("RESUME") &&
-            !documentType.equals("SHARE_CODE")) {
-            throw new RuntimeException("Invalid document type. Must be PASSPORT, VISA, CONTRACT, RESUME, or SHARE_CODE");
+        if (!SUPPORTED_DOCUMENT_TYPES.contains(documentType)) {
+            throw new RuntimeException("Invalid document type. Supported types: " + SUPPORTED_DOCUMENT_TYPES);
         }
 
-        // For RESUME and SHARE_CODE documents, skip OCR extraction (just store the file)
+        boolean requiresOcr = OCR_ENABLED_DOCUMENT_TYPES.contains(documentType);
+
+        // For simple supporting documents, skip OCR extraction (just store the file)
         String extractedText = null;
         Map<String, Object> extractedInfo = new HashMap<>();
 
-        if (!documentType.equals("RESUME") && !documentType.equals("SHARE_CODE")) {
-            // Extract text from document (skip for RESUME and SHARE_CODE)
-            log.info("🔍 Starting OCR text extraction for file: {}", file.getOriginalFilename());
+        if (requiresOcr) {
+            // Use pre-extracted text if available (from validation), otherwise extract now
+            if (preExtractedText != null && !preExtractedText.trim().isEmpty()) {
+                log.info("♻️ Reusing pre-extracted OCR text from validation ({} characters)", preExtractedText.length());
+                extractedText = preExtractedText;
+            } else {
+                // Extract text from document (only for identity/contract documents)
+                log.info("🔍 Starting OCR text extraction for file: {}", file.getOriginalFilename());
 
-            // For CONTRACT documents, only extract from first page (required data is there)
-            boolean firstPageOnly = documentType.equals("CONTRACT");
-            extractedText = ocrService.extractTextFromDocument(file, firstPageOnly);
+                // For CONTRACT documents, only extract from first page (required data is there)
+                boolean firstPageOnly = documentType.equals("CONTRACT");
+                extractedText = ocrService.extractTextFromDocument(file, firstPageOnly);
+            }
 
             if (extractedText == null || extractedText.trim().isEmpty()) {
                 log.error("❌ No text extracted from document!");
@@ -216,7 +280,7 @@ public class DocumentService {
                 extractedInfo = ocrService.extractContractInformation(extractedText);
             }
         } else {
-            log.info("📄 Processing as RESUME document - skipping OCR extraction");
+            log.info("📄 Processing as {} document - skipping OCR extraction", documentType);
         }
 
         // Debug: Log what was extracted
@@ -234,8 +298,9 @@ public class DocumentService {
         String documentNumber = (String) extractedInfo.get("documentNumber");
         if (documentNumber != null && !documentNumber.isEmpty()) {
             List<Document> existingDocs = documentRepository.findByEmployeeId(employeeId);
+            String finalDocumentType = documentType;
             boolean isDuplicate = existingDocs.stream()
-                .anyMatch(doc -> doc.getDocumentType().equals(documentType)
+                .anyMatch(doc -> doc.getDocumentType().equals(finalDocumentType)
                               && documentNumber.equals(doc.getDocumentNumber()));
 
             if (isDuplicate) {
@@ -279,7 +344,9 @@ public class DocumentService {
                 log.warn("⚠️ File with this hash and type already exists: {}", fileName);
                 log.info("   Reusing existing file instead of overwriting");
             } else {
-                Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+                try (InputStream inputStream = file.getInputStream()) {
+                    Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
+                }
                 log.info("💾 New file saved to disk: {}", fileName);
                 log.info("   Format: {MD5_HASH}_{DOCUMENT_TYPE}{EXTENSION}");
             }
@@ -442,6 +509,75 @@ public class DocumentService {
         }
 
         return List.of();
+    }
+
+    public PageResponse<DocumentDTO> getAllDocumentsPaginated(int page, int size) {
+        User currentUser = securityUtils.getCurrentUser();
+        if (currentUser == null) {
+            return new PageResponse<>(List.of(), page, size, 0, 0, true, true);
+        }
+
+        // Validate pagination parameters
+        if (page < 0) page = 0;
+        if (size < 1) size = 10;
+        if (size > 100) size = 100; // Max page size
+
+        // Get all filtered documents first (same logic as getAllDocuments)
+        List<DocumentDTO> allFilteredDocuments;
+
+        // SUPER_ADMIN can see all documents in their organization
+        if (securityUtils.isSuperAdmin()) {
+            allFilteredDocuments = documentRepository.findAll().stream()
+                    .filter(doc -> currentUser.getOrganizationId().equals(doc.getEmployee().getOrganizationId()))
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        }
+        // ADMIN can only see documents of USER role employees in their department and organization
+        else if (securityUtils.isAdmin()) {
+            Employee adminEmployee = employeeRepository.findByUserId(currentUser.getId())
+                    .orElse(null);
+
+            if (adminEmployee == null || adminEmployee.getDepartment() == null) {
+                allFilteredDocuments = List.of();
+            } else {
+                allFilteredDocuments = documentRepository.findAll().stream()
+                        .filter(doc -> canAccessEmployee(doc.getEmployee()))
+                        .filter(doc -> adminEmployee.getOrganizationId().equals(doc.getEmployee().getOrganizationId()))
+                        .map(this::convertToDTO)
+                        .collect(Collectors.toList());
+            }
+        }
+        // Regular users can only see their own documents
+        else {
+            allFilteredDocuments = employeeRepository.findByUserId(currentUser.getId())
+                    .map(Employee::getId)
+                    .map(documentRepository::findByEmployeeId)
+                    .orElseGet(List::of)
+                    .stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        }
+
+        // Apply pagination
+        long totalElements = allFilteredDocuments.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int start = page * size;
+        int end = Math.min(start + size, allFilteredDocuments.size());
+
+        List<DocumentDTO> content = allFilteredDocuments.stream()
+                .skip(start)
+                .limit(size)
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(
+                content,
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page == 0,
+                page >= totalPages - 1 || totalPages == 0
+        );
     }
 
     public List<DocumentDTO> getDocumentsByEmployeeId(Long employeeId) {
@@ -740,7 +876,7 @@ public class DocumentService {
     }
 
 
-    private DocumentDTO convertToDTO(Document document) {
+    DocumentDTO convertToDTO(Document document) {
         DocumentDTO dto = new DocumentDTO();
         dto.setId(document.getId());
         dto.setEmployeeId(document.getEmployee().getId());

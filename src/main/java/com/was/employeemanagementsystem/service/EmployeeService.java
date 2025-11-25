@@ -2,10 +2,17 @@ package com.was.employeemanagementsystem.service;
 
 import com.was.employeemanagementsystem.dto.EmployeeDTO;
 import com.was.employeemanagementsystem.dto.EmploymentRecordDTO;
+import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.entity.Department;
 import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.EmploymentRecord;
 import com.was.employeemanagementsystem.entity.User;
+import com.was.employeemanagementsystem.entity.Document;
+import com.was.employeemanagementsystem.entity.Leave;
+import com.was.employeemanagementsystem.entity.LeaveBalance;
+import com.was.employeemanagementsystem.entity.Attendance;
+import com.was.employeemanagementsystem.entity.RotaSchedule;
+import com.was.employeemanagementsystem.entity.RotaChangeLog;
 import com.was.employeemanagementsystem.exception.DuplicateResourceException;
 import com.was.employeemanagementsystem.exception.ResourceNotFoundException;
 import com.was.employeemanagementsystem.exception.ValidationException;
@@ -13,14 +20,28 @@ import com.was.employeemanagementsystem.repository.DepartmentRepository;
 import com.was.employeemanagementsystem.repository.EmployeeRepository;
 import com.was.employeemanagementsystem.repository.OrganizationRepository;
 import com.was.employeemanagementsystem.repository.UserRepository;
+import com.was.employeemanagementsystem.repository.DocumentRepository;
+import com.was.employeemanagementsystem.repository.LeaveRepository;
+import com.was.employeemanagementsystem.repository.LeaveBalanceRepository;
+import com.was.employeemanagementsystem.repository.AttendanceRepository;
+import com.was.employeemanagementsystem.repository.RotaScheduleRepository;
+import com.was.employeemanagementsystem.repository.RotaChangeLogRepository;
 import com.was.employeemanagementsystem.security.SecurityUtils;
 import com.was.employeemanagementsystem.util.PasswordGenerator;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +61,12 @@ public class EmployeeService {
     private final PasswordGenerator passwordGenerator;
     private final EmailService emailService;
     private final LeaveService leaveService;
+    private final DocumentRepository documentRepository;
+    private final LeaveRepository leaveRepository;
+    private final LeaveBalanceRepository leaveBalanceRepository;
+    private final AttendanceRepository attendanceRepository;
+    private final RotaScheduleRepository rotaScheduleRepository;
+    private final RotaChangeLogRepository rotaChangeLogRepository;
 
     public EmployeeService(EmployeeRepository employeeRepository,
                           UserRepository userRepository,
@@ -49,7 +76,13 @@ public class EmployeeService {
                           PasswordEncoder passwordEncoder,
                           PasswordGenerator passwordGenerator,
                           EmailService emailService,
-                          LeaveService leaveService) {
+                          LeaveService leaveService,
+                          DocumentRepository documentRepository,
+                          LeaveRepository leaveRepository,
+                          LeaveBalanceRepository leaveBalanceRepository,
+                          AttendanceRepository attendanceRepository,
+                          RotaScheduleRepository rotaScheduleRepository,
+                          RotaChangeLogRepository rotaChangeLogRepository) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
         this.departmentRepository = departmentRepository;
@@ -59,6 +92,12 @@ public class EmployeeService {
         this.passwordGenerator = passwordGenerator;
         this.emailService = emailService;
         this.leaveService = leaveService;
+        this.documentRepository = documentRepository;
+        this.leaveRepository = leaveRepository;
+        this.leaveBalanceRepository = leaveBalanceRepository;
+        this.attendanceRepository = attendanceRepository;
+        this.rotaScheduleRepository = rotaScheduleRepository;
+        this.rotaChangeLogRepository = rotaChangeLogRepository;
     }
 
     public EmployeeDTO createEmployee(EmployeeDTO employeeDTO) {
@@ -178,7 +217,8 @@ public class EmployeeService {
                 savedEmployee.getWorkEmail(),
                 savedEmployee.getFullName(),
                 finalUsername,
-                temporaryPassword
+                temporaryPassword,
+                currentUser.getOrganizationId() // Pass organization ID for SMTP configuration
             );
             log.info("✅ Account creation email sent to: {}", savedEmployee.getWorkEmail());
         } catch (Exception e) {
@@ -354,6 +394,79 @@ public class EmployeeService {
         return new ArrayList<>();
     }
 
+    public PageResponse<EmployeeDTO> getAllEmployeesPaginated(int page, int size) {
+        // ROOT user has NO access to employees - only organizations
+        if (securityUtils.isRoot()) {
+            log.warn("⚠️ ROOT user attempted to access employees - Access denied");
+            throw new AccessDeniedException("ROOT user cannot access employee data. ROOT can only manage organizations.");
+        }
+
+        User currentUser = securityUtils.getCurrentUser();
+        if (currentUser == null || currentUser.getOrganizationUuid() == null) {
+            log.error("❌ User has no organization UUID!");
+            throw new AccessDeniedException("User must be associated with an organization");
+        }
+
+        String userOrgUuid = currentUser.getOrganizationUuid();
+        log.debug("✓ Fetching paginated employees for organization UUID: {}", userOrgUuid);
+
+        // Validate pagination parameters
+        if (page < 0) page = 0;
+        if (size < 1) size = 10;
+        if (size > 100) size = 100; // Max page size
+
+        // Get all filtered employees first (same logic as getAllEmployees)
+        List<Employee> allFilteredEmployees;
+
+        // SUPER_ADMIN can see ALL employees in their organization only (excluding other SUPER_ADMINs)
+        if (securityUtils.isSuperAdmin()) {
+            allFilteredEmployees = employeeRepository.findAll().stream()
+                    .filter(emp -> userOrgUuid.equals(emp.getOrganizationUuid()))
+                    .filter(emp -> !isSuperAdmin(emp))
+                    .collect(Collectors.toList());
+        }
+        // ADMIN (Department Manager) can see only employees in their department (excluding SUPER_ADMINs)
+        else if (securityUtils.isAdmin() && !securityUtils.isSuperAdmin()) {
+            Optional<Employee> managerEmployee = employeeRepository.findByUserId(currentUser.getId());
+            if (managerEmployee.isPresent() && managerEmployee.get().getDepartment() != null) {
+                Department department = managerEmployee.get().getDepartment();
+                allFilteredEmployees = employeeRepository.findByDepartment(department).stream()
+                        .filter(emp -> !isSuperAdmin(emp))
+                        .collect(Collectors.toList());
+            } else {
+                allFilteredEmployees = new ArrayList<>();
+            }
+        }
+        // Regular USER can only see themselves
+        else {
+            Optional<Employee> employee = employeeRepository.findByUserId(currentUser.getId());
+            allFilteredEmployees = employee.map(List::of).orElse(new ArrayList<>());
+        }
+
+        // Apply pagination
+        long totalElements = allFilteredEmployees.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int start = page * size;
+        int end = Math.min(start + size, allFilteredEmployees.size());
+        
+        List<EmployeeDTO> content = allFilteredEmployees.stream()
+                .skip(start)
+                .limit(size)
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(
+                content,
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page == 0,
+                page >= totalPages - 1 || totalPages == 0
+        );
+    }
+
+
     public EmployeeDTO getEmployeeById(Long id) {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + id));
@@ -423,10 +536,106 @@ public class EmployeeService {
             throw new RuntimeException("Access denied. Only admins can delete employees.");
         }
 
-        if (!employeeRepository.existsById(id)) {
-            throw new RuntimeException("Employee not found with id: " + id);
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+
+        // Check access permissions - ensure employee belongs to same organization
+        if (!canAccessEmployee(employee)) {
+            throw new AccessDeniedException("You don't have permission to delete this employee");
         }
-        employeeRepository.deleteById(id);
+
+        log.info("🗑️ Deleting employee ID: {} - {}", id, employee.getFullName());
+
+        // Delete all related entities in proper order to avoid foreign key constraint violations
+
+        // 1. Delete all documents associated with this employee (including physical files)
+        List<Document> documents = documentRepository.findByEmployeeId(id);
+        if (!documents.isEmpty()) {
+            log.info("   📄 Deleting {} document(s) for employee {}", documents.size(), id);
+            
+            // Delete physical files if no other documents reference them
+            for (Document doc : documents) {
+                String filePath = doc.getFilePath();
+                if (filePath != null) {
+                    // Check if other documents reference this file
+                    long referenceCount = documentRepository.countByFilePath(filePath);
+                    if (referenceCount <= 1) {
+                        // No other documents reference this file, safe to delete
+                        try {
+                            Path path = Paths.get(filePath);
+                            if (Files.exists(path)) {
+                                Files.deleteIfExists(path);
+                                log.debug("   🗑️ Physical file deleted: {}", filePath);
+                            }
+                        } catch (IOException e) {
+                            log.warn("   ⚠️ Could not delete physical file: {} - {}", filePath, e.getMessage());
+                        }
+                    } else {
+                        log.debug("   ♻️ Physical file kept: {} ({} other document(s) still reference it)", filePath, referenceCount - 1);
+                    }
+                }
+            }
+            
+            documentRepository.deleteAll(documents);
+        }
+
+        // 2. Delete all leaves associated with this employee
+        List<Leave> leaves = leaveRepository.findByEmployeeId(id);
+        if (!leaves.isEmpty()) {
+            log.info("   🏖️ Deleting {} leave record(s) for employee {}", leaves.size(), id);
+            leaveRepository.deleteAll(leaves);
+        }
+
+        // 3. Delete all leave balances associated with this employee
+        List<LeaveBalance> leaveBalances = leaveBalanceRepository.findByEmployeeId(id);
+        if (!leaveBalances.isEmpty()) {
+            log.info("   📊 Deleting {} leave balance record(s) for employee {}", leaveBalances.size(), id);
+            leaveBalanceRepository.deleteAll(leaveBalances);
+        }
+
+        // 4. Delete all attendance records associated with this employee
+        List<Attendance> attendances = attendanceRepository.findByEmployeeOrderByWorkDateDesc(employee);
+        if (!attendances.isEmpty()) {
+            log.info("   ⏰ Deleting {} attendance record(s) for employee {}", attendances.size(), id);
+            attendanceRepository.deleteAll(attendances);
+        }
+
+        // 5. Delete all rota schedules associated with this employee
+        // Note: RotaSchedule uses employeeId (Long), not Employee entity
+        List<RotaSchedule> rotaSchedules = rotaScheduleRepository.findByEmployeeId(id);
+        if (!rotaSchedules.isEmpty()) {
+            log.info("   📋 Deleting {} rota schedule record(s) for employee {}", rotaSchedules.size(), id);
+            rotaScheduleRepository.deleteByEmployeeId(id);
+        }
+
+        // 6. Delete all rota change logs associated with this employee
+        List<RotaChangeLog> rotaChangeLogs = rotaChangeLogRepository.findByEmployeeIdOrderByChangedAtDesc(id);
+        if (!rotaChangeLogs.isEmpty()) {
+            log.info("   📝 Deleting {} rota change log record(s) for employee {}", rotaChangeLogs.size(), id);
+            rotaChangeLogRepository.deleteAll(rotaChangeLogs);
+        }
+
+        // 7. Delete all employment records associated with this employee
+        // EmploymentRecord is managed through Employee's @OneToMany relationship
+        // If cascade is configured, they will be deleted automatically
+        // Otherwise, we need to delete them manually
+        if (employee.getEmploymentRecords() != null && !employee.getEmploymentRecords().isEmpty()) {
+            log.info("   💼 Deleting {} employment record(s) for employee {}", employee.getEmploymentRecords().size(), id);
+            employee.getEmploymentRecords().clear();
+            employeeRepository.save(employee); // Save to trigger cascade delete if configured
+        }
+
+        // 8. Optionally delete user account if linked (but keep it for now to preserve login history)
+        // We'll just unlink the employee from the user
+        if (employee.getUserId() != null) {
+            log.info("   👤 Unlinking user account (ID: {}) from employee", employee.getUserId());
+            employee.setUserId(null);
+            employeeRepository.save(employee);
+        }
+
+        // 9. Finally, delete the employee
+        employeeRepository.delete(employee);
+        log.info("✅ Employee ID: {} deleted successfully", id);
     }
 
     /**
@@ -464,7 +673,7 @@ public class EmployeeService {
                 && employee.getUserId().equals(currentUser.getId());
     }
 
-    private EmployeeDTO convertToDTO(Employee employee) {
+    EmployeeDTO convertToDTO(Employee employee) {
         EmployeeDTO dto = new EmployeeDTO();
         dto.setId(employee.getId());
         dto.setFullName(employee.getFullName());
@@ -484,6 +693,7 @@ public class EmployeeService {
         dto.setNextOfKinName(employee.getNextOfKinName());
         dto.setNextOfKinContact(employee.getNextOfKinContact());
         dto.setNextOfKinAddress(employee.getNextOfKinAddress());
+        dto.setBloodGroup(employee.getBloodGroup());
 
         // Job information
         dto.setJobTitle(employee.getJobTitle());
@@ -493,12 +703,17 @@ public class EmployeeService {
         dto.setContractType(employee.getContractType());
         dto.setWorkingTiming(employee.getWorkingTiming());
         dto.setHolidayAllowance(employee.getHolidayAllowance());
+        dto.setAllottedOrganization(employee.getAllottedOrganization());
         dto.setUserId(employee.getUserId());
 
-        // Add username if user exists
+        // Add username and role if user exists
         if (employee.getUserId() != null) {
             userRepository.findById(employee.getUserId()).ifPresent(user -> {
                 dto.setUsername(user.getUsername());
+                // Get the primary role (first role in the set)
+                if (user.getRoles() != null && !user.getRoles().isEmpty()) {
+                    dto.setRole(user.getRoles().iterator().next());
+                }
             });
         }
 
@@ -540,6 +755,7 @@ public class EmployeeService {
         employee.setNextOfKinName(dto.getNextOfKinName());
         employee.setNextOfKinContact(dto.getNextOfKinContact());
         employee.setNextOfKinAddress(dto.getNextOfKinAddress());
+        employee.setBloodGroup(dto.getBloodGroup());
 
         // Job information
         employee.setJobTitle(dto.getJobTitle());
@@ -549,6 +765,7 @@ public class EmployeeService {
         employee.setContractType(dto.getContractType());
         employee.setWorkingTiming(dto.getWorkingTiming());
         employee.setHolidayAllowance(dto.getHolidayAllowance());
+        employee.setAllottedOrganization(dto.getAllottedOrganization());
         employee.setUserId(dto.getUserId());
 
         // Set department if provided (SUPER_ADMIN only)

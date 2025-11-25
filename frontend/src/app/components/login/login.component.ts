@@ -16,7 +16,7 @@ export class LoginComponent {
   loading = false;
   error: string | null = null;
   showLogo = true; // Start with logo visible, will hide if it fails to load
-  logoSrc = 'assets/logo.png'; // Try PNG first, fallback to SVG if needed
+  logoSrc = 'assets/icon-144x144.png'; // Try PNG first, fallback to SVG if needed
 
   constructor(
     private fb: FormBuilder,
@@ -31,14 +31,14 @@ export class LoginComponent {
 
   onLogoError(event: Event): void {
     const img = event.target as HTMLImageElement;
-    
+
     // If PNG fails, try SVG
     if (this.logoSrc.endsWith('.png')) {
       this.logoSrc = 'assets/logo.svg';
       img.src = this.logoSrc;
       return;
     }
-    
+
     // If both fail, hide logo and show fallback icon
     this.showLogo = false;
     console.log('Logo image not found, showing fallback icon');
@@ -65,6 +65,12 @@ export class LoginComponent {
 
         // CRITICAL: Check user role and redirect accordingly
         const roles = response.roles || [];
+
+        // Check if SUPER_ADMIN needs to configure SMTP
+        if (roles.includes('SUPER_ADMIN') && response.smtpConfigured === false) {
+          // Store flag to show SMTP configuration modal
+          sessionStorage.setItem('showSmtpConfig', 'true');
+        }
 
         if (roles.includes('ROOT')) {
           this.router.navigate(['/root/dashboard']);

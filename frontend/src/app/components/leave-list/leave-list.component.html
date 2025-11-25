@@ -111,6 +111,13 @@ enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requ
                 title="Add Comment">
                 💬 Comment
               </button>
+              <button
+                *ngIf="leave.hasHolidayForm"
+                (click)="viewHolidayForm(leave)"
+                class="btn btn-sm btn-info"
+                title="View Holiday Form">
+                📄 Holiday Form
+              </button>
             </div>
 
             <!-- Regular ADMIN actions -->
@@ -143,6 +150,13 @@ enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requ
                 title="Delete Leave">
                 Delete
               </button>
+              <button
+                *ngIf="leave.hasHolidayForm"
+                (click)="viewHolidayForm(leave)"
+                class="btn btn-sm btn-info"
+                title="View Holiday Form">
+                📄 Holiday Form
+              </button>
             </div>
           </td>
         </tr>
@@ -169,6 +183,15 @@ enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requ
           <p><strong>Leave Type:</strong> {{ selectedLeave.leaveType }}</p>
           <p><strong>Duration:</strong> {{ selectedLeave.startDate | date: 'MMM dd, yyyy' }} - {{ selectedLeave.endDate | date: 'MMM dd, yyyy' }} ({{ selectedLeave.numberOfDays }} days)</p>
           <p><strong>Reason:</strong> {{ selectedLeave.reason }}</p>
+          <div *ngIf="selectedLeave.hasHolidayForm" class="holiday-form-section">
+            <p><strong>Holiday Form:</strong></p>
+            <button
+              (click)="viewHolidayForm(selectedLeave)"
+              class="btn btn-sm btn-info"
+              title="View Holiday Form">
+              📄 View Holiday Form
+            </button>
+          </div>
         </div>
 
         <div class="comment-section">

@@ -43,7 +43,8 @@ public class LeaveController {
             @RequestParam("startDate") String startDate,
             @RequestParam("endDate") String endDate,
             @RequestParam("reason") String reason,
-            @RequestParam(value = "medicalCertificate", required = false) MultipartFile medicalCertificate) {
+            @RequestParam(value = "medicalCertificate", required = false) MultipartFile medicalCertificate,
+            @RequestParam(value = "holidayForm", required = false) MultipartFile holidayForm) {
         try {
             log.info("📥 Received leave application request:");
             log.info("  - Employee ID: {}", employeeId);
@@ -52,6 +53,7 @@ public class LeaveController {
             log.info("  - End Date: {}", endDate);
             log.info("  - Reason: {}", reason);
             log.info("  - Medical Certificate: {}", medicalCertificate != null ? "Provided (" + medicalCertificate.getSize() + " bytes)" : "Not provided");
+            log.info("  - Holiday Form: {}", holidayForm != null ? "Provided (" + holidayForm.getSize() + " bytes)" : "Not provided");
 
             LeaveDTO leaveDTO = new LeaveDTO();
             leaveDTO.setEmployeeId(employeeId);
@@ -61,7 +63,7 @@ public class LeaveController {
             leaveDTO.setReason(reason);
 
             log.info("✅ LeaveDTO created successfully");
-            LeaveDTO createdLeave = leaveService.applyLeaveWithValidation(leaveDTO, medicalCertificate);
+            LeaveDTO createdLeave = leaveService.applyLeaveWithValidation(leaveDTO, medicalCertificate, holidayForm);
             log.info("✅ Leave application completed successfully - Leave ID: {}", createdLeave.getId());
             return new ResponseEntity<>(createdLeave, HttpStatus.CREATED);
         } catch (IOException e) {
@@ -259,6 +261,34 @@ public class LeaveController {
             return new ResponseEntity<>(certificate, headers, HttpStatus.OK);
         } catch (RuntimeException e) {
             log.error("Error fetching medical certificate: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Get holiday form for a leave
+     */
+    @GetMapping("/{id}/holiday-form")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<?> getHolidayForm(@PathVariable Long id) {
+        try {
+            byte[] holidayForm = leaveService.getHolidayForm(id);
+            String fileName = leaveService.getHolidayFormFileName(id);
+            String contentType = leaveService.getHolidayFormContentType(id);
+
+            HttpHeaders headers = new HttpHeaders();
+            if (contentType != null && !contentType.isEmpty()) {
+                headers.setContentType(MediaType.parseMediaType(contentType));
+            } else {
+                headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            }
+            
+            String downloadFileName = fileName != null ? fileName : "holiday-form-" + id;
+            headers.setContentDispositionFormData("inline", downloadFileName);
+
+            return new ResponseEntity<>(holidayForm, headers, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            log.error("Error fetching holiday form: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

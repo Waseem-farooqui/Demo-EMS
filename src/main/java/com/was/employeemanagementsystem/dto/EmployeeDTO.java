@@ -29,6 +29,7 @@ public class EmployeeDTO {
     private String nextOfKinName;
     private String nextOfKinContact;
     private String nextOfKinAddress;
+    private String bloodGroup;
 
     // Job Information
     private String jobTitle;
@@ -38,10 +39,12 @@ public class EmployeeDTO {
     private String contractType;
     private String workingTiming;
     private Integer holidayAllowance;
+    private String allottedOrganization;
 
     // Relations
     private Long userId;
     private String username;  // Add username for display
+    private String role;  // User role (USER, ADMIN, SUPER_ADMIN)
     private Long departmentId;
     private String departmentName;
     private List<EmploymentRecordDTO> employmentRecords;

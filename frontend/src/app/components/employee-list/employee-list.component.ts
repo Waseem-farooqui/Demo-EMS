@@ -1,6 +1,7 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, OnDestroy} from '@angular/core';
 import {CommonModule} from '@angular/common';
-import {Router, RouterModule} from '@angular/router';
+import {FormsModule} from '@angular/forms';
+import {Router, RouterModule, ActivatedRoute} from '@angular/router';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import {EmployeeService} from '../../services/employee.service';
 import {AttendanceService} from '../../services/attendance.service';
@@ -10,27 +11,69 @@ import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
 import {Employee} from '../../models/employee.model';
 import {EmployeeWorkSummary} from '../../models/attendance.model';
+import {Document} from '../../models/document.model';
+import {Subscription} from 'rxjs';
+
+interface User {
+  id?: number;
+  email?: string;
+  username?: string;
+  roles?: string[];
+  organizationId?: number;
+}
 
 @Component({
   selector: 'app-employee-list',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './employee-list.component.html',
   styleUrls: ['./employee-list.component.css']
 })
-export class EmployeeListComponent implements OnInit {
+export class EmployeeListComponent implements OnInit, OnDestroy {
   employees: Employee[] = [];
+  filteredEmployees: Employee[] = [];
+  allEmployees: Employee[] = []; // Store all employees for filtering
   loading = false;
   error: string | null = null;
-  currentUser: any;
+  currentUser: User | null = null;
+
+  // Search and Filter
+  globalSearchQuery = ''; // Global search filter
+  searchQuery = '';
+  selectedDepartment: string = '';
+  selectedJobTitle: string = '';
+  selectedAllottedOrg: string = '';
+  departments: string[] = [];
+  jobTitles: string[] = [];
+  allottedOrganizations: string[] = [];
+
+  // Column-specific filters
+  columnFilters = {
+    fullName: '',
+    username: '',
+    position: '',
+    department: '',
+    allottedOrg: ''
+  };
+
+  // Sorting
+  sortColumn: string = '';
+  sortDirection: 'asc' | 'desc' = 'asc';
+
+  // Pagination
+  currentPage = 0;
+  pageSize = 10;
+  totalElements = 0;
+  totalPages = 0;
+  usePagination = true; // Toggle between paginated and non-paginated
 
   // Employee Details Modal
   showDetailsModal = false;
   loadingDetails = false;
   selectedEmployee: Employee | null = null;
   employeeWorkSummary: EmployeeWorkSummary | null = null;
-  employeeRotaSchedule: any[] = [];
-  employeeDocuments: any[] = [];
+  employeeRotaSchedule: Array<{date: string; dayOfWeek?: string; scheduleDate?: string; duty?: string; startTime?: string; endTime?: string}> = [];
+  employeeDocuments: Document[] = [];
 
   // Document Viewer
   selectedDocumentId: number | null = null;
@@ -44,6 +87,9 @@ export class EmployeeListComponent implements OnInit {
   isSelectedDocPdf = false;
   isSelectedDocImage = false;
 
+  // Subscriptions
+  private subscriptions: Subscription[] = [];
+
   constructor(
     private employeeService: EmployeeService,
     private attendanceService: AttendanceService,
@@ -52,22 +98,94 @@ export class EmployeeListComponent implements OnInit {
     private authService: AuthService,
     private toastService: ToastService,
     private sanitizer: DomSanitizer,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) { }
 
   ngOnInit(): void {
     this.currentUser = this.authService.getUser();
+    
+    // Check for employeeId query parameter to open detail modal
+    const queryParamsSub = this.route.queryParams.subscribe(params => {
+      if (params['employeeId']) {
+        const employeeId = +params['employeeId'];
+        if (employeeId && !isNaN(employeeId)) {
+          // Open detail modal directly (doesn't need employees list to be loaded)
+          this.viewEmployeeDetails(employeeId);
+          // Clear the query parameter from URL
+          this.router.navigate([], {
+            relativeTo: this.route,
+            queryParams: {},
+            replaceUrl: true
+          });
+        }
+      }
+    });
+    this.subscriptions.push(queryParamsSub);
+    
     this.loadEmployees();
+  }
+
+  ngOnDestroy(): void {
+    // Unsubscribe from all subscriptions
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
+    
+    // Clean up document viewer URLs
+    this.closeDocumentViewer();
   }
 
   loadEmployees(): void {
     this.loading = true;
     this.error = null;
-    this.employeeService.getAllEmployees().subscribe({
-      next: (data) => {
+    
+    if (this.usePagination) {
+      this.loadEmployeesPaginated();
+    } else {
+      this.employeeService.getAllEmployees().subscribe({
+        next: (data) => {
+          // Filter out the current logged-in user from the list
+          const currentUserEmail = this.currentUser?.email;
+          this.allEmployees = data.filter(emp => emp.workEmail !== currentUserEmail);
+          this.employees = [...this.allEmployees];
+          this.filteredEmployees = [...this.allEmployees];
+          
+          // Extract unique departments and job titles for filters
+          this.extractFilterOptions();
+          
+          this.loading = false;
+        },
+        error: (err) => {
+          this.error = 'Failed to load employees. Please try again.';
+          this.loading = false;
+          console.error('Error loading employees:', err);
+        }
+      });
+    }
+  }
+
+  loadEmployeesPaginated(): void {
+    this.employeeService.getAllEmployeesPaginated(this.currentPage, this.pageSize).subscribe({
+      next: (response) => {
         // Filter out the current logged-in user from the list
         const currentUserEmail = this.currentUser?.email;
-        this.employees = data.filter(emp => emp.workEmail !== currentUserEmail);
+        const filtered = response.content.filter(emp => emp.workEmail !== currentUserEmail);
+        
+        this.employees = filtered;
+        this.filteredEmployees = filtered;
+        // Set allEmployees for template visibility check (use current page data)
+        // In a real scenario, you might want to load all employees separately for filters
+        this.allEmployees = filtered;
+        this.totalElements = response.totalElements;
+        this.totalPages = response.totalPages;
+        
+        // Extract unique departments and job titles for filters (from current page)
+        // Note: For better filter options, consider loading all employees separately
+        this.extractFilterOptions();
+        
+        // Apply search and filters to current page
+        this.applyFilters();
+        
         this.loading = false;
       },
       error: (err) => {
@@ -77,6 +195,326 @@ export class EmployeeListComponent implements OnInit {
       }
     });
   }
+
+  onPageChange(page: number): void {
+    this.currentPage = page;
+    this.loadEmployeesPaginated();
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize = size;
+    this.currentPage = 0;
+    this.loadEmployeesPaginated();
+  }
+
+  extractFilterOptions(): void {
+    const departmentsSet = new Set<string>();
+    const jobTitlesSet = new Set<string>();
+    const allottedOrgsSet = new Set<string>();
+
+    // Use employees array (current page) for filter options when using pagination
+    const sourceArray = this.usePagination ? this.employees : this.allEmployees;
+    
+    sourceArray.forEach(emp => {
+      if (emp.departmentName) {
+        departmentsSet.add(emp.departmentName);
+      }
+      if (emp.jobTitle) {
+        jobTitlesSet.add(emp.jobTitle);
+      }
+      if (emp.allottedOrganization) {
+        allottedOrgsSet.add(emp.allottedOrganization);
+      }
+    });
+
+    this.departments = Array.from(departmentsSet).sort();
+    this.jobTitles = Array.from(jobTitlesSet).sort();
+    this.allottedOrganizations = Array.from(allottedOrgsSet).sort();
+  }
+
+  onSearchChange(): void {
+    this.applyFilters();
+  }
+
+  onFilterChange(): void {
+    this.applyFilters();
+  }
+
+  clearFilters(): void {
+    this.globalSearchQuery = '';
+    this.searchQuery = '';
+    this.selectedDepartment = '';
+    this.selectedJobTitle = '';
+    this.selectedAllottedOrg = '';
+    this.columnFilters = {
+      fullName: '',
+      username: '',
+      position: '',
+      department: '',
+      allottedOrg: ''
+    };
+    this.sortColumn = '';
+    this.sortDirection = 'asc';
+    this.applyFilters();
+  }
+
+  onColumnFilterChange(): void {
+    this.applyFilters();
+  }
+
+  applyFilters(): void {
+    if (this.usePagination) {
+      // For pagination, filters are applied on the current page
+      // Re-fetch with current filters (search/filter would ideally be server-side)
+      let filtered = [...this.employees];
+
+      // Apply global search filter
+      if (this.globalSearchQuery.trim()) {
+        const query = this.globalSearchQuery.toLowerCase().trim();
+        filtered = filtered.filter(emp => {
+          const fullName = (emp.fullName || '').toLowerCase();
+          const workEmail = (emp.workEmail || '').toLowerCase();
+          const jobTitle = (emp.jobTitle || '').toLowerCase();
+          const username = (emp.username || '').toLowerCase();
+          const phone = (emp.phoneNumber || '').toLowerCase();
+          const department = (emp.departmentName || '').toLowerCase();
+          const allottedOrg = (emp.allottedOrganization || '').toLowerCase();
+          
+          return fullName.includes(query) ||
+                 workEmail.includes(query) ||
+                 jobTitle.includes(query) ||
+                 username.includes(query) ||
+                 phone.includes(query) ||
+                 department.includes(query) ||
+                 allottedOrg.includes(query);
+        });
+      }
+
+      // Apply search filter (legacy - keeping for backward compatibility)
+      if (this.searchQuery.trim()) {
+        const query = this.searchQuery.toLowerCase().trim();
+        filtered = filtered.filter(emp => {
+          const fullName = (emp.fullName || '').toLowerCase();
+          const workEmail = (emp.workEmail || '').toLowerCase();
+          const jobTitle = (emp.jobTitle || '').toLowerCase();
+          const username = (emp.username || '').toLowerCase();
+          const phone = (emp.phoneNumber || '').toLowerCase();
+          const department = (emp.departmentName || '').toLowerCase();
+          const allottedOrg = (emp.allottedOrganization || '').toLowerCase();
+          
+          return fullName.includes(query) ||
+                 workEmail.includes(query) ||
+                 jobTitle.includes(query) ||
+                 username.includes(query) ||
+                 phone.includes(query) ||
+                 department.includes(query) ||
+                 allottedOrg.includes(query);
+        });
+      }
+
+      // Apply department filter
+      if (this.selectedDepartment) {
+        filtered = filtered.filter(emp => emp.departmentName === this.selectedDepartment);
+      }
+
+      // Apply job title filter
+      if (this.selectedJobTitle) {
+        filtered = filtered.filter(emp => emp.jobTitle === this.selectedJobTitle);
+      }
+
+      // Apply allotted organization filter
+      if (this.selectedAllottedOrg) {
+        filtered = filtered.filter(emp => emp.allottedOrganization === this.selectedAllottedOrg);
+      }
+
+      // Apply sorting
+      filtered = this.sortEmployees(filtered);
+
+      this.filteredEmployees = filtered;
+    } else {
+      // For non-paginated, filter all employees
+      let filtered = [...this.allEmployees];
+
+      // Apply search filter
+      if (this.searchQuery.trim()) {
+        const query = this.searchQuery.toLowerCase().trim();
+        filtered = filtered.filter(emp => {
+          const fullName = (emp.fullName || '').toLowerCase();
+          const workEmail = (emp.workEmail || '').toLowerCase();
+          const jobTitle = (emp.jobTitle || '').toLowerCase();
+          const username = (emp.username || '').toLowerCase();
+          const phone = (emp.phoneNumber || '').toLowerCase();
+          const department = (emp.departmentName || '').toLowerCase();
+          const allottedOrg = (emp.allottedOrganization || '').toLowerCase();
+          
+          return fullName.includes(query) ||
+                 workEmail.includes(query) ||
+                 jobTitle.includes(query) ||
+                 username.includes(query) ||
+                 phone.includes(query) ||
+                 department.includes(query) ||
+                 allottedOrg.includes(query);
+        });
+      }
+
+      // Apply department filter
+      if (this.selectedDepartment) {
+        filtered = filtered.filter(emp => emp.departmentName === this.selectedDepartment);
+      }
+
+      // Apply job title filter
+      if (this.selectedJobTitle) {
+        filtered = filtered.filter(emp => emp.jobTitle === this.selectedJobTitle);
+      }
+
+      // Apply allotted organization filter
+      if (this.selectedAllottedOrg) {
+        filtered = filtered.filter(emp => emp.allottedOrganization === this.selectedAllottedOrg);
+      }
+
+      // Apply column-specific filters
+      if (this.columnFilters.fullName) {
+        const query = this.columnFilters.fullName.toLowerCase().trim();
+        filtered = filtered.filter(emp => 
+          (emp.fullName || '').toLowerCase().includes(query)
+        );
+      }
+
+      if (this.columnFilters.username) {
+        const query = this.columnFilters.username.toLowerCase().trim();
+        filtered = filtered.filter(emp => 
+          (emp.username || '').toLowerCase().includes(query)
+        );
+      }
+
+      if (this.columnFilters.position) {
+        const query = this.columnFilters.position.toLowerCase().trim();
+        filtered = filtered.filter(emp => 
+          (emp.jobTitle || '').toLowerCase().includes(query)
+        );
+      }
+
+      if (this.columnFilters.department) {
+        filtered = filtered.filter(emp => 
+          emp.departmentName === this.columnFilters.department
+        );
+      }
+
+      if (this.columnFilters.allottedOrg) {
+        filtered = filtered.filter(emp => 
+          emp.allottedOrganization === this.columnFilters.allottedOrg
+        );
+      }
+
+      // Apply sorting
+      filtered = this.sortEmployees(filtered);
+
+      this.filteredEmployees = filtered;
+      this.employees = filtered;
+    }
+  }
+
+  sortEmployees(employees: Employee[]): Employee[] {
+    if (!this.sortColumn) {
+      return employees;
+    }
+
+    return [...employees].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (this.sortColumn) {
+        case 'fullName':
+          aValue = (a.fullName || '').toLowerCase();
+          bValue = (b.fullName || '').toLowerCase();
+          break;
+        case 'username':
+          aValue = (a.username || '').toLowerCase();
+          bValue = (b.username || '').toLowerCase();
+          break;
+        case 'position':
+          aValue = (a.jobTitle || '').toLowerCase();
+          bValue = (b.jobTitle || '').toLowerCase();
+          break;
+        case 'department':
+          aValue = (a.departmentName || '').toLowerCase();
+          bValue = (b.departmentName || '').toLowerCase();
+          break;
+        case 'allottedOrganization':
+          aValue = (a.allottedOrganization || '').toLowerCase();
+          bValue = (b.allottedOrganization || '').toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return this.sortDirection === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return this.sortDirection === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }
+
+  onSort(column: string): void {
+    if (this.sortColumn === column) {
+      // Toggle direction if same column
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      // New column, default to ascending
+      this.sortColumn = column;
+      this.sortDirection = 'asc';
+    }
+    this.applyFilters();
+  }
+
+  getSortIcon(column: string): string {
+    if (this.sortColumn !== column) {
+      return '⇅'; // Neutral sort icon
+    }
+    return this.sortDirection === 'asc' ? '↑' : '↓';
+  }
+
+  onGlobalSearchChange(): void {
+    this.applyFilters();
+  }
+
+  get hasActiveFilters(): boolean {
+    return !!(this.globalSearchQuery.trim() ||
+              this.searchQuery.trim() || 
+              this.selectedDepartment || 
+              this.selectedJobTitle || 
+              this.selectedAllottedOrg ||
+              this.columnFilters.fullName ||
+              this.columnFilters.username ||
+              this.columnFilters.position ||
+              this.columnFilters.department ||
+              this.columnFilters.allottedOrg ||
+              this.sortColumn);
+  }
+
+  get resultCount(): number {
+    if (this.usePagination) {
+      return this.totalElements;
+    }
+    return this.filteredEmployees.length;
+  }
+
+  get pageNumbers(): number[] {
+    const pages: number[] = [];
+    const maxPages = Math.min(this.totalPages, 10); // Show max 10 page numbers
+    const startPage = Math.max(0, Math.min(this.currentPage - 4, this.totalPages - maxPages));
+    
+    for (let i = startPage; i < Math.min(startPage + maxPages, this.totalPages); i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  // Expose Math to template
+  Math = Math;
 
   viewEmployeeDetails(employeeId: number): void {
     this.showDetailsModal = true;
@@ -149,7 +587,11 @@ export class EmployeeListComponent implements OnInit {
     return 'duty-work';
   }
 
-  downloadDocument(documentId: number): void {
+  downloadDocument(documentId: number | undefined): void {
+    if (!documentId) {
+      this.toastService.error('Document ID is missing');
+      return;
+    }
     this.documentService.downloadDocument(documentId).subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
@@ -167,7 +609,11 @@ export class EmployeeListComponent implements OnInit {
     });
   }
 
-  viewDocument(documentId: number, documentType: string): void {
+  viewDocument(documentId: number | undefined, documentType: string): void {
+    if (!documentId) {
+      this.toastService.error('Document ID is missing');
+      return;
+    }
     // Clear previous selection
     if (this.rawDocumentUrl) {
       window.URL.revokeObjectURL(this.rawDocumentUrl);

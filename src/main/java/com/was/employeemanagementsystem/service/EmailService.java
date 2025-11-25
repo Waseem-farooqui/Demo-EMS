@@ -1,6 +1,7 @@
 package com.was.employeemanagementsystem.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender mailSender;
-
+    private final DynamicEmailService dynamicEmailService;
 
     @Value("${app.url}")
     private String appUrl;
@@ -22,8 +23,10 @@ public class EmailService {
     @Value("${app.email.from.address:${spring.mail.username}}")
     private String emailFromAddress;
 
-    public EmailService(JavaMailSender mailSender) {
+    @Autowired
+    public EmailService(JavaMailSender mailSender, DynamicEmailService dynamicEmailService) {
         this.mailSender = mailSender;
+        this.dynamicEmailService = dynamicEmailService;
     }
 
     /**
@@ -31,7 +34,36 @@ public class EmailService {
      */
     private SimpleMailMessage createMessage(String to, String subject) {
         SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(emailFromAddress);
+        
+        // Validate and set from address
+        String fromAddress = emailFromAddress;
+        if (fromAddress == null || fromAddress.trim().isEmpty()) {
+            // Try to get from mail sender configuration
+            try {
+                if (mailSender instanceof org.springframework.mail.javamail.JavaMailSenderImpl) {
+                    String username = ((org.springframework.mail.javamail.JavaMailSenderImpl) mailSender).getUsername();
+                    if (username != null && !username.trim().isEmpty()) {
+                        fromAddress = username;
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Could not get username from mail sender: {}", e.getMessage());
+            }
+            
+            // Final fallback if still empty
+            if (fromAddress == null || fromAddress.trim().isEmpty()) {
+                log.warn("⚠️ Email 'from' address is not configured. Using 'noreply@employeemanagementsystem.com' as fallback.");
+                fromAddress = "noreply@employeemanagementsystem.com";
+            }
+        }
+        
+        // Ensure from address is valid
+        if (fromAddress == null || fromAddress.trim().isEmpty() || !fromAddress.contains("@")) {
+            log.error("❌ Invalid email 'from' address: '{}'. Cannot send email.", fromAddress);
+            throw new RuntimeException("Email 'from' address is not configured. Please configure SMTP settings.");
+        }
+        
+        message.setFrom(fromAddress.trim());
         message.setTo(to);
         message.setSubject(subject);
         return message;
@@ -116,64 +148,88 @@ public class EmailService {
      */
     public void sendDocumentExpiryAlertToMultiple(String[] toEmails, String employeeName, String documentType,
                                                  String documentNumber, String expiryDate, int daysUntilExpiry) {
+        sendDocumentExpiryAlertToMultiple(toEmails, employeeName, documentType, documentNumber, expiryDate, daysUntilExpiry, null);
+    }
+
+    public void sendDocumentExpiryAlertToMultiple(String[] toEmails, String employeeName, String documentType,
+                                                 String documentNumber, String expiryDate, int daysUntilExpiry, Long organizationId) {
         if (toEmails == null || toEmails.length == 0) {
             log.warn("⚠️ No email recipients provided for document expiry alert");
             return;
         }
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(emailFromAddress);
-            message.setTo(toEmails);
-            message.setSubject("URGENT: Document Expiry Alert - " + documentType);
+            if (organizationId != null) {
+                // Use organization-specific SMTP for each recipient
+                for (String toEmail : toEmails) {
+                    dynamicEmailService.sendDocumentExpiryAlert(
+                        toEmail, employeeName, documentType, documentNumber, expiryDate, daysUntilExpiry, organizationId
+                    );
+                }
+            } else {
+                // Use default SMTP
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setFrom(emailFromAddress);
+                message.setTo(toEmails);
+                message.setSubject("URGENT: Document Expiry Alert - " + documentType);
 
-            String emailBody = "DOCUMENT EXPIRY ALERT\n\n" +
-                    "Employee: " + employeeName + "\n" +
-                    "Document Type: " + documentType + "\n" +
-                    "Document Number: " + (documentNumber != null ? documentNumber : "N/A") + "\n" +
-                    "Expiry Date: " + expiryDate + "\n" +
-                    "Days Until Expiry: " + daysUntilExpiry + " days\n\n" +
-                    "ACTION REQUIRED:\n" +
-                    "Please ensure the document is renewed before it expires.\n\n" +
-                    "This is an automated alert from the " + emailFromName + ".\n" +
-                    "Please do not reply to this email.\n\n" +
-                    "Best regards,\n" +
-                    emailFromName;
+                String emailBody = "DOCUMENT EXPIRY ALERT\n\n" +
+                        "Employee: " + employeeName + "\n" +
+                        "Document Type: " + documentType + "\n" +
+                        "Document Number: " + (documentNumber != null ? documentNumber : "N/A") + "\n" +
+                        "Expiry Date: " + expiryDate + "\n" +
+                        "Days Until Expiry: " + daysUntilExpiry + " days\n\n" +
+                        "ACTION REQUIRED:\n" +
+                        "Please ensure the document is renewed before it expires.\n\n" +
+                        "This is an automated alert from the " + emailFromName + ".\n" +
+                        "Please do not reply to this email.\n\n" +
+                        "Best regards,\n" +
+                        emailFromName;
 
-            message.setText(emailBody);
-
-            mailSender.send(message);
-            log.info("✓ Document expiry alert sent successfully to {} recipient(s) for {} from: {}",
-                    toEmails.length, documentType, emailFromAddress);
+                message.setText(emailBody);
+                mailSender.send(message);
+                log.info("✓ Document expiry alert sent successfully to {} recipient(s) for {} from: {}",
+                        toEmails.length, documentType, emailFromAddress);
+            }
         } catch (Exception e) {
             log.error("✗ Failed to send expiry alert to multiple recipients from: {}", emailFromAddress, e);
         }
     }
 
     public void sendAccountCreationEmail(String toEmail, String fullName, String username, String temporaryPassword) {
+        // Use default (no organization context)
+        sendAccountCreationEmail(toEmail, fullName, username, temporaryPassword, null);
+    }
+
+    public void sendAccountCreationEmail(String toEmail, String fullName, String username, String temporaryPassword, Long organizationId) {
         try {
-            SimpleMailMessage message = createMessage(toEmail, "Your Employee Account Has Been Created");
+            if (organizationId != null) {
+                // Use organization-specific SMTP
+                dynamicEmailService.sendAccountCreationEmail(toEmail, fullName, username, temporaryPassword, organizationId);
+            } else {
+                // Use default SMTP
+                SimpleMailMessage message = createMessage(toEmail, "Your Employee Account Has Been Created");
 
-            String emailBody = "Hello " + fullName + ",\n\n" +
-                    "Your employee account has been created in the " + emailFromName + ".\n\n" +
-                    "LOGIN CREDENTIALS:\n" +
-                    "Username: " + username + "\n" +
-                    "Temporary Password: " + temporaryPassword + "\n\n" +
-                    "IMPORTANT - First Time Login:\n" +
-                    "1. Login at: " + appUrl + "/login\n" +
-                    "2. You will be prompted to complete your profile\n" +
-                    "3. You MUST change your temporary password\n" +
-                    "4. Fill in all required employee details\n\n" +
-                    "Your temporary password will expire after first login.\n" +
-                    "Please keep your new password secure and do not share it.\n\n" +
-                    "If you did not expect this account, please contact your administrator.\n\n" +
-                    "Best regards,\n" +
-                    emailFromName + " Team";
+                String emailBody = "Hello " + fullName + ",\n\n" +
+                        "Your employee account has been created in the " + emailFromName + ".\n\n" +
+                        "LOGIN CREDENTIALS:\n" +
+                        "Username: " + username + "\n" +
+                        "Temporary Password: " + temporaryPassword + "\n\n" +
+                        "IMPORTANT - First Time Login:\n" +
+                        "1. Login at: " + appUrl + "/login\n" +
+                        "2. You will be prompted to complete your profile\n" +
+                        "3. You MUST change your temporary password\n" +
+                        "4. Fill in all required employee details\n\n" +
+                        "Your temporary password will expire after first login.\n" +
+                        "Please keep your new password secure and do not share it.\n\n" +
+                        "If you did not expect this account, please contact your administrator.\n\n" +
+                        "Best regards,\n" +
+                        emailFromName + " Team";
 
-            message.setText(emailBody);
-
-            mailSender.send(message);
-            log.info("✓ Account creation email sent successfully to: {} from: {}", toEmail, emailFromAddress);
+                message.setText(emailBody);
+                mailSender.send(message);
+                log.info("✓ Account creation email sent successfully to: {} from: {}", toEmail, emailFromAddress);
+            }
         } catch (Exception e) {
             log.error("✗ Failed to send account creation email to: {} from: {}", toEmail, emailFromAddress, e);
             log.warn("Note: Admin should manually share credentials with the employee.");
@@ -208,6 +264,12 @@ public class EmailService {
 
     public void sendOrganizationCreatedEmail(String toEmail, String fullName, String organizationName,
                                             String username, String password, boolean isGeneratedPassword) {
+        // Validate email address before sending
+        if (toEmail == null || toEmail.trim().isEmpty()) {
+            log.warn("⚠️ Cannot send organization creation email: recipient email is empty");
+            return;
+        }
+        
         try {
             SimpleMailMessage message = createMessage(toEmail, "Welcome! Your Organization Has Been Created");
 
@@ -241,10 +303,16 @@ public class EmailService {
             message.setText(emailBody);
 
             mailSender.send(message);
-            log.info("✓ Organization creation email sent successfully to: {} from: {}", toEmail, emailFromAddress);
+            String actualFromAddress = message.getFrom();
+            log.info("✓ Organization creation email sent successfully to: {} from: {}", toEmail, actualFromAddress);
+        } catch (RuntimeException e) {
+            // Re-throw validation errors from createMessage
+            log.error("✗ Failed to send organization creation email: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
             log.error("✗ Failed to send organization creation email to: {} from: {}", toEmail, emailFromAddress, e);
             log.warn("Note: Organization was created but email failed. Admin should manually share credentials.");
+            // Don't throw exception - organization creation should succeed even if email fails
         }
     }
 

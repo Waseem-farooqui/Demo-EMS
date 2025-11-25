@@ -2,6 +2,7 @@ package com.was.employeemanagementsystem.controller;
 
 import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.EmployeeDTO;
+import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.service.EmployeeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -55,6 +56,19 @@ public class EmployeeController {
     @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<List<EmployeeDTO>> getAllEmployees() {
         final List<EmployeeDTO> employees = employeeService.getAllEmployees();
+        return ResponseEntity.ok(employees);
+    }
+
+    /**
+     * Get all employees with pagination - Only USER, ADMIN, SUPER_ADMIN
+     * ROOT cannot access employee data
+     */
+    @GetMapping("/paginated")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<PageResponse<EmployeeDTO>> getAllEmployeesPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        final PageResponse<EmployeeDTO> employees = employeeService.getAllEmployeesPaginated(page, size);
         return ResponseEntity.ok(employees);
     }
 

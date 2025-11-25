@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to generate favicon.ico from logo.png
+# Script to generate favicon.ico from icon-144x144.png
 # Requires ImageMagick (convert command)
 
 SOURCE_IMAGE="src/assets/logo.png"

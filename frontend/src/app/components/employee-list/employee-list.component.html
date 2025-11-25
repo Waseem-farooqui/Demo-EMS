@@ -12,55 +12,204 @@
 
   <div *ngIf="error" class="error-message">{{ error }}</div>
 
-  <div *ngIf="!loading && employees.length === 0" class="no-data">
+  <div *ngIf="!loading && employees.length === 0 && totalElements === 0" class="no-data">
     No employees found. Click "Create User" to get started.
   </div>
 
-  <table *ngIf="!loading && employees.length > 0" class="employee-table">
-    <thead>
-      <tr>
-        <th>Full Name</th>
-        <th>Username</th>
-        <th>Job Title</th>
-        <th>Department</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let employee of employees">
-        <td>
-          <div class="employee-name">
-            <span class="name-icon">👤</span>
-            <strong>{{ employee.fullName }}</strong>
-          </div>
-        </td>
-        <td>
-          <span class="username-badge" *ngIf="employee.username">
-            {{ employee.username }}
-          </span>
-          <span class="no-user" *ngIf="!employee.username">-</span>
-        </td>
-        <td>{{ employee.jobTitle || '-' }}</td>
-        <td>
-          <span class="department-badge" *ngIf="employee.departmentName">
-            {{ employee.departmentName }}
-          </span>
-          <span *ngIf="!employee.departmentName">-</span>
-        </td>
-        <td class="actions">
-          <button (click)="viewEmployeeDetails(employee.id!)" class="btn btn-details" title="View Full Details">
-            👁️ Details
+  <!-- Main Content Layout: Table -->
+  <div class="main-content-layout" *ngIf="!loading && (employees.length > 0 || totalElements > 0)">
+    <!-- Table Content Area -->
+    <div class="table-content-area">
+      <!-- Global Search Filter -->
+      <div class="global-search-container">
+        <label for="globalSearch" class="global-search-label">Filter</label>
+        <input
+          type="text"
+          id="globalSearch"
+          class="global-search-input"
+          placeholder="Search employees..."
+          [(ngModel)]="globalSearchQuery"
+          (input)="onGlobalSearchChange()"
+        />
+      </div>
+
+      <!-- Pagination Controls (Top) -->
+      <div class="pagination-container" *ngIf="usePagination && totalPages > 1">
+        <div class="pagination-info">
+          <span>Page {{ currentPage + 1 }} of {{ totalPages }}</span>
+          <select class="page-size-select" [value]="pageSize" (change)="onPageSizeChange(+$any($event.target).value)">
+            <option value="5">5 per page</option>
+            <option value="10">10 per page</option>
+            <option value="25">25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+          </select>
+        </div>
+        <div class="pagination-controls">
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(0)"
+            title="First Page">
+            ««
           </button>
-          <a [routerLink]="['/employees/edit', employee.id]" class="btn btn-edit" title="Edit Employee">
-            ✏️ Edit
-          </a>
-          <button (click)="deleteEmployee(employee.id)" class="btn btn-delete" title="Delete Employee">
-            🗑️ Delete
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(currentPage - 1)"
+            title="Previous Page">
+            ‹
           </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+          <button 
+            *ngFor="let pageNum of pageNumbers"
+            class="pagination-btn"
+            [class.active]="pageNum === currentPage"
+            (click)="onPageChange(pageNum)">
+            {{ pageNum + 1 }}
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(currentPage + 1)"
+            title="Next Page">
+            ›
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(totalPages - 1)"
+            title="Last Page">
+            »»
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="filteredEmployees.length === 0" class="no-results">
+        <div class="no-results-icon">🔍</div>
+        <p class="no-results-text">No employees match your search criteria</p>
+        <button class="btn btn-secondary" (click)="clearFilters()">Clear Filters</button>
+      </div>
+
+      <table *ngIf="filteredEmployees.length > 0" class="employee-table">
+        <thead>
+          <tr>
+            <th (click)="onSort('fullName')" class="sortable">
+              <span>Full Name</span>
+              <span class="sort-icon">{{ getSortIcon('fullName') }}</span>
+            </th>
+            <th (click)="onSort('username')" class="sortable">
+              <span>Username</span>
+              <span class="sort-icon">{{ getSortIcon('username') }}</span>
+            </th>
+            <th (click)="onSort('position')" class="sortable">
+              <span>Position</span>
+              <span class="sort-icon">{{ getSortIcon('position') }}</span>
+            </th>
+            <th (click)="onSort('department')" class="sortable">
+              <span>Department</span>
+              <span class="sort-icon">{{ getSortIcon('department') }}</span>
+            </th>
+            <th (click)="onSort('allottedOrganization')" class="sortable">
+              <span>Allotted Organization</span>
+              <span class="sort-icon">{{ getSortIcon('allottedOrganization') }}</span>
+            </th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let employee of filteredEmployees">
+            <td>
+              <div class="employee-name">
+                <span class="name-icon">👤</span>
+                <strong>{{ employee.fullName }}</strong>
+              </div>
+            </td>
+            <td>
+              <span class="username-badge" *ngIf="employee.username">
+                {{ employee.username }}
+              </span>
+              <span class="no-user" *ngIf="!employee.username">-</span>
+            </td>
+            <td>{{ employee.jobTitle || '-' }}</td>
+            <td>
+              <span class="department-badge" *ngIf="employee.departmentName">
+                {{ employee.departmentName }}
+              </span>
+              <span *ngIf="!employee.departmentName">-</span>
+            </td>
+            <td>
+              <span class="org-badge" *ngIf="employee.allottedOrganization">
+                {{ employee.allottedOrganization }}
+              </span>
+              <span *ngIf="!employee.allottedOrganization">-</span>
+            </td>
+            <td class="actions">
+              <button (click)="viewEmployeeDetails(employee.id!)" class="btn btn-details btn-sm" title="View Full Details">
+                👁️
+              </button>
+              <a [routerLink]="['/employees/edit', employee.id]" class="btn btn-edit btn-sm" title="Edit Employee">
+                ✏️
+              </a>
+              <button (click)="deleteEmployee(employee.id)" class="btn btn-delete btn-sm" title="Delete Employee">
+                🗑️
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Pagination Controls (Bottom) -->
+      <div class="pagination-container" *ngIf="usePagination && totalPages > 1">
+        <div class="pagination-info">
+          <span>Page {{ currentPage + 1 }} of {{ totalPages }}</span>
+          <select class="page-size-select" [value]="pageSize" (change)="onPageSizeChange(+$any($event.target).value)">
+            <option value="5">5 per page</option>
+            <option value="10">10 per page</option>
+            <option value="25">25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+          </select>
+        </div>
+        <div class="pagination-controls">
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(0)"
+            title="First Page">
+            ««
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(currentPage - 1)"
+            title="Previous Page">
+            ‹
+          </button>
+          <button 
+            *ngFor="let pageNum of pageNumbers"
+            class="pagination-btn"
+            [class.active]="pageNum === currentPage"
+            (click)="onPageChange(pageNum)">
+            {{ pageNum + 1 }}
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(currentPage + 1)"
+            title="Next Page">
+            ›
+          </button>
+          <button 
+            class="pagination-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(totalPages - 1)"
+            title="Last Page">
+            »»
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Employee Details Modal -->
   <div *ngIf="showDetailsModal" class="modal-overlay" (click)="closeDetailsModal()">
@@ -89,6 +238,15 @@
               <span class="info-value">{{ selectedEmployee.personType }}</span>
             </div>
             <div class="info-item">
+              <span class="info-label">Username:</span>
+              <span class="info-value">
+                <span class="username-badge" *ngIf="selectedEmployee.username">
+                  {{ selectedEmployee.username }}
+                </span>
+                <span *ngIf="!selectedEmployee.username">-</span>
+              </span>
+            </div>
+            <div class="info-item">
               <span class="info-label">Work Email:</span>
               <span class="info-value">{{ selectedEmployee.workEmail }}</span>
             </div>
@@ -108,9 +266,17 @@
               <span class="info-label">Nationality:</span>
               <span class="info-value">{{ selectedEmployee.nationality || '-' }}</span>
             </div>
-            <div class="info-item">
-              <span class="info-label">Address:</span>
+            <div class="info-item full-width">
+              <span class="info-label">Registered Address:</span>
               <span class="info-value">{{ selectedEmployee.address || '-' }}</span>
+            </div>
+            <div class="info-item full-width">
+              <span class="info-label">Present Address:</span>
+              <span class="info-value">{{ selectedEmployee.presentAddress || '-' }}</span>
+            </div>
+            <div class="info-item full-width">
+              <span class="info-label">Previous Address:</span>
+              <span class="info-value">{{ selectedEmployee.previousAddress || '-' }}</span>
             </div>
           </div>
         </div>
@@ -120,17 +286,8 @@
           <h4 class="section-title">💼 Employment Information</h4>
           <div class="info-grid">
             <div class="info-item">
-              <span class="info-label">Job Title:</span>
-              <span class="info-value">{{ selectedEmployee.jobTitle }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Department:</span>
-              <span class="info-value">
-                <span class="department-badge" *ngIf="selectedEmployee.departmentName">
-                  {{ selectedEmployee.departmentName }}
-                </span>
-                <span *ngIf="!selectedEmployee.departmentName">-</span>
-              </span>
+              <span class="info-label">Position:</span>
+              <span class="info-value">{{ selectedEmployee.jobTitle || '-' }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">Reference:</span>
@@ -147,6 +304,110 @@
             <div class="info-item">
               <span class="info-label">Contract Type:</span>
               <span class="info-value">{{ selectedEmployee.contractType || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Working Timing:</span>
+              <span class="info-value">{{ selectedEmployee.workingTiming || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Holiday Allowance:</span>
+              <span class="info-value">{{ selectedEmployee.holidayAllowance || '-' }} days</span>
+            </div>
+            <div class="info-item full-width">
+              <span class="info-label">Allotted Organization:</span>
+              <span class="info-value">
+                <span class="org-badge" *ngIf="selectedEmployee.allottedOrganization">
+                  {{ selectedEmployee.allottedOrganization }}
+                </span>
+                <span *ngIf="!selectedEmployee.allottedOrganization">-</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Role & Department Section -->
+        <div class="details-section">
+          <h4 class="section-title">🔐 Role & Department</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">User Role:</span>
+              <span class="info-value">
+                <span class="role-badge" *ngIf="selectedEmployee.role" [class]="'role-' + (selectedEmployee.role || '').toLowerCase()">
+                  {{ selectedEmployee.role }}
+                </span>
+                <span *ngIf="!selectedEmployee.role">-</span>
+              </span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Department:</span>
+              <span class="info-value">
+                <span class="department-badge" *ngIf="selectedEmployee.departmentName">
+                  {{ selectedEmployee.departmentName }}
+                </span>
+                <span *ngIf="!selectedEmployee.departmentName">-</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Next of Kin Section -->
+        <div class="details-section">
+          <h4 class="section-title">👨‍👩‍👧‍👦 Next of Kin</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Name:</span>
+              <span class="info-value">{{ selectedEmployee.nextOfKinName || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Contact:</span>
+              <span class="info-value">{{ selectedEmployee.nextOfKinContact || '-' }}</span>
+            </div>
+            <div class="info-item full-width">
+              <span class="info-label">Address:</span>
+              <span class="info-value">{{ selectedEmployee.nextOfKinAddress || '-' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Previous Employment Section -->
+        <div class="details-section">
+          <h4 class="section-title">📋 Previous Employment</h4>
+          <div class="employment-records-list" *ngIf="selectedEmployee.employmentRecords && selectedEmployee.employmentRecords.length > 0">
+            <div *ngFor="let record of selectedEmployee.employmentRecords" class="employment-record-item">
+              <div class="record-header">
+                <strong>{{ record.jobTitle || 'Previous Position' }}</strong>
+                <span class="record-period" *ngIf="record.employmentPeriod">{{ record.employmentPeriod }}</span>
+              </div>
+              <div class="record-details">
+                <div *ngIf="record.employerName">
+                  <span class="record-label">Employer:</span> {{ record.employerName }}
+                </div>
+                <div *ngIf="record.employerAddress">
+                  <span class="record-label">Address:</span> {{ record.employerAddress }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="!selectedEmployee.employmentRecords || selectedEmployee.employmentRecords.length === 0" class="no-data-small">
+            No previous employment records
+          </div>
+        </div>
+
+        <!-- Medical Information Section -->
+        <div class="details-section">
+          <h4 class="section-title">🩺 Medical Information</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Blood Group:</span>
+              <span class="info-value">{{ selectedEmployee.bloodGroup || '-' }}</span>
+            </div>
+            <div class="info-item full-width">
+              <span class="info-label">Has Medical Condition:</span>
+              <span class="info-value">{{ selectedEmployee.hasMedicalCondition ? 'Yes' : 'No' }}</span>
+            </div>
+            <div class="info-item full-width" *ngIf="selectedEmployee.hasMedicalCondition">
+              <span class="info-label">Medical Condition Details:</span>
+              <span class="info-value">{{ selectedEmployee.medicalConditionDetails || 'Details not provided' }}</span>
             </div>
           </div>
         </div>
@@ -208,8 +469,8 @@
           <div class="rota-timeline">
             <div *ngFor="let schedule of employeeRotaSchedule" class="rota-day" [class]="getDutyClass(schedule.duty)">
               <div class="rota-day-header">
-                <span class="day-name">{{ schedule.dayOfWeek }}</span>
-                <span class="day-date">{{ schedule.scheduleDate | date:'MMM d' }}</span>
+                <span class="day-name">{{ schedule.dayOfWeek || schedule.date }}</span>
+                <span class="day-date">{{ (schedule.scheduleDate || schedule.date) | date:'MMM d' }}</span>
               </div>
               <div class="rota-day-body">
                 <div class="duty-name">{{ schedule.duty || 'No duty' }}</div>
@@ -231,7 +492,7 @@
               <div *ngFor="let doc of employeeDocuments"
                    class="document-item"
                    [class.selected]="selectedDocumentId === doc.id"
-                   (click)="viewDocument(doc.id, doc.documentType)">
+                   (click)="viewDocument(doc.id!, doc.documentType)">
                 <div class="document-icon">
                   <span *ngIf="doc.documentType === 'PASSPORT'">🛂</span>
                   <span *ngIf="doc.documentType === 'VISA'">📋</span>
@@ -262,13 +523,13 @@
                   </div>
                 </div>
                 <div class="document-actions">
-                  <button (click)="viewDocument(doc.id, doc.documentType); $event.stopPropagation()"
+                  <button (click)="viewDocument(doc.id!, doc.documentType); $event.stopPropagation()"
                           class="btn-icon"
                           title="View Document"
                           [class.active]="selectedDocumentId === doc.id">
                     👁️
                   </button>
-                  <button (click)="downloadDocument(doc.id); $event.stopPropagation()"
+                  <button (click)="downloadDocument(doc.id!); $event.stopPropagation()"
                           class="btn-icon"
                           title="Download">
                     ⬇️
@@ -358,4 +619,3 @@
     </div>
   </div>
 </div>
-

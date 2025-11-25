@@ -42,6 +42,43 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   saveSuccess = false;
   saveError: string | null = null;
 
+  private readonly metadataOptionalTypes = new Set([
+    'CONTRACT',
+    'RESUME',
+    'SHARE_CODE',
+    'PROOF_OF_ADDRESS',
+    'REGISTRATION_FORM',
+    'CERTIFICATE',
+    'NATIONAL_INSURANCE',
+    'BANK_STATEMENT'
+  ]);
+
+  private readonly identityDocumentTypes = new Set(['PASSPORT', 'VISA']);
+  private readonly supportingDocumentTypes = new Set([
+    'RESUME',
+    'SHARE_CODE',
+    'PROOF_OF_ADDRESS',
+    'REGISTRATION_FORM',
+    'CERTIFICATE',
+    'NATIONAL_INSURANCE',
+    'BANK_STATEMENT',
+    'OTHERS'
+  ]);
+
+  private readonly documentTypeLabelMap: Record<string, string> = {
+    PASSPORT: 'Passport',
+    VISA: 'Visa',
+    CONTRACT: 'Employment Contract',
+    RESUME: 'Resume',
+    SHARE_CODE: 'Share Code',
+    PROOF_OF_ADDRESS: 'Proof of Address',
+    REGISTRATION_FORM: 'Registration Form',
+    CERTIFICATE: 'Certificate',
+    NATIONAL_INSURANCE: 'National Insurance',
+    BANK_STATEMENT: 'Bank Statement',
+    OTHERS: 'Others'
+  };
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -144,7 +181,13 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   }
 
   hasMinimalData(): boolean {
-    return !!(this.document?.documentNumber &&
+    if (!this.document) {
+      return false;
+    }
+    if (this.isMetadataOptional(this.document.documentType)) {
+      return true;
+    }
+    return !!(this.document.documentNumber &&
               this.document.issuingCountry &&
               this.document.expiryDate);
   }
@@ -152,8 +195,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   isDataIncomplete(): boolean {
     if (!this.document) return false;
 
-    // CONTRACT and RESUME documents don't need validation
-    if (this.document.documentType === 'CONTRACT' || this.document.documentType === 'RESUME') {
+    if (this.isMetadataOptional(this.document.documentType)) {
       return false;
     }
 
@@ -169,8 +211,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   getMissingFields(): string[] {
     if (!this.document) return [];
 
-    // CONTRACT and RESUME documents don't need validation
-    if (this.document.documentType === 'CONTRACT' || this.document.documentType === 'RESUME') {
+    if (this.isMetadataOptional(this.document.documentType)) {
       return [];
     }
 
@@ -269,6 +310,56 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
       month: 'short',
       year: 'numeric'
     });
+  }
+
+  shouldShowExpiryBadge(doc?: Document | null): boolean {
+    if (!doc) {
+      return false;
+    }
+    return this.tracksExpiry(doc.documentType);
+  }
+
+  shouldShowImportantDates(doc?: Document | null): boolean {
+    if (!doc) {
+      return false;
+    }
+    return this.tracksExpiry(doc.documentType) && (!!doc.issueDate || !!doc.expiryDate);
+  }
+
+  shouldShowIdentityFields(doc?: Document | null): boolean {
+    if (!doc) {
+      return false;
+    }
+    return this.identityDocumentTypes.has((doc.documentType || '').toUpperCase());
+  }
+
+  isSupportingDocument(type?: string | null): boolean {
+    if (!type) {
+      return false;
+    }
+    return this.supportingDocumentTypes.has(type.toUpperCase());
+  }
+
+  getDocumentTypeLabel(type?: string | null): string {
+    if (!type) {
+      return 'Document';
+    }
+    const upper = type.toUpperCase();
+    return this.documentTypeLabelMap[upper] ?? upper.replace(/_/g, ' ');
+  }
+
+  private isMetadataOptional(type?: string | null): boolean {
+    if (!type) {
+      return false;
+    }
+    return this.metadataOptionalTypes.has(type.toUpperCase());
+  }
+
+  private tracksExpiry(type?: string | null): boolean {
+    if (!type) {
+      return false;
+    }
+    return !this.metadataOptionalTypes.has(type.toUpperCase());
   }
 
   getExpiryStatus(daysUntilExpiry?: number): string {

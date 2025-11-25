@@ -1,4 +1,4 @@
-import {Component, Inject, OnInit, PLATFORM_ID} from '@angular/core';
+import {Component, Inject, OnInit, OnDestroy, PLATFORM_ID} from '@angular/core';
 import {CommonModule, isPlatformBrowser} from '@angular/common';
 import {Router, RouterModule} from '@angular/router';
 import {HttpClient} from '@angular/common/http';
@@ -6,7 +6,9 @@ import {AuthService} from '../../services/auth.service';
 import {EmployeeService} from '../../services/employee.service';
 import {DocumentService} from '../../services/document.service';
 import {AttendanceService} from '../../services/attendance.service';
+import {SmtpSetupModalComponent} from '../smtp-setup-modal/smtp-setup-modal.component';
 import {environment} from '../../../environments/environment';
+import {Subscription} from 'rxjs';
 
 // Import Chart.js dynamically only in browser
 import {Chart, registerables} from 'chart.js';
@@ -15,15 +17,23 @@ if (typeof window !== 'undefined') {
   Chart.register(...registerables);
 }
 
+interface User {
+  id?: number;
+  email?: string;
+  username?: string;
+  roles?: string[];
+  organizationId?: number;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, SmtpSetupModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css']
 })
-export class DashboardComponent implements OnInit {
-  currentUser: any;
+export class DashboardComponent implements OnInit, OnDestroy {
+  currentUser: User | null = null;
   isAdmin = false;
   isSuperAdmin = false;
   loading = true;
@@ -45,6 +55,11 @@ export class DashboardComponent implements OnInit {
   // Attendance status
   isCheckedIn = false;
   attendanceStatus: any = null;
+
+  // SMTP Configuration Modal
+  showSmtpModal = false;
+
+  private subscriptions: Subscription[] = [];
 
   constructor(
     private authService: AuthService,
@@ -73,6 +88,11 @@ export class DashboardComponent implements OnInit {
     const isAdmin = roles.includes('ADMIN');
     this.isAdmin = this.isSuperAdmin || isAdmin;
 
+    // Check if SMTP configuration modal should be shown
+    if (this.isSuperAdmin && sessionStorage.getItem('showSmtpConfig') === 'true') {
+      this.showSmtpModal = true;
+    }
+
     if (this.isSuperAdmin) {
       // SUPER_ADMIN sees dashboard with statistics
       this.loadSuperAdminDashboard();
@@ -85,11 +105,20 @@ export class DashboardComponent implements OnInit {
     }
   }
 
+  onSmtpModalClosed(): void {
+    this.showSmtpModal = false;
+  }
+
+  onSmtpConfigured(): void {
+    this.showSmtpModal = false;
+    // Optionally reload dashboard or show success message
+  }
+
   loadSuperAdminDashboard(): void {
     this.loading = true;
     const token = this.authService.getToken();
 
-    this.http.get<any>(`${environment.apiUrl}/dashboard/stats`, {
+    const statsSub = this.http.get<any>(`${environment.apiUrl}/dashboard/stats`, {
       headers: { Authorization: `Bearer ${token}` }
     }).subscribe({
       next: (stats) => {
@@ -103,6 +132,7 @@ export class DashboardComponent implements OnInit {
         this.loading = false;
       }
     });
+    this.subscriptions.push(statsSub);
   }
 
   createCharts(): void {
@@ -316,7 +346,7 @@ export class DashboardComponent implements OnInit {
     }
 
     // Fetch all employees and check if one matches this user's email
-    this.employeeService.getAllEmployees().subscribe({
+    const employeesSub = this.employeeService.getAllEmployees().subscribe({
       next: (employees) => {
         const employeeProfile = employees.find(emp => emp.workEmail === userEmail);
 
@@ -338,6 +368,7 @@ export class DashboardComponent implements OnInit {
         this.loading = false;
       }
     });
+    this.subscriptions.push(employeesSub);
   }
 
   loadDocuments(): void {
@@ -361,7 +392,7 @@ export class DashboardComponent implements OnInit {
   loadAttendanceStatus(): void {
     if (!this.employeeProfile?.id) return;
 
-    this.attendanceService.getCurrentStatus(this.employeeProfile.id).subscribe({
+    const attendanceSub = this.attendanceService.getCurrentStatus(this.employeeProfile.id).subscribe({
       next: (status) => {
         if (status.status === 'CHECKED_OUT') {
           this.isCheckedIn = false;
@@ -374,6 +405,23 @@ export class DashboardComponent implements OnInit {
         console.error('Error loading attendance:', err);
       }
     });
+    this.subscriptions.push(attendanceSub);
+  }
+
+  ngOnDestroy(): void {
+    // Unsubscribe from all subscriptions
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
+    
+    // Destroy all charts
+    if (this.charts) {
+      Object.values(this.charts).forEach((chart: any) => {
+        if (chart && typeof chart.destroy === 'function') {
+          chart.destroy();
+        }
+      });
+      this.charts = {};
+    }
   }
 
   navigateToCreateProfile(): void {

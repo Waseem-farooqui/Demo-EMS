@@ -1,10 +1,19 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, OnDestroy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Router, RouterModule} from '@angular/router';
 import {LeaveService} from '../../services/leave.service';
 import {AuthService} from '../../services/auth.service';
 import {Leave, LeaveApprovalRequest} from '../../models/leave.model';
+import {Subscription} from 'rxjs';
+
+interface User {
+  id?: number;
+  email?: string;
+  username?: string;
+  roles?: string[];
+  organizationId?: number;
+}
 
 @Component({
   selector: 'app-leave-list',
@@ -13,11 +22,11 @@ import {Leave, LeaveApprovalRequest} from '../../models/leave.model';
   templateUrl: './leave-list.component.html',
   styleUrls: ['./leave-list.component.css']
 })
-export class LeaveListComponent implements OnInit {
+export class LeaveListComponent implements OnInit, OnDestroy {
   leaves: Leave[] = [];
   loading = false;
   error: string | null = null;
-  currentUser: any;
+  currentUser: User | null = null;
   isAdmin = false;
   isSuperAdmin = false;
   filterStatus = 'ALL';
@@ -25,6 +34,8 @@ export class LeaveListComponent implements OnInit {
   selectedLeave: Leave | null = null;
   commentText = '';
   actionType: 'APPROVE' | 'REJECT' | 'COMMENT' | 'REQUEST_UPDATE' = 'COMMENT';
+
+  private subscriptions: Subscription[] = [];
 
   constructor(
     private leaveService: LeaveService,
@@ -48,7 +59,7 @@ export class LeaveListComponent implements OnInit {
       ? this.leaveService.getAllLeaves()
       : this.leaveService.getLeavesByStatus(this.filterStatus);
 
-    observable.subscribe({
+    const leavesSub = observable.subscribe({
       next: (data) => {
         this.leaves = data;
         this.loading = false;
@@ -59,6 +70,7 @@ export class LeaveListComponent implements OnInit {
         console.error('Error loading leaves:', err);
       }
     });
+    this.subscriptions.push(leavesSub);
   }
 
   filterByStatus(status: string): void {
@@ -83,7 +95,7 @@ export class LeaveListComponent implements OnInit {
         remarks: 'Approved'
       };
 
-      this.leaveService.approveLeave(leave.id!, request).subscribe({
+      const approveSub = this.leaveService.approveLeave(leave.id!, request).subscribe({
         next: () => {
           this.loadLeaves();
         },
@@ -92,6 +104,7 @@ export class LeaveListComponent implements OnInit {
           console.error('Error approving leave:', err);
         }
       });
+      this.subscriptions.push(approveSub);
     }
   }
 
@@ -111,11 +124,11 @@ export class LeaveListComponent implements OnInit {
     if (remarks) {
       const request: LeaveApprovalRequest = {
         approvedBy: undefined,
-        rejectedBy: this.currentUser.username,
+        rejectedBy: this.currentUser?.username || '',
         remarks: remarks
       };
 
-      this.leaveService.rejectLeave(leave.id!, request).subscribe({
+      const rejectSub = this.leaveService.rejectLeave(leave.id!, request).subscribe({
         next: () => {
           this.loadLeaves();
         },
@@ -124,6 +137,7 @@ export class LeaveListComponent implements OnInit {
           console.error('Error rejecting leave:', err);
         }
       });
+      this.subscriptions.push(rejectSub);
     }
   }
 
@@ -153,7 +167,7 @@ export class LeaveListComponent implements OnInit {
     switch (this.actionType) {
       case 'APPROVE':
         // approvedBy is now automatically set by backend from current authenticated user
-        this.leaveService.approveLeave(this.selectedLeave.id!, request).subscribe({
+        const approveModalSub = this.leaveService.approveLeave(this.selectedLeave.id!, request).subscribe({
           next: () => {
             this.closeCommentModal();
             this.loadLeaves();
@@ -163,11 +177,12 @@ export class LeaveListComponent implements OnInit {
             console.error('Error approving leave:', err);
           }
         });
+        this.subscriptions.push(approveModalSub);
         break;
 
       case 'REJECT':
         // rejectedBy is now automatically set by backend from current authenticated user
-        this.leaveService.rejectLeave(this.selectedLeave.id!, request).subscribe({
+        const rejectModalSub = this.leaveService.rejectLeave(this.selectedLeave.id!, request).subscribe({
           next: () => {
             this.closeCommentModal();
             this.loadLeaves();
@@ -177,6 +192,7 @@ export class LeaveListComponent implements OnInit {
             console.error('Error rejecting leave:', err);
           }
         });
+        this.subscriptions.push(rejectModalSub);
         break;
 
       case 'COMMENT':
@@ -191,7 +207,7 @@ export class LeaveListComponent implements OnInit {
 
   deleteLeave(leave: Leave): void {
     if (confirm(`Delete leave request for ${leave.employeeName}?`)) {
-      this.leaveService.deleteLeave(leave.id!).subscribe({
+      const deleteSub = this.leaveService.deleteLeave(leave.id!).subscribe({
         next: () => {
           this.loadLeaves();
         },
@@ -200,6 +216,7 @@ export class LeaveListComponent implements OnInit {
           console.error('Error deleting leave:', err);
         }
       });
+      this.subscriptions.push(deleteSub);
     }
   }
 
@@ -226,6 +243,36 @@ export class LeaveListComponent implements OnInit {
 
   canDelete(leave: Leave): boolean {
     return leave.status !== 'APPROVED';
+  }
+
+  viewHolidayForm(leave: Leave): void {
+    if (!leave.hasHolidayForm) {
+      alert('No holiday form attached to this leave');
+      return;
+    }
+    const holidayFormSub = this.leaveService.getHolidayForm(leave.id!).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = leave.holidayFormFileName || `holiday-form-${leave.id}.pdf`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      },
+      error: (err) => {
+        console.error('Error loading holiday form:', err);
+        alert('Failed to load holiday form');
+      }
+    });
+    this.subscriptions.push(holidayFormSub);
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
   }
 }
 

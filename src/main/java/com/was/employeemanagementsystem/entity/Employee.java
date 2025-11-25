@@ -69,8 +69,11 @@ public class Employee {
     @Column(name = "next_of_kin_address")
     private String nextOfKinAddress;
 
+    @Column(name = "blood_group")
+    private String bloodGroup;
+
     // Job Information
-    @Column(name = "job_title", nullable = false)
+    @Column(name = "job_title")
     private String jobTitle;
 
     @Column(name = "reference")
@@ -90,6 +93,9 @@ public class Employee {
 
     @Column(name = "holiday_allowance")
     private Integer holidayAllowance;
+
+    @Column(name = "allotted_organization")
+    private String allottedOrganization;
 
     @Column(name = "user_id")
     private Long userId;

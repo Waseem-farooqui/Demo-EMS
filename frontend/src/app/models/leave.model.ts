@@ -18,6 +18,8 @@ export interface Leave {
   requiresSuperAdminApproval?: boolean;
   hasMedicalCertificate?: boolean;
   certificateFileName?: string;
+  hasHolidayForm?: boolean;
+  holidayFormFileName?: string;
   financialYear?: string;
 }
 

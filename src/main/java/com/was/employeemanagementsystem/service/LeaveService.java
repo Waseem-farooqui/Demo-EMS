@@ -353,7 +353,7 @@ public class LeaveService {
         return (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
     }
 
-    private LeaveDTO convertToDTO(Leave leave) {
+    LeaveDTO convertToDTO(Leave leave) {
         LeaveDTO dto = new LeaveDTO();
         dto.setId(leave.getId());
         dto.setEmployeeId(leave.getEmployee().getId());
@@ -370,6 +370,8 @@ public class LeaveService {
         dto.setApprovalDate(leave.getApprovalDate());
         dto.setRemarks(leave.getRemarks());
         dto.setHasMedicalCertificate(leave.getMedicalCertificate() != null);
+        dto.setHasHolidayForm(leave.getHolidayForm() != null);
+        dto.setHolidayFormFileName(leave.getHolidayFormFileName());
         dto.setFinancialYear(leave.getFinancialYear());
         return dto;
     }
@@ -476,7 +478,7 @@ public class LeaveService {
     /**
      * Apply leave with comprehensive validation
      */
-    public LeaveDTO applyLeaveWithValidation(LeaveDTO leaveDTO, MultipartFile medicalCertificate) throws IOException {
+    public LeaveDTO applyLeaveWithValidation(LeaveDTO leaveDTO, MultipartFile medicalCertificate, MultipartFile holidayForm) throws IOException {
         log.info("📝 Starting leave application process...");
         log.info("  - Employee ID: {}", leaveDTO.getEmployeeId());
         log.info("  - Leave Type: {}", leaveDTO.getLeaveType());
@@ -484,6 +486,7 @@ public class LeaveService {
         log.info("  - End Date: {}", leaveDTO.getEndDate());
         log.info("  - Reason: {}", leaveDTO.getReason());
         log.info("  - Medical Certificate: {}", medicalCertificate != null ? "Provided" : "Not provided");
+        log.info("  - Holiday Form: {}", holidayForm != null ? "Provided" : "Not provided");
 
         Employee employee = employeeRepository.findById(leaveDTO.getEmployeeId())
                 .orElseThrow(() -> {
@@ -546,6 +549,53 @@ public class LeaveService {
             log.info("✅ Medical certificate validated");
         }
 
+        // Rule: Holiday form required for USER leave applications
+        // - USER applying for their own leave: required
+        // - ADMIN applying for their own leave: not required
+        // - ADMIN applying for USER's leave: required
+        User currentUser = securityUtils.getCurrentUser();
+        boolean isCurrentUserAdmin = securityUtils.isAdminOrSuperAdmin();
+        boolean isApplyingForOwnLeave = currentUser != null && employee.getUserId() != null 
+                && employee.getUserId().equals(currentUser.getId());
+        
+        // Check if the employee (for whom leave is being applied) is a USER
+        boolean isEmployeeUser = false;
+        if (employee.getUserId() != null) {
+            User employeeUser = securityUtils.getUserById(employee.getUserId());
+            if (employeeUser != null) {
+                isEmployeeUser = employeeUser.getRoles().contains("USER") 
+                        && !employeeUser.getRoles().contains("ADMIN") 
+                        && !employeeUser.getRoles().contains("SUPER_ADMIN");
+            }
+        }
+
+        // Determine if holiday form is required
+        boolean holidayFormRequired = false;
+        if (isEmployeeUser) {
+            if (isCurrentUserAdmin && !isApplyingForOwnLeave) {
+                // ADMIN applying for USER's leave: required
+                holidayFormRequired = true;
+                log.info("📋 Holiday form required: ADMIN applying for USER's leave");
+            } else if (!isCurrentUserAdmin) {
+                // USER applying for their own leave: required
+                holidayFormRequired = true;
+                log.info("📋 Holiday form required: USER applying for own leave");
+            } else {
+                // ADMIN applying for their own leave: not required
+                log.info("📋 Holiday form not required: ADMIN applying for own leave");
+            }
+        }
+
+        // Validate holiday form requirement
+        if (holidayFormRequired) {
+            if (holidayForm == null || holidayForm.isEmpty()) {
+                log.error("❌ Holiday form required for USER leave application");
+                throw new RuntimeException(
+                        "Holiday form is required for this leave application. Please upload the holiday form.");
+            }
+            log.info("✅ Holiday form validated");
+        }
+
         // Rule: Casual leave cannot be consecutive
         if (LEAVE_TYPE_CASUAL.equals(leaveDTO.getLeaveType())) {
             if (leaveDays > 1) {
@@ -599,6 +649,15 @@ public class LeaveService {
             leave.setCertificateContentType(medicalCertificate.getContentType());
             log.info("📄 Medical certificate attached: {} ({} bytes)", 
                     medicalCertificate.getOriginalFilename(), medicalCertificate.getSize());
+        }
+
+        // Store holiday form if provided
+        if (holidayForm != null && !holidayForm.isEmpty()) {
+            leave.setHolidayForm(holidayForm.getBytes());
+            leave.setHolidayFormFileName(holidayForm.getOriginalFilename());
+            leave.setHolidayFormContentType(holidayForm.getContentType());
+            log.info("📄 Holiday form attached: {} ({} bytes)", 
+                    holidayForm.getOriginalFilename(), holidayForm.getSize());
         }
 
         try {
@@ -697,6 +756,41 @@ public class LeaveService {
                 leaveId, securityUtils.getCurrentUser().getUsername());
 
         return leave.getMedicalCertificate();
+    }
+
+    public byte[] getHolidayForm(Long leaveId) {
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new RuntimeException("Leave not found"));
+
+        // Check access: USER can view their own holiday form, ADMIN/SUPER_ADMIN can view any
+        if (!securityUtils.isAdminOrSuperAdmin()) {
+            User currentUser = securityUtils.getCurrentUser();
+            if (currentUser == null || leave.getEmployee().getUserId() == null 
+                    || !leave.getEmployee().getUserId().equals(currentUser.getId())) {
+                throw new RuntimeException("Access denied. You can only view your own holiday form.");
+            }
+        }
+
+        if (leave.getHolidayForm() == null) {
+            throw new RuntimeException("No holiday form attached to this leave");
+        }
+
+        log.info("📄 Holiday form viewed for leave ID: {} by: {}",
+                leaveId, securityUtils.getCurrentUser().getUsername());
+
+        return leave.getHolidayForm();
+    }
+
+    public String getHolidayFormFileName(Long leaveId) {
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new RuntimeException("Leave not found"));
+        return leave.getHolidayFormFileName();
+    }
+
+    public String getHolidayFormContentType(Long leaveId) {
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new RuntimeException("Leave not found"));
+        return leave.getHolidayFormContentType();
     }
 
     /**

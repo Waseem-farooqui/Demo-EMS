@@ -10,6 +10,7 @@ import com.was.employeemanagementsystem.repository.UserRepository;
 import com.was.employeemanagementsystem.repository.VerificationTokenRepository;
 import com.was.employeemanagementsystem.security.JwtUtils;
 import com.was.employeemanagementsystem.service.EmailService;
+import com.was.employeemanagementsystem.service.SmtpConfigurationService;
 import lombok.extern.slf4j.Slf4j;
 import lombok.extern.slf4j.XSlf4j;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,7 @@ public class AuthController {
     private final JwtUtils jwtUtils;
     private final EmailService emailService;
     private final VerificationTokenRepository verificationTokenRepository;
+    private final SmtpConfigurationService smtpConfigurationService;
 
     public AuthController(AuthenticationManager authenticationManager,
                          UserRepository userRepository,
@@ -48,7 +50,8 @@ public class AuthController {
                          PasswordEncoder passwordEncoder,
                          JwtUtils jwtUtils,
                          EmailService emailService,
-                         VerificationTokenRepository verificationTokenRepository) {
+                         VerificationTokenRepository verificationTokenRepository,
+                         SmtpConfigurationService smtpConfigurationService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
@@ -56,6 +59,7 @@ public class AuthController {
         this.jwtUtils = jwtUtils;
         this.emailService = emailService;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.smtpConfigurationService = smtpConfigurationService;
     }
 
     @PostMapping("/login")
@@ -138,6 +142,17 @@ public class AuthController {
                 }
             }
 
+            // Check if SMTP is configured for SUPER_ADMIN
+            boolean smtpConfigured = true;
+            if (roles.contains("SUPER_ADMIN") && user.getOrganizationId() != null) {
+                try {
+                    smtpConfigured = smtpConfigurationService.isSmtpConfigured();
+                } catch (Exception e) {
+                    log.warn("Error checking SMTP configuration: {}", e.getMessage());
+                    smtpConfigured = false;
+                }
+            }
+
             return ResponseEntity.ok(new JwtResponse(jwt,
                     user.getId(),
                     user.getUsername(),
@@ -146,7 +161,8 @@ public class AuthController {
                     user.getOrganizationUuid(),
                     user.isFirstLogin(),
                     user.isProfileCompleted(),
-                    user.isTemporaryPassword()));
+                    user.isTemporaryPassword(),
+                    smtpConfigured));
 
         } catch (org.springframework.security.authentication.DisabledException e) {
             // Catch DisabledException from Spring Security authentication

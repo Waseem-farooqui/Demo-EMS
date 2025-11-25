@@ -1,7 +1,8 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {
   AbstractControl,
+  FormArray,
   FormBuilder,
   FormGroup,
   ReactiveFormsModule,
@@ -12,7 +13,15 @@ import {Router} from '@angular/router';
 import {HttpClient} from '@angular/common/http';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
+import {DocumentService} from '../../services/document.service';
+import {PositionService} from '../../services/position.service';
 import {environment} from '../../../environments/environment';
+import {EmploymentRecord} from '../../models/employee.model';
+import {Department, CreateUserResponse, UserFormData} from '../../models/user-create.model';
+import {Position} from '../../models/position.model';
+import {Subscription, of} from 'rxjs';
+import {debounceTime, distinctUntilChanged, switchMap} from 'rxjs/operators';
+import {Subject} from 'rxjs';
 
 @Component({
   selector: 'app-user-create',
@@ -21,25 +30,52 @@ import {environment} from '../../../environments/environment';
   templateUrl: './user-create.component.html',
   styleUrls: ['./user-create.component.css']
 })
-export class UserCreateComponent implements OnInit {
+export class UserCreateComponent implements OnInit, OnDestroy {
   userForm!: FormGroup;
   loading = false;
   error = '';
   success = '';
-  currentUser: any;
+  currentUser: { roles?: string[] } | null = null;
   isSuperAdmin = false;
   maxDate: string; // Maximum date (today)
 
-  departments: any[] = [];
+  departments: Department[] = [];
+  positions: Position[] = [];
+  filteredPositions: Position[] = [];
+  showPositionDropdown = false;
   showCredentials = false;
-  createdCredentials: any = null;
+  createdCredentials: CreateUserResponse | null = null;
   showCustomDepartment = false;
+  private medicalSubscription?: Subscription;
+  private positionSearchSubject = new Subject<string>();
+
+  // Document upload
+  selectedDocuments: File[] = [];
+  documentTypes: string[] = ['PASSPORT', 'VISA', 'CONTRACT', 'RESUME', 'SHARE_CODE', 
+                             'PROOF_OF_ADDRESS', 'REGISTRATION_FORM', 'CERTIFICATE',
+                             'NATIONAL_INSURANCE', 'BANK_STATEMENT'];
+  documentTypeMap: { [key: string]: string } = {};
+
+  // Wizard state
+  currentStep = 1;
+  totalSteps = 7;
+  steps = [
+    { number: 1, title: 'Personal Information', icon: '👤' },
+    { number: 2, title: 'Work Information', icon: '💼' },
+    { number: 3, title: 'Role & Department', icon: '🏢' },
+    { number: 4, title: 'Next of Kin', icon: '👨‍👩‍👧‍👦' },
+    { number: 5, title: 'Previous Employment', icon: '📋' },
+    { number: 6, title: 'Medical Information', icon: '🩺' },
+    { number: 7, title: 'Documents', icon: '📄' }
+  ];
 
   constructor(
     private fb: FormBuilder,
     private http: HttpClient,
     private toastService: ToastService,
     private authService: AuthService,
+    private documentService: DocumentService,
+    private positionService: PositionService,
     public router: Router
   ) {
     // Set max date to today
@@ -55,23 +91,43 @@ export class UserCreateComponent implements OnInit {
 
     this.initForm();
     this.loadDepartments();
+    this.loadPositions();
+    this.setupPositionSearch();
+  }
+
+  ngOnDestroy(): void {
+    this.medicalSubscription?.unsubscribe();
+    this.positionSearchSubject.complete();
   }
 
   initForm(): void {
     this.userForm = this.fb.group({
       fullName: ['', [Validators.required, Validators.minLength(3)]],
       email: ['', [Validators.required, Validators.email]],
+      personalEmail: ['', [Validators.email]],
+      phoneNumber: [''],
+      dateOfBirth: [''],
+      nationality: [''],
+      address: [''],
+      presentAddress: [''],
+      previousAddress: [''],
       jobTitle: ['', Validators.required],
       personType: ['Employee', Validators.required],
       role: ['USER', Validators.required],
-      departmentId: [null, this.isSuperAdmin ? Validators.required : []],
+      departmentId: [null], // Optional
       customDepartmentName: [''],
+      allottedOrganization: [''],
       reference: [''],
       dateOfJoining: [this.formatDate(new Date()), [Validators.required, this.dateNotInFutureValidator()]],
       employmentStatus: ['FULL_TIME', Validators.required],
       contractType: ['PERMANENT', Validators.required],
-      workingTiming: ['9:00 AM - 5:00 PM'],
-      holidayAllowance: [20, [Validators.required, Validators.min(0)]]
+      hasMedicalCondition: [false],
+      medicalConditionDetails: [''],
+      nextOfKinName: [''],
+      nextOfKinContact: [''],
+      nextOfKinAddress: [''],
+      bloodGroup: [''],
+      employmentRecords: this.fb.array([this.createEmploymentRecordGroup()])
     });
 
     // Enable role selection for SUPER_ADMIN, disable for ADMIN
@@ -82,6 +138,8 @@ export class UserCreateComponent implements OnInit {
       this.userForm.get('role')?.disable();
       this.userForm.get('departmentId')?.disable();
     }
+
+    this.setupMedicalConditionWatcher();
   }
 
   // Custom validator to ensure date is not in the future
@@ -113,7 +171,7 @@ export class UserCreateComponent implements OnInit {
       ? `${environment.apiUrl}/departments/with-admin-status`
       : `${environment.apiUrl}/departments`;
 
-    this.http.get<any[]>(endpoint).subscribe({
+    this.http.get<Department[]>(endpoint).subscribe({
       next: (data) => {
         // Sort departments alphabetically by name
         this.departments = data.sort((a, b) => a.name.localeCompare(b.name));
@@ -130,14 +188,85 @@ export class UserCreateComponent implements OnInit {
 
       },
       error: (err) => {
-        console.error('Error loading departments:', err);
+        // Error logged via error message to user
         this.error = 'Failed to load departments. Please refresh the page.';
+        this.toastService.error('Failed to load departments');
       }
     });
   }
 
-  onDepartmentChange(event: any): void {
-    const selectedValue = event.target.value;
+  loadPositions(): void {
+    this.positionService.getAllPositions().subscribe({
+      next: (data) => {
+        this.positions = data.sort((a, b) => a.name.localeCompare(b.name));
+        this.filteredPositions = [...this.positions];
+      },
+      error: (err) => {
+        console.error('Error loading positions:', err);
+        this.toastService.error('Failed to load positions');
+      }
+    });
+  }
+
+  setupPositionSearch(): void {
+    this.positionSearchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap((query: string) => {
+        if (!query || query.trim().length === 0) {
+          this.filteredPositions = [...this.positions];
+          return of(this.positions);
+        }
+        return this.positionService.searchPositions(query);
+      })
+    ).subscribe({
+      next: (results) => {
+        if (results && results.length > 0) {
+          this.filteredPositions = results;
+        } else if (results && results.length === 0) {
+          // Keep current filtered positions if search returns empty
+          // User can still type custom position
+        }
+      },
+      error: (err) => {
+        console.error('Error searching positions:', err);
+      }
+    });
+  }
+
+  onJobTitleInput(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const value = target.value;
+    this.showPositionDropdown = value.length > 0;
+    this.positionSearchSubject.next(value);
+    
+    // Filter positions locally for immediate feedback
+    if (value.length === 0) {
+      this.filteredPositions = [...this.positions];
+    } else {
+      const lowerValue = value.toLowerCase();
+      this.filteredPositions = this.positions.filter(pos =>
+        pos.name.toLowerCase().includes(lowerValue) ||
+        pos.description.toLowerCase().includes(lowerValue)
+      );
+    }
+  }
+
+  selectPosition(position: Position): void {
+    this.userForm.get('jobTitle')?.setValue(position.name);
+    this.showPositionDropdown = false;
+  }
+
+  onJobTitleBlur(): void {
+    // Delay hiding dropdown to allow click on option
+    setTimeout(() => {
+      this.showPositionDropdown = false;
+    }, 200);
+  }
+
+  onDepartmentChange(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    const selectedValue = target.value;
     if (selectedValue === 'custom') {
       this.showCustomDepartment = true;
       this.userForm.get('customDepartmentName')?.setValidators([Validators.required]);
@@ -153,6 +282,13 @@ export class UserCreateComponent implements OnInit {
   }
 
   onSubmit(): void {
+    // If not on last step, go to next step
+    if (this.currentStep < this.totalSteps) {
+      this.nextStep();
+      return;
+    }
+
+    // Final step - validate and submit
     if (this.userForm.invalid) {
       this.error = 'Please fill all required fields correctly';
       this.markFormGroupTouched(this.userForm);
@@ -164,18 +300,22 @@ export class UserCreateComponent implements OnInit {
     this.success = '';
     this.showCredentials = false;
 
+    const sanitizedRecords = this.getSanitizedEmploymentRecords();
     let formData = this.userForm.getRawValue(); // Get all values including disabled fields
+    formData.hasMedicalCondition = !!formData.hasMedicalCondition;
+    formData.medicalConditionDetails = formData.hasMedicalCondition ? formData.medicalConditionDetails : '';
+    formData.employmentRecords = sanitizedRecords;
 
     // Handle custom department creation
     if (this.showCustomDepartment && formData.customDepartmentName) {
       // First create the department
       this.createCustomDepartment(formData.customDepartmentName).subscribe({
-        next: (newDept: any) => {
-          formData.departmentId = newDept.id;
+        next: (newDept: Department) => {
+          formData.departmentId = typeof newDept.id === 'number' ? newDept.id : null;
           delete formData.customDepartmentName;
           this.createUser(formData);
         },
-        error: (err: any) => {
+        error: (err: unknown) => {
           this.loading = false;
           this.error = 'Failed to create custom department: ' + this.extractErrorMessage(err);
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -187,8 +327,8 @@ export class UserCreateComponent implements OnInit {
     }
   }
 
-  createCustomDepartment(departmentName: string): any {
-    const deptData = {
+  createCustomDepartment(departmentName: string) {
+    const deptData: Partial<Department> = {
       name: departmentName,
       code: departmentName.substring(0, 3).toUpperCase(),
       description: 'Custom department created by SUPER_ADMIN',
@@ -196,14 +336,14 @@ export class UserCreateComponent implements OnInit {
     };
 
     const token = this.authService.getToken();
-    return this.http.post<any>(`${environment.apiUrl}/departments`, deptData, {
+    return this.http.post<Department>(`${environment.apiUrl}/departments`, deptData, {
       headers: { Authorization: `Bearer ${token}` }
     });
   }
 
-  createUser(formData: any): void {
+  createUser(formData: UserFormData): void {
     const token = this.authService.getToken();
-    this.http.post<any>(`${environment.apiUrl}/users/create`, formData, {
+    this.http.post<CreateUserResponse>(`${environment.apiUrl}/users/create`, formData, {
       headers: { Authorization: `Bearer ${token}` }
     }).subscribe({
       next: (response) => {
@@ -211,6 +351,11 @@ export class UserCreateComponent implements OnInit {
         this.createdCredentials = response;
         this.showCredentials = true;
         this.loading = false;
+
+        // Upload documents if any were selected
+        if (this.selectedDocuments.length > 0 && response.employeeId) {
+          this.uploadDocuments(response.employeeId);
+        }
 
         // Scroll to top to show credentials
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -221,6 +366,106 @@ export class UserCreateComponent implements OnInit {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
+  }
+
+  uploadDocuments(employeeId: number): void {
+    if (this.selectedDocuments.length === 0) {
+      return;
+    }
+
+    const totalDocs = this.selectedDocuments.length;
+    let uploadedCount = 0;
+    let failedCount = 0;
+
+    this.selectedDocuments.forEach((file, index) => {
+      const documentType = this.documentTypeMap[file.name];
+
+      this.documentService.uploadDocument(employeeId, documentType, file).subscribe({
+        next: () => {
+          uploadedCount++;
+          if (uploadedCount + failedCount === totalDocs) {
+            if (uploadedCount > 0) {
+              this.toastService.success(`Successfully uploaded ${uploadedCount} document(s)`);
+            }
+            if (failedCount > 0) {
+              this.toastService.warning(`Failed to upload ${failedCount} document(s)`);
+            }
+          }
+        },
+        error: (err: unknown) => {
+          failedCount++;
+          // Error handling - log to service if needed
+          if (uploadedCount + failedCount === totalDocs) {
+            if (uploadedCount > 0) {
+              this.toastService.success(`Successfully uploaded ${uploadedCount} document(s)`);
+            }
+            if (failedCount > 0) {
+              this.toastService.warning(`Failed to upload ${failedCount} document(s)`);
+            }
+          }
+        }
+      });
+    });
+  }
+
+  onDocumentSelected(event: Event, documentType: string): void {
+    const target = event.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) {
+      return;
+    }
+    const files = Array.from(target.files) as File[];
+    files.forEach(file => {
+      this.selectedDocuments.push(file);
+      this.documentTypeMap[file.name] = documentType;
+    });
+  }
+
+  removeDocument(index: number): void {
+    const file = this.selectedDocuments[index];
+    delete this.documentTypeMap[file.name];
+    this.selectedDocuments.splice(index, 1);
+  }
+
+  get employmentRecords(): FormArray {
+    return this.userForm.get('employmentRecords') as FormArray;
+  }
+
+  addEmploymentRecord(record?: EmploymentRecord): void {
+    this.employmentRecords.push(this.createEmploymentRecordGroup(record));
+  }
+
+  removeEmploymentRecord(index: number): void {
+    if (this.employmentRecords.length === 1) {
+      this.employmentRecords.at(0).reset();
+      return;
+    }
+    this.employmentRecords.removeAt(index);
+  }
+
+  private createEmploymentRecordGroup(record?: EmploymentRecord): FormGroup {
+    return this.fb.group({
+      jobTitle: [record?.jobTitle || ''],
+      employmentPeriod: [record?.employmentPeriod || ''],
+      employerName: [record?.employerName || ''],
+      employerAddress: [record?.employerAddress || '']
+    });
+  }
+
+  private getSanitizedEmploymentRecords(): EmploymentRecord[] {
+    const records = this.employmentRecords.getRawValue() as EmploymentRecord[];
+    return records.filter(record => this.isEmploymentRecordFilled(record));
+  }
+
+  private isEmploymentRecordFilled(record: EmploymentRecord): boolean {
+    if (!record) {
+      return false;
+    }
+    return !!(
+      (record.jobTitle && record.jobTitle.trim()) ||
+      (record.employmentPeriod && record.employmentPeriod.trim()) ||
+      (record.employerName && record.employerName.trim()) ||
+      (record.employerAddress && record.employerAddress.trim())
+    );
   }
 
   copyToClipboard(text: string, type: string): void {
@@ -239,8 +484,8 @@ export class UserCreateComponent implements OnInit {
     if (navigator.clipboard && isSecureContext) {
       navigator.clipboard.writeText(text).then(() => {
         this.toastService.success(`${type} copied to clipboard!`);
-      }).catch(err => {
-        console.error('Clipboard API failed, trying fallback:', err);
+      }).catch(() => {
+        // Clipboard API failed, use fallback
         this.fallbackCopyToClipboard(text, type);
       });
     } else {
@@ -284,9 +529,8 @@ export class UserCreateComponent implements OnInit {
       } else {
         throw new Error('execCommand copy failed');
       }
-    } catch (err) {
-      console.error('Fallback copy failed:', err);
-      // Last resort: show the text in a prompt or alert
+    } catch {
+      // Fallback copy failed - last resort: show the text in a prompt or alert
       try {
         const copied = prompt(`Please copy the ${type}:\n\nPress Ctrl+C (Cmd+C on Mac) to copy:`, text);
         if (copied !== null) {
@@ -313,13 +557,144 @@ export class UserCreateComponent implements OnInit {
       personType: 'Employee',
       role: 'USER',
       dateOfJoining: this.formatDate(new Date()),
-      workingTiming: '9:00 AM - 5:00 PM',
-      holidayAllowance: 20
+      hasMedicalCondition: false
     });
+    this.employmentRecords.clear();
+    this.addEmploymentRecord();
+    // Clear selected documents
+    this.selectedDocuments = [];
+    this.documentTypeMap = {};
   }
 
   goToEmployees(): void {
     this.router.navigate(['/employees']);
+  }
+
+  // Wizard navigation methods
+  nextStep(): void {
+    if (this.validateCurrentStep()) {
+      if (this.currentStep < this.totalSteps) {
+        this.currentStep++;
+        this.error = ''; // Clear any previous errors
+      }
+    } else {
+      // Show error message for invalid step
+      const stepNames: { [key: number]: string } = {
+        1: 'Personal Information',
+        2: 'Work Information',
+        3: 'Role & Department',
+        4: 'Next of Kin',
+        5: 'Previous Employment',
+        6: 'Medical Information',
+        7: 'Documents'
+      };
+      this.error = `Please fill all required fields in ${stepNames[this.currentStep]} step before proceeding.`;
+      this.toastService.error(this.error);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  previousStep(): void {
+    if (this.currentStep > 1) {
+      this.currentStep--;
+    }
+  }
+
+  goToStep(step: number): void {
+    if (step >= 1 && step <= this.totalSteps) {
+      this.currentStep = step;
+    }
+  }
+
+  skipStep(): void {
+    if (this.currentStep < this.totalSteps) {
+      this.currentStep++;
+    }
+  }
+
+  canSkipStep(): boolean {
+    // Steps that can be skipped (all optional fields)
+    const skippableSteps = [4, 5, 6, 7]; // Next of Kin, Previous Employment, Medical, Documents
+    return skippableSteps.includes(this.currentStep);
+  }
+
+  validateCurrentStep(): boolean {
+    const stepFields: { [key: number]: string[] } = {
+      1: ['fullName', 'email'], // Personal Information
+      2: ['dateOfJoining'], // Work Information
+      3: ['jobTitle'], // Role & Department (jobTitle is required)
+      4: [], // Next of Kin (all optional)
+      5: [], // Previous Employment (all optional)
+      6: [], // Medical Information (all optional)
+      7: []  // Documents (all optional)
+    };
+
+    const fieldsToValidate = stepFields[this.currentStep] || [];
+    let isValid = true;
+
+    fieldsToValidate.forEach(field => {
+      const control = this.userForm.get(field);
+      if (control && control.invalid) {
+        control.markAsTouched();
+        isValid = false;
+      }
+    });
+
+    // Special validation for medical condition
+    if (this.currentStep === 6) {
+      const hasCondition = this.userForm.get('hasMedicalCondition')?.value;
+      const medicalDetails = this.userForm.get('medicalConditionDetails');
+      if (hasCondition && medicalDetails && medicalDetails.invalid) {
+        medicalDetails.markAsTouched();
+        isValid = false;
+      }
+    }
+
+    return isValid;
+  }
+
+  isStepComplete(step: number): boolean {
+    // Check if step has required fields filled
+    const stepFields: { [key: number]: string[] } = {
+      1: ['fullName', 'email'],
+      2: ['dateOfJoining'],
+      3: [],
+      4: [],
+      5: [],
+      6: [],
+      7: []
+    };
+
+    const requiredFields = stepFields[step] || [];
+    return requiredFields.every(field => {
+      const control = this.userForm.get(field);
+      return control && control.valid;
+    });
+  }
+
+  private setupMedicalConditionWatcher(): void {
+    const hasConditionControl = this.userForm.get('hasMedicalCondition');
+    const medicalControl = this.userForm.get('medicalConditionDetails');
+
+    if (!hasConditionControl || !medicalControl) {
+      return;
+    }
+
+    const applyValidation = (hasCondition: boolean) => {
+      if (hasCondition) {
+        medicalControl.setValidators([Validators.required, Validators.minLength(5)]);
+      } else {
+        medicalControl.clearValidators();
+        medicalControl.setValue('');
+      }
+      medicalControl.updateValueAndValidity();
+    };
+
+    applyValidation(!!hasConditionControl.value);
+
+    this.medicalSubscription = hasConditionControl.valueChanges.subscribe((hasCondition: boolean) => {
+      applyValidation(hasCondition);
+    });
   }
 
   /**
@@ -329,7 +704,7 @@ export class UserCreateComponent implements OnInit {
    * 2. Selected role is ADMIN
    * 3. Department already has an ADMIN assigned
    */
-  isDepartmentDisabled(department: any): boolean {
+  isDepartmentDisabled(department: Department): boolean {
     if (!this.isSuperAdmin) {
       return false; // Non-SUPER_ADMIN can't create ADMIN anyway
     }
@@ -337,14 +712,14 @@ export class UserCreateComponent implements OnInit {
     const selectedRole = this.userForm.get('role')?.value;
 
     // Only disable if creating ADMIN role and department already has admin
-    return selectedRole === 'ADMIN' && department.hasAdmin;
+    return selectedRole === 'ADMIN' && (department.hasAdmin === true);
   }
 
   /**
    * Get display name for department option
    * Shows (Already has Admin) suffix for departments that can't be selected
    */
-  getDepartmentDisplayName(department: any): string {
+  getDepartmentDisplayName(department: Department): string {
     if (this.isDepartmentDisabled(department)) {
       return `${department.name} (Already has Admin)`;
     }
@@ -359,19 +734,29 @@ export class UserCreateComponent implements OnInit {
     this.userForm.get('departmentId')?.setValue(null);
   }
 
-  private extractErrorMessage(err: any): string {
-    if (err.error?.message) {
-      return err.error.message;
+  private extractErrorMessage(err: unknown): string {
+    if (!err || typeof err !== 'object') {
+      return 'An error occurred while creating the user. Please try again.';
     }
-    if (typeof err.error === 'string') {
-      return err.error;
+    
+    const error = err as { error?: { message?: string } | string; status?: number };
+    
+    if (error.error) {
+      if (typeof error.error === 'object' && 'message' in error.error) {
+        return (error.error as { message: string }).message;
+      }
+      if (typeof error.error === 'string') {
+        return error.error;
+      }
     }
-    if (err.status === 409) {
+    
+    if (error.status === 409) {
       return 'This email already exists in the system.';
     }
-    if (err.status === 403) {
+    if (error.status === 403) {
       return 'You don\'t have permission to perform this action.';
     }
+    
     return 'An error occurred while creating the user. Please try again.';
   }
 

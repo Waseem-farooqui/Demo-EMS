@@ -14,6 +14,13 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     List<Document> findByEmployeeId(Long employeeId);
     List<Document> findByDocumentType(String documentType);
 
+    // Eagerly fetch Employee and Department to avoid LazyInitializationException
+    @Query("SELECT DISTINCT d FROM Document d " +
+           "JOIN FETCH d.employee e " +
+           "LEFT JOIN FETCH e.department " +
+           "WHERE d.documentType = :documentType")
+    List<Document> findByDocumentTypeWithEmployee(@Param("documentType") String documentType);
+
     // Find document by file hash for deduplication
     Document findByFileHash(String fileHash);
 

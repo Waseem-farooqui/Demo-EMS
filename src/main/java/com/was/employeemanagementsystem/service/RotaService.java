@@ -2,6 +2,7 @@ package com.was.employeemanagementsystem.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.dto.RotaChangeLogDTO;
 import com.was.employeemanagementsystem.dto.RotaDTO;
 import com.was.employeemanagementsystem.dto.RotaScheduleDTO;
@@ -937,6 +938,54 @@ public class RotaService {
                     return convertToDTO(r, (int) uniqueEmployees);
                 })
                 .collect(Collectors.toList());
+    }
+
+    public PageResponse<RotaDTO> getAllRotasPaginated(int page, int size) {
+        // Get current user's organization for multi-tenancy
+        User currentUser = securityUtils.getCurrentUser();
+        Long organizationId = currentUser.getOrganizationId();
+
+        log.info("📋 Fetching paginated rotas for organization ID: {}", organizationId);
+
+        // Validate pagination parameters
+        if (page < 0) page = 0;
+        if (size < 1) size = 10;
+        if (size > 100) size = 100; // Max page size
+
+        // Fetch all rotas from current user's organization
+        List<Rota> allRotas = rotaRepository.findAllByOrderByUploadedDateDesc().stream()
+                .filter(r -> organizationId.equals(r.getOrganizationId()))
+                .collect(Collectors.toList());
+
+        // Apply pagination
+        long totalElements = allRotas.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int start = page * size;
+        int end = Math.min(start + size, allRotas.size());
+
+        List<RotaDTO> content = allRotas.stream()
+                .skip(start)
+                .limit(size)
+                .map(r -> {
+                    List<RotaSchedule> schedules = rotaScheduleRepository.findByRotaId(r.getId());
+                    // Count unique employees, not total schedules
+                    long uniqueEmployees = schedules.stream()
+                            .map(RotaSchedule::getEmployeeId)
+                            .distinct()
+                            .count();
+                    return convertToDTO(r, (int) uniqueEmployees);
+                })
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(
+                content,
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page == 0,
+                page >= totalPages - 1 || totalPages == 0
+        );
     }
 
     /**

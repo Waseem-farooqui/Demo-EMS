@@ -1,9 +1,18 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, OnDestroy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {Router, RouterModule} from '@angular/router';
-import {Rota, RotaSchedule, RotaService} from '../../services/rota.service';
+import {DayScheduleEntry, Rota, RotaSchedule, RotaService} from '../../services/rota.service';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
+import {Subscription} from 'rxjs';
+
+interface User {
+  id?: number;
+  email?: string;
+  username?: string;
+  roles?: string[];
+  organizationId?: number;
+}
 
 @Component({
   selector: 'app-rota-list',
@@ -12,15 +21,24 @@ import {ToastService} from '../../services/toast.service';
   templateUrl: './rota-list.component.html',
   styleUrls: ['./rota-list.component.css']
 })
-export class RotaListComponent implements OnInit {
+export class RotaListComponent implements OnInit, OnDestroy {
   rotas: Rota[] = [];
   selectedRota: Rota | null = null;
   schedules: RotaSchedule[] = [];
   loading = false;
   loadingSchedules = false;
-  currentUser: any;
+  currentUser: User | null = null;
   isAdmin = false;
   scheduleDates: string[] = [];
+
+  // Pagination
+  currentPage = 0;
+  pageSize = 10;
+  totalElements = 0;
+  totalPages = 0;
+  usePagination = true;
+
+  private subscriptions: Subscription[] = [];
 
   constructor(
     private rotaService: RotaService,
@@ -39,9 +57,35 @@ export class RotaListComponent implements OnInit {
 
   loadRotas(): void {
     this.loading = true;
-    this.rotaService.getAllRotas().subscribe({
-      next: (data) => {
-        this.rotas = data;
+    
+    if (this.usePagination) {
+      this.loadRotasPaginated();
+    } else {
+      const rotasSub = this.rotaService.getAllRotas().subscribe({
+        next: (data) => {
+          this.rotas = data;
+          this.loading = false;
+
+          // Auto-select first ROTA if available
+          if (this.rotas.length > 0 && !this.selectedRota) {
+            this.viewRota(this.rotas[0]);
+          }
+        },
+        error: (err) => {
+          this.toastService.error('Failed to load ROTAs');
+          this.loading = false;
+        }
+      });
+      this.subscriptions.push(rotasSub);
+    }
+  }
+
+  loadRotasPaginated(): void {
+    const rotasPaginatedSub = this.rotaService.getAllRotasPaginated(this.currentPage, this.pageSize).subscribe({
+      next: (response) => {
+        this.rotas = response.content;
+        this.totalElements = response.totalElements;
+        this.totalPages = response.totalPages;
         this.loading = false;
 
         // Auto-select first ROTA if available
@@ -54,7 +98,32 @@ export class RotaListComponent implements OnInit {
         this.loading = false;
       }
     });
+    this.subscriptions.push(rotasPaginatedSub);
   }
+
+  onPageChange(page: number): void {
+    this.currentPage = page;
+    this.loadRotasPaginated();
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize = size;
+    this.currentPage = 0;
+    this.loadRotasPaginated();
+  }
+
+  get pageNumbers(): number[] {
+    const pages: number[] = [];
+    const maxPages = Math.min(this.totalPages, 10);
+    const startPage = Math.max(0, Math.min(this.currentPage - 4, this.totalPages - maxPages));
+    
+    for (let i = startPage; i < Math.min(startPage + maxPages, this.totalPages); i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  Math = Math;
 
   viewRota(rota: Rota): void {
     this.selectedRota = rota;
@@ -83,7 +152,7 @@ export class RotaListComponent implements OnInit {
       }
     }, 30000); // 30 second timeout
     
-    this.rotaService.getRotaSchedules(rotaId).subscribe({
+    const schedulesSub = this.rotaService.getRotaSchedules(rotaId).subscribe({
       next: (data) => {
         console.log('Received schedules data:', data);
         console.log('Data type:', typeof data, 'Is array:', Array.isArray(data));
@@ -159,7 +228,7 @@ export class RotaListComponent implements OnInit {
               employeeMap.set(employeeId, {
                 employeeId: employeeId,
                 employeeName: entry.employeeName || 'Unknown',
-                schedules: {} as { [date: string]: { dayOfWeek: string; duty: string; startTime: string | null; endTime: string | null; isOffDay: boolean; } }
+                schedules: {} as Record<string, DayScheduleEntry | undefined>
               });
             }
 
@@ -235,6 +304,7 @@ export class RotaListComponent implements OnInit {
         this.scheduleDates = [];
       }
     });
+    this.subscriptions.push(schedulesSub);
   }
 
   formatDate(dateStr: string): string {
@@ -268,7 +338,7 @@ export class RotaListComponent implements OnInit {
     this.loading = true;
     this.toastService.info('Deleting ROTA...');
 
-    this.rotaService.deleteRota(rota.id).subscribe({
+    const deleteSub = this.rotaService.deleteRota(rota.id).subscribe({
       next: () => {
         this.toastService.success('ROTA deleted successfully');
 
@@ -287,6 +357,12 @@ export class RotaListComponent implements OnInit {
         this.loading = false;
       }
     });
+    this.subscriptions.push(deleteSub);
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
   }
 }
 

@@ -20,9 +20,7 @@
         <button (click)="goBack()" class="btn-back">
           <span>←</span> Back to Documents
         </button>
-        <h2>{{ document.documentType === 'RESUME' ? 'Resume' :
-                document.documentType === 'SHARE_CODE' ? 'Share Code' :
-                document.documentType + ' Details' }}</h2>
+        <h2>{{ getDocumentTypeLabel(document.documentType) }} Details</h2>
       </div>
       <div class="header-actions">
         <button *ngIf="(document.documentType === 'PASSPORT' || document.documentType === 'VISA') && !editMode && isDataIncomplete()" (click)="enableEditMode()" class="btn-edit">
@@ -74,7 +72,7 @@
     </div>
 
     <!-- Expiry Status Badge - Only for PASSPORT and VISA -->
-    <div *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'" class="expiry-badge" [ngClass]="'badge-' + getExpiryStatus(document.daysUntilExpiry)">
+    <div *ngIf="shouldShowExpiryBadge(document)" class="expiry-badge" [ngClass]="'badge-' + getExpiryStatus(document.daysUntilExpiry)">
       <span class="badge-icon">
         {{ document.daysUntilExpiry && document.daysUntilExpiry < 0 ? '❌' :
            document.daysUntilExpiry && document.daysUntilExpiry <= 30 ? '⚠️' :
@@ -84,7 +82,7 @@
     </div>
 
     <!-- Document Information Grid - Not for RESUME and SHARE_CODE -->
-    <div *ngIf="document.documentType !== 'RESUME' && document.documentType !== 'SHARE_CODE'" class="info-grid">
+    <div *ngIf="!isSupportingDocument(document.documentType)" class="info-grid">
       <!-- Employee Information -->
       <div class="info-section">
         <h3><span class="section-icon">👤</span> Employee Information</h3>
@@ -102,8 +100,8 @@
       <div class="info-section">
         <h3><span class="section-icon">📄</span> Document Information</h3>
 
-        <!-- Document Number - Only for PASSPORT and VISA -->
-        <div class="info-item" *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'" [ngClass]="{'missing-data': !document.documentNumber}">
+        <!-- Document Number - Only for identity documents -->
+        <div class="info-item" *ngIf="shouldShowIdentityFields(document)" [ngClass]="{'missing-data': !document.documentNumber}">
           <label>Document Number: <span class="required">*</span></label>
           <span *ngIf="!editMode" class="value">
             {{ document.documentNumber || '❌ Not extracted' }}
@@ -118,7 +116,7 @@
 
         <div class="info-item">
           <label>Document Type:</label>
-          <span class="value badge-type">{{ document.documentType === 'SHARE_CODE' ? 'SHARE CODE' : document.documentType }}</span>
+          <span class="value badge-type">{{ getDocumentTypeLabel(document.documentType) }}</span>
         </div>
 
         <!-- CONTRACT specific fields -->
@@ -178,7 +176,7 @@
       </div>
 
       <!-- Date Information - Only for PASSPORT and VISA -->
-      <div class="info-section" *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'">
+      <div class="info-section" *ngIf="shouldShowImportantDates(document)">
         <h3><span class="section-icon">📅</span> Important Dates</h3>
 
         <div class="info-item" [ngClass]="{'missing-data': !document.issueDate}">
@@ -235,7 +233,7 @@
       </div>
 
       <!-- Upload Information for RESUME and SHARE_CODE -->
-      <div class="info-section" *ngIf="document.documentType === 'RESUME' || document.documentType === 'SHARE_CODE'">
+      <div class="info-section" *ngIf="isSupportingDocument(document.documentType)">
         <h3><span class="section-icon">📅</span> Upload Information</h3>
 
         <div class="info-item">
@@ -277,12 +275,10 @@
 
     <!-- Document Preview -->
     <div class="document-preview">
-      <!-- CONTRACT, RESUME (PDF), and SHARE_CODE documents: Show PDF viewer -->
-      <div *ngIf="(document.documentType === 'CONTRACT' || document.documentType === 'SHARE_CODE' || (document.documentType === 'RESUME' && isFilePdf())) && documentImageUrl">
+      <!-- CONTRACT and supporting documents (PDF): Show PDF viewer -->
+      <div *ngIf="documentImageUrl && isPdfDocument && (document.documentType === 'CONTRACT' || isSupportingDocument(document.documentType))">
         <h3><span class="section-icon">📄</span>
-          {{ document.documentType === 'CONTRACT' ? 'Contract Document' :
-             document.documentType === 'SHARE_CODE' ? 'Share Code Document' :
-             'Resume Document (PDF)' }}
+          {{ getDocumentTypeLabel(document.documentType) }} Document
         </h3>
 
         <!-- Loading State -->
@@ -310,8 +306,7 @@
                   <span>🔗</span> Open PDF in New Tab
                 </button>
                 <button (click)="downloadDocument()" class="btn-download">
-                  <span>⬇️</span> Download {{ document.documentType === 'CONTRACT' ? 'Contract' :
-                                              document.documentType === 'SHARE_CODE' ? 'Share Code' : 'Resume' }} PDF
+                  <span>⬇️</span> Download {{ getDocumentTypeLabel(document.documentType) }} PDF
                 </button>
               </div>
             </div>
@@ -321,8 +316,7 @@
               <span>🔗</span> Open in New Tab
             </button>
             <button (click)="downloadDocument()" class="btn-download">
-              <span>⬇️</span> Download {{ document.documentType === 'CONTRACT' ? 'Contract' :
-                                          document.documentType === 'SHARE_CODE' ? 'Share Code' : 'Resume' }}
+              <span>⬇️</span> Download {{ getDocumentTypeLabel(document.documentType) }}
             </button>
           </div>
         </div>
@@ -330,7 +324,7 @@
 
       <!-- RESUME (DOCX) documents: Show download option -->
       <div *ngIf="document.documentType === 'RESUME' && !isFilePdf()">
-        <h3><span class="section-icon">📄</span> Resume Document (DOCX)</h3>
+        <h3><span class="section-icon">📄</span> {{ getDocumentTypeLabel(document.documentType) }} (DOCX)</h3>
 
         <div class="docx-container">
           <div class="docx-info">
@@ -343,7 +337,39 @@
           <p class="docx-message">Word documents cannot be previewed in the browser.</p>
           <div class="image-actions">
             <button (click)="downloadDocument()" class="btn-download">
-              <span>⬇️</span> Download Resume
+              <span>⬇️</span> Download {{ getDocumentTypeLabel(document.documentType) }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supporting documents (images): show image viewer -->
+      <div *ngIf="isImageDocument && isSupportingDocument(document.documentType)">
+        <h3><span class="section-icon">🖼️</span> {{ getDocumentTypeLabel(document.documentType) }} Preview</h3>
+
+        <div *ngIf="imageLoading" class="image-loading">
+          <div class="spinner"></div>
+          <p>Loading document...</p>
+        </div>
+
+        <div *ngIf="imageError && !imageLoading" class="image-error">
+          <span class="error-icon">⚠️</span>
+          <p>Unable to load document</p>
+          <div class="fallback-actions">
+            <button (click)="downloadDocument()" class="btn-download">
+              <span>⬇️</span> Download Document
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="!imageLoading && !imageError" class="image-container">
+          <img [src]="documentImageRawUrl"
+               [alt]="document.fileName"
+               class="document-image"
+               (error)="onImageError()">
+          <div class="image-actions">
+            <button (click)="downloadDocument()" class="btn-download">
+              <span>⬇️</span> Download Original
             </button>
           </div>
         </div>

@@ -1,345 +1,371 @@
-<div class="form-container">
-  <h2>{{ isEditMode ? 'Edit Employee' : 'Add New Employee' }}</h2>
+<div class="wizard-container">
+  <div class="wizard-header">
+    <h2>{{ isEditMode ? 'Edit Employee' : 'Create New Employee' }}</h2>
+    <p class="wizard-subtitle">Step {{ currentStep }} of {{ totalSteps }}</p>
+  </div>
 
-  <div *ngIf="loading && isEditMode" class="loading">Loading employee data...</div>
+  <!-- Progress Steps -->
+  <div class="wizard-progress">
+    <div class="progress-bar">
+      <div class="progress-fill" [style.width.%]="(currentStep / totalSteps) * 100"></div>
+    </div>
+    <div class="steps-indicator">
+      <div *ngFor="let step of steps" 
+           class="step-indicator"
+           [class.active]="currentStep === step.number"
+           [class.completed]="currentStep > step.number"
+           (click)="goToStep(step.number)">
+        <span class="step-icon">{{ step.icon }}</span>
+        <span class="step-title">{{ step.title }}</span>
+      </div>
+    </div>
+  </div>
 
+  <!-- Error Message -->
   <div *ngIf="error" class="error-message">{{ error }}</div>
 
-  <form [formGroup]="employeeForm" (ngSubmit)="onSubmit()" *ngIf="!loading || !isEditMode">
-    <div class="form-group">
-      <label for="fullName">Full Name <span class="required">*</span></label>
-      <input
-        type="text"
-        id="fullName"
-        formControlName="fullName"
-        [class.invalid]="isFieldInvalid('fullName')"
-      >
-      <div class="error" *ngIf="isFieldInvalid('fullName')">
-        Full name is required.
-      </div>
-    </div>
+  <!-- Loading -->
+  <div *ngIf="loading && isEditMode" class="loading">Loading employee data...</div>
 
-    <div class="form-group">
-      <label for="personType">Person Type <span class="required">*</span></label>
-      <select
-        id="personType"
-        formControlName="personType"
-        [class.invalid]="isFieldInvalid('personType')"
-      >
-        <option value="">Select person type</option>
-        <option value="Full-time">Full-time</option>
-        <option value="Part-time">Part-time</option>
-        <option value="Contractor">Contractor</option>
-        <option value="Intern">Intern</option>
-      </select>
-      <div class="error" *ngIf="isFieldInvalid('personType')">
-        Person type is required.
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label for="workEmail">Work Email <span class="required">*</span></label>
-      <input
-        type="email"
-        id="workEmail"
-        formControlName="workEmail"
-        [class.invalid]="isFieldInvalid('workEmail')"
-      >
-      <div class="error" *ngIf="isFieldInvalid('workEmail')">
-        Valid work email is required.
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label for="personalEmail">Personal Email</label>
-      <input
-        type="email"
-        id="personalEmail"
-        formControlName="personalEmail"
-        [class.invalid]="isFieldInvalid('personalEmail')"
-      >
-      <div class="error" *ngIf="isFieldInvalid('personalEmail')">
-        Valid email is required.
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label for="phoneNumber">Phone Number</label>
-      <input
-        type="tel"
-        id="phoneNumber"
-        formControlName="phoneNumber"
-        placeholder="e.g., +44 20 1234 5678"
-      >
-    </div>
-
-    <div class="form-group">
-      <label for="dateOfBirth">Date of Birth</label>
-      <input
-        type="date"
-        id="dateOfBirth"
-        formControlName="dateOfBirth"
-        [max]="maxDate"
-      >
-    </div>
-
-    <div class="form-group">
-      <label for="nationality">Nationality</label>
-      <input
-        type="text"
-        id="nationality"
-        formControlName="nationality"
-        placeholder="e.g., British, American"
-      >
-    </div>
-
-    <div class="form-group">
-      <label for="address">Address</label>
-      <textarea
-        id="address"
-        formControlName="address"
-        rows="3"
-        placeholder="Enter full address"
-      ></textarea>
-    </div>
-
-    <div class="form-group">
-      <label for="presentAddress">Present Address</label>
-      <textarea
-        id="presentAddress"
-        formControlName="presentAddress"
-        rows="3"
-        placeholder="Current residential address"
-      ></textarea>
-    </div>
-
-    <div class="form-group">
-      <label for="previousAddress">Previous Address</label>
-      <textarea
-        id="previousAddress"
-        formControlName="previousAddress"
-        rows="3"
-        placeholder="Previous residential address"
-      ></textarea>
-    </div>
-
-    <div class="section-card">
-      <h3>Medical Information</h3>
-      <div class="form-group checkbox-group">
-        <label class="checkbox-label">
-          <input type="checkbox" formControlName="hasMedicalCondition">
-          Employee has a medical condition
-        </label>
+  <!-- Wizard Form -->
+  <form [formGroup]="employeeForm" *ngIf="!loading || !isEditMode" class="wizard-form">
+    
+    <!-- Step 1: Personal Information (with Address) -->
+    <div class="wizard-step" *ngIf="currentStep === 1">
+      <div class="step-header">
+        <h3>👤 Personal Information</h3>
+        <p>Enter basic personal details and address information</p>
       </div>
 
-      <div class="form-group" *ngIf="shouldShowMedicalDetails()">
-        <label for="medicalConditionDetails">
-          Medical Condition Description
-          <span class="required">*</span>
-        </label>
-        <textarea
-          id="medicalConditionDetails"
-          formControlName="medicalConditionDetails"
-          rows="3"
-          [class.invalid]="isFieldInvalid('medicalConditionDetails')"
-          placeholder="Provide relevant information"
-        ></textarea>
-        <div class="error" *ngIf="isFieldInvalid('medicalConditionDetails')">
-          Please describe the medical condition.
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="fullName">Full Name <span class="required">*</span></label>
+          <input type="text" id="fullName" formControlName="fullName" 
+                 [class.invalid]="isFieldInvalid('fullName')" 
+                 placeholder="Enter full name">
+          <div class="error" *ngIf="isFieldInvalid('fullName')">Full name is required.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="personType">Person Type <span class="required">*</span></label>
+          <select id="personType" formControlName="personType" 
+                  [class.invalid]="isFieldInvalid('personType')">
+            <option value="">Select person type</option>
+            <option value="Full-time">Full-time</option>
+            <option value="Part-time">Part-time</option>
+            <option value="Contractor">Contractor</option>
+            <option value="Intern">Intern</option>
+          </select>
+          <div class="error" *ngIf="isFieldInvalid('personType')">Person type is required.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="workEmail">Work Email <span class="required">*</span></label>
+          <input type="email" id="workEmail" formControlName="workEmail" 
+                 [class.invalid]="isFieldInvalid('workEmail')" 
+                 placeholder="user@company.com">
+          <div class="error" *ngIf="isFieldInvalid('workEmail')">Valid work email is required.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="personalEmail">Personal Email</label>
+          <input type="email" id="personalEmail" formControlName="personalEmail" 
+                 placeholder="optional@personal.com">
+        </div>
+
+        <div class="form-group">
+          <label for="phoneNumber">Phone Number</label>
+          <input type="tel" id="phoneNumber" formControlName="phoneNumber" 
+                 placeholder="+44 20 1234 5678">
+        </div>
+
+        <div class="form-group">
+          <label for="dateOfBirth">Date of Birth</label>
+          <input type="date" id="dateOfBirth" formControlName="dateOfBirth" [max]="maxDate">
+        </div>
+
+        <div class="form-group">
+          <label for="nationality">Nationality</label>
+          <input type="text" id="nationality" formControlName="nationality" 
+                 placeholder="e.g., British, American">
+        </div>
+
+        <!-- Address Information -->
+        <div class="form-group full-width">
+          <label for="address">Registered Address</label>
+          <textarea id="address" formControlName="address" rows="3" 
+                    placeholder="Enter official address"></textarea>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="presentAddress">Present Address</label>
+          <textarea id="presentAddress" formControlName="presentAddress" rows="3" 
+                    placeholder="Current residential address"></textarea>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="previousAddress">Previous Address</label>
+          <textarea id="previousAddress" formControlName="previousAddress" rows="3" 
+                    placeholder="Previous residential address"></textarea>
         </div>
       </div>
     </div>
 
-    <div class="section-card">
-      <h3>Next of Kin</h3>
-      <div class="form-group">
-        <label for="nextOfKinName">Name</label>
-        <input
-          type="text"
-          id="nextOfKinName"
-          formControlName="nextOfKinName"
-          placeholder="Full name"
-        >
+    <!-- Step 2: Work Information -->
+    <div class="wizard-step" *ngIf="currentStep === 2">
+      <div class="step-header">
+        <h3>💼 Work Information</h3>
+        <p>Enter employment details</p>
       </div>
 
-      <div class="form-group">
-        <label for="nextOfKinContact">Contact Number</label>
-        <input
-          type="text"
-          id="nextOfKinContact"
-          formControlName="nextOfKinContact"
-          placeholder="e.g., +44 20 1234 5678"
-        >
-      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="jobTitle">Position/Job Title</label>
+          <input type="text" id="jobTitle" formControlName="jobTitle" 
+                 placeholder="e.g., Software Developer, Manager">
+        </div>
 
-      <div class="form-group">
-        <label for="nextOfKinAddress">Address</label>
-        <textarea
-          id="nextOfKinAddress"
-          formControlName="nextOfKinAddress"
-          rows="3"
-          placeholder="Address of next of kin"
-        ></textarea>
-      </div>
-    </div>
+        <div class="form-group">
+          <label for="reference">Employee ID/Reference</label>
+          <input type="text" id="reference" formControlName="reference" 
+                 placeholder="e.g., EMP001">
+        </div>
 
-    <div class="form-group">
-      <label for="jobTitle">Job Title <span class="required">*</span></label>
-      <input
-        type="text"
-        id="jobTitle"
-        formControlName="jobTitle"
-        [class.invalid]="isFieldInvalid('jobTitle')"
-      >
-      <div class="error" *ngIf="isFieldInvalid('jobTitle')">
-        Job title is required.
-      </div>
-    </div>
+        <div class="form-group">
+          <label for="dateOfJoining">Date of Joining <span class="required">*</span></label>
+          <input type="date" id="dateOfJoining" formControlName="dateOfJoining" 
+                 [class.invalid]="isFieldInvalid('dateOfJoining')" [max]="maxDate">
+          <div class="error" *ngIf="isFieldInvalid('dateOfJoining')">Date of joining is required.</div>
+        </div>
 
-    <div class="form-group">
-      <label for="reference">Reference</label>
-      <input
-        type="text"
-        id="reference"
-        formControlName="reference"
-      >
-    </div>
+        <div class="form-group">
+          <label for="employmentStatus">Employment Status</label>
+          <select id="employmentStatus" formControlName="employmentStatus">
+            <option value="">Select status</option>
+            <option value="FULL_TIME">Full Time</option>
+            <option value="PART_TIME">Part Time</option>
+            <option value="CONTRACT">Contract</option>
+            <option value="TEMPORARY">Temporary</option>
+          </select>
+        </div>
 
-    <div class="form-group">
-      <label for="dateOfJoining">Date of Joining <span class="required">*</span></label>
-      <input
-        type="date"
-        id="dateOfJoining"
-        formControlName="dateOfJoining"
-        [class.invalid]="isFieldInvalid('dateOfJoining')"
-        [max]="maxDate"
-      >
-      <div class="error" *ngIf="isFieldInvalid('dateOfJoining')">
-        Date of joining is required.
+        <div class="form-group">
+          <label for="contractType">Contract Type</label>
+          <select id="contractType" formControlName="contractType">
+            <option value="">Select type</option>
+            <option value="PERMANENT">Permanent</option>
+            <option value="TEMPORARY">Temporary</option>
+            <option value="FIXED_TERM">Fixed Term</option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <div class="form-group">
-      <label for="employmentStatus">Employment Status</label>
-      <select
-        id="employmentStatus"
-        formControlName="employmentStatus"
-      >
-        <option value="">Select employment status</option>
-        <option value="FULL_TIME">Full Time</option>
-        <option value="PART_TIME">Part Time</option>
-        <option value="CONTRACT">Contract</option>
-        <option value="TEMPORARY">Temporary</option>
-      </select>
+    <!-- Step 3: Role & Department -->
+    <div class="wizard-step" *ngIf="currentStep === 3">
+      <div class="step-header">
+        <h3>🏢 Role & Department</h3>
+        <p>Assign role, department, and position</p>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="departmentId">Department</label>
+          <select id="departmentId" formControlName="departmentId">
+            <option [value]="null">Select Department (Optional)</option>
+            <option *ngFor="let dept of departments" [value]="dept.id">
+              {{ dept.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="allottedOrganization">Allotted Organization</label>
+          <input type="text" id="allottedOrganization" formControlName="allottedOrganization" 
+                 placeholder="Enter organization name if employee is outsourced">
+          <small class="form-hint">💡 For employees outsourced to other companies</small>
+        </div>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="contractType">Contract Type</label>
-      <select
-        id="contractType"
-        formControlName="contractType"
-      >
-        <option value="">Select contract type</option>
-        <option value="PERMANENT">Permanent</option>
-        <option value="TEMPORARY">Temporary</option>
-        <option value="FIXED_TERM">Fixed Term</option>
-        <option value="ZERO_HOURS">Zero Hours</option>
-      </select>
+    <!-- Step 4: Next of Kin -->
+    <div class="wizard-step" *ngIf="currentStep === 4">
+      <div class="step-header">
+        <h3>👨‍👩‍👧‍👦 Next of Kin</h3>
+        <p>Emergency contact information (Optional)</p>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="nextOfKinName">Name</label>
+          <input type="text" id="nextOfKinName" formControlName="nextOfKinName" 
+                 placeholder="Full name">
+        </div>
+
+        <div class="form-group">
+          <label for="nextOfKinContact">Contact Number</label>
+          <input type="tel" id="nextOfKinContact" formControlName="nextOfKinContact" 
+                 placeholder="+44 20 1234 5678">
+        </div>
+
+        <div class="form-group full-width">
+          <label for="nextOfKinAddress">Address</label>
+          <textarea id="nextOfKinAddress" formControlName="nextOfKinAddress" rows="3" 
+                    placeholder="Full address"></textarea>
+        </div>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="workingTiming">Working Timing</label>
-      <input
-        type="text"
-        id="workingTiming"
-        formControlName="workingTiming"
-        placeholder="e.g., 9 AM - 5 PM"
-      >
-    </div>
+    <!-- Step 5: Previous Employment -->
+    <div class="wizard-step" *ngIf="currentStep === 5">
+      <div class="step-header">
+        <h3>📋 Previous Employment</h3>
+        <p>Employment history (Optional)</p>
+      </div>
 
-    <div class="form-group">
-      <label for="holidayAllowance">Holiday Allowance (days)</label>
-      <input
-        type="number"
-        id="holidayAllowance"
-        formControlName="holidayAllowance"
-        min="0"
-      >
-    </div>
+      <div formArrayName="employmentRecords" class="employment-records">
+        <div *ngFor="let record of employmentRecords.controls; let i = index" 
+             [formGroupName]="i" 
+             class="employment-record-card">
+          <div class="record-header">
+            <h4>Employment Record {{ i + 1 }}</h4>
+            <button type="button" class="btn-remove" (click)="removeEmploymentRecord(i)" 
+                    *ngIf="employmentRecords.length > 1">Remove</button>
+          </div>
 
-    <div class="section-card">
-      <div class="section-header">
-        <h3>Employment History</h3>
-        <button type="button" class="btn btn-link" (click)="addEmploymentRecord()">
-          + Add Previous Employment
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Job Title</label>
+              <input type="text" formControlName="jobTitle" placeholder="Previous job title">
+            </div>
+
+            <div class="form-group">
+              <label>Employment Period</label>
+              <input type="text" formControlName="employmentPeriod" 
+                     placeholder="e.g., Jan 2020 - Dec 2022">
+            </div>
+
+            <div class="form-group">
+              <label>Employer Name</label>
+              <input type="text" formControlName="employerName" placeholder="Company name">
+            </div>
+
+            <div class="form-group full-width">
+              <label>Employer Address</label>
+              <textarea formControlName="employerAddress" rows="2" 
+                        placeholder="Company address"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-add-record" (click)="addEmploymentRecord()">
+          ➕ Add Another Employment Record
         </button>
       </div>
+    </div>
 
-      <div formArrayName="employmentRecords">
-        <div
-          class="employment-record"
-          *ngFor="let recordGroup of employmentRecords.controls; let i = index"
-          [formGroupName]="i"
-        >
-          <div class="record-header">
-            <h4>Employment {{ i + 1 }}</h4>
-            <button
-              type="button"
-              class="btn-remove"
-              (click)="removeEmploymentRecord(i)"
-              *ngIf="employmentRecords.length > 1"
-            >
-              Remove
-            </button>
-          </div>
-          <div class="form-group">
-            <label for="jobTitle-{{ i }}">Job Title</label>
-            <input
-              type="text"
-              [id]="'jobTitle-' + i"
-              formControlName="jobTitle"
-              placeholder="e.g., Senior Developer"
-            >
-          </div>
-          <div class="form-group">
-            <label for="employmentPeriod-{{ i }}">Employment Period</label>
-            <input
-              type="text"
-              [id]="'employmentPeriod-' + i"
-              formControlName="employmentPeriod"
-              placeholder="e.g., Jan 2020 - Mar 2023"
-            >
-          </div>
-          <div class="form-group">
-            <label for="employerName-{{ i }}">Employer Name</label>
-            <input
-              type="text"
-              [id]="'employerName-' + i"
-              formControlName="employerName"
-              placeholder="Company name"
-            >
-          </div>
-          <div class="form-group">
-            <label for="employerAddress-{{ i }}">Employer Address</label>
-            <textarea
-              [id]="'employerAddress-' + i"
-              formControlName="employerAddress"
-              rows="2"
-              placeholder="Company address"
-            ></textarea>
+    <!-- Step 6: Medical Information -->
+    <div class="wizard-step" *ngIf="currentStep === 6">
+      <div class="step-header">
+        <h3>🩺 Medical Information</h3>
+        <p>Health and medical details (Optional)</p>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="bloodGroup">Blood Group</label>
+          <select id="bloodGroup" formControlName="bloodGroup">
+            <option value="">Select Blood Group</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+          </select>
+        </div>
+
+        <div class="form-group full-width checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" formControlName="hasMedicalCondition">
+            Employee has a medical condition
+          </label>
+        </div>
+
+        <div class="form-group full-width" *ngIf="shouldShowMedicalDetails()">
+          <label for="medicalConditionDetails">Condition Description <span class="required">*</span></label>
+          <textarea id="medicalConditionDetails" formControlName="medicalConditionDetails" 
+                    rows="4" placeholder="Provide relevant medical details"
+                    [class.invalid]="isFieldInvalid('medicalConditionDetails')"></textarea>
+          <div class="error" *ngIf="isFieldInvalid('medicalConditionDetails')">
+            Medical condition description is required when condition is selected.
           </div>
         </div>
       </div>
     </div>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary" [disabled]="loading">
-        {{ loading ? 'Saving...' : (isEditMode ? 'Update' : 'Create') }}
-      </button>
-      <button type="button" class="btn btn-secondary" (click)="onCancel()" [disabled]="loading">
-        Cancel
-      </button>
+    <!-- Step 7: Documents -->
+    <div class="wizard-step" *ngIf="currentStep === 7">
+      <div class="step-header">
+        <h3>📄 Documents</h3>
+        <p>Upload employee documents (Optional)</p>
+      </div>
+
+      <div class="document-upload-section">
+        <div class="document-upload-grid">
+          <div class="document-upload-item" *ngFor="let docType of documentTypes">
+            <label class="document-label">{{ docType.replace('_', ' ') }}</label>
+            <input type="file" 
+                   (change)="onDocumentSelected($event, docType)"
+                   accept="image/*,.pdf"
+                   class="document-input">
+          </div>
+        </div>
+
+        <div class="uploaded-documents" *ngIf="selectedDocuments.length > 0">
+          <h4>Selected Documents:</h4>
+          <div class="document-list">
+            <div *ngFor="let doc of selectedDocuments; let i = index" class="document-item">
+              <span class="doc-name">{{ doc.name }}</span>
+              <span class="doc-type">({{ documentTypeMap[doc.name] }})</span>
+              <button type="button" class="btn-remove-doc" (click)="removeDocument(i)">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wizard Navigation -->
+    <div class="wizard-navigation">
+      <button type="button" class="btn btn-secondary" (click)="onCancel()">Cancel</button>
+      
+      <div class="nav-buttons">
+        <button type="button" class="btn btn-secondary" 
+                (click)="previousStep()" 
+                *ngIf="currentStep > 1">
+          ← Previous
+        </button>
+
+        <button type="button" class="btn btn-skip" 
+                (click)="skipStep()" 
+                *ngIf="canSkipStep() && currentStep < totalSteps">
+          Skip →
+        </button>
+
+        <button type="button" class="btn btn-primary" 
+                (click)="nextStep()" 
+                *ngIf="currentStep < totalSteps">
+          Next →
+        </button>
+
+        <button type="submit" class="btn btn-primary" 
+                *ngIf="currentStep === totalSteps"
+                [disabled]="loading">
+          {{ loading ? 'Saving...' : (isEditMode ? 'Update Employee' : 'Create Employee') }}
+        </button>
+      </div>
     </div>
   </form>
 </div>
-

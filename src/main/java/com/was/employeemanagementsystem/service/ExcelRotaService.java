@@ -56,46 +56,44 @@ public class ExcelRotaService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Read Excel file
-        InputStream inputStream = file.getInputStream();
-        Workbook workbook = new XSSFWorkbook(inputStream);
-        Sheet sheet = workbook.getSheetAt(0);
+        try (InputStream inputStream = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
 
-        // Parse metadata and schedules
-        Map<String, String> metadata = parseExcelMetadata(sheet);
-        List<Employee> allEmployees = employeeRepository.findAll();
-        List<RotaSchedule> schedules = parseExcelSchedules(sheet, allEmployees, metadata);
+            // Parse metadata and schedules
+            Map<String, String> metadata = parseExcelMetadata(sheet);
+            List<Employee> allEmployees = employeeRepository.findAll();
+            List<RotaSchedule> schedules = parseExcelSchedules(sheet, allEmployees, metadata);
 
-        // Create ROTA entity
-        Rota rota = new Rota();
-        rota.setHotelName(metadata.getOrDefault("hotelName", "Unknown Hotel"));
-        rota.setDepartment(metadata.getOrDefault("department", "Unknown Department"));
-        rota.setFileName(file.getOriginalFilename());
-        rota.setFilePath("/uploads/rota/" + UUID.randomUUID() + "_" + file.getOriginalFilename());
-        // Note: fileData and extractedText removed - files stored in file system
-        rota.setStartDate(LocalDate.parse(metadata.get("startDate")));
-        rota.setEndDate(LocalDate.parse(metadata.get("endDate")));
-        rota.setUploadedDate(LocalDateTime.now());
-        rota.setUploadedBy(user.getId());
-        rota.setUploadedByName(user.getUsername());
+            // Create ROTA entity
+            Rota rota = new Rota();
+            rota.setHotelName(metadata.getOrDefault("hotelName", "Unknown Hotel"));
+            rota.setDepartment(metadata.getOrDefault("department", "Unknown Department"));
+            rota.setFileName(file.getOriginalFilename());
+            rota.setFilePath("/uploads/rota/" + UUID.randomUUID() + "_" + file.getOriginalFilename());
+            // Note: fileData and extractedText removed - files stored in file system
+            rota.setStartDate(LocalDate.parse(metadata.get("startDate")));
+            rota.setEndDate(LocalDate.parse(metadata.get("endDate")));
+            rota.setUploadedDate(LocalDateTime.now());
+            rota.setUploadedBy(user.getId());
+            rota.setUploadedByName(user.getUsername());
 
-        // Save ROTA
-        Rota savedRota = rotaRepository.save(rota);
-        log.info("✅ ROTA saved with ID: {}", savedRota.getId());
+            // Save ROTA
+            Rota savedRota = rotaRepository.save(rota);
+            log.info("✅ ROTA saved with ID: {}", savedRota.getId());
 
-        // Save schedules
-        schedules.forEach(schedule -> schedule.setRota(savedRota));
-        List<RotaSchedule> savedSchedules = rotaScheduleRepository.saveAll(schedules);
-        log.info("✅ Saved {} schedules", schedules.size());
+            // Save schedules
+            schedules.forEach(schedule -> schedule.setRota(savedRota));
+            List<RotaSchedule> savedSchedules = rotaScheduleRepository.saveAll(schedules);
+            log.info("✅ Saved {} schedules", schedules.size());
 
-        workbook.close();
+            // Generate preview DTO
+            RotaUploadPreviewDTO preview = generatePreviewDTO(savedRota, savedSchedules);
+            log.info("📋 Generated preview with {} employees and {} schedules",
+                     preview.getTotalEmployees(), preview.getTotalSchedules());
 
-        // Generate preview DTO
-        RotaUploadPreviewDTO preview = generatePreviewDTO(savedRota, savedSchedules);
-        log.info("📋 Generated preview with {} employees and {} schedules",
-                 preview.getTotalEmployees(), preview.getTotalSchedules());
-
-        return preview;
+            return preview;
+        }
     }
 
     /**
