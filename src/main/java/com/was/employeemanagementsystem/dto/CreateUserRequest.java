@@ -39,6 +39,11 @@ public class CreateUserRequest {
     private String bloodGroup;
     private String allottedOrganization;
 
+    // Emergency Contact Information
+    private String emergencyContactName;
+    private String emergencyContactPhone;
+    private String emergencyContactRelationship;
+
     private List<EmploymentRecordDTO> employmentRecords;
 }
 

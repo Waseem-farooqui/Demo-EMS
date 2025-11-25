@@ -183,34 +183,23 @@
           </label>
         </div>
 
-        <!-- Form Actions -->
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary" [disabled]="saving || smtpForm.invalid">
-            <span *ngIf="!saving">💾 Save Configuration</span>
-            <span *ngIf="saving">Saving...</span>
-          </button>
-          <button type="button" class="btn btn-secondary" (click)="loadSmtpConfiguration()" [disabled]="saving">
-            🔄 Reset
-          </button>
-        </div>
+      </div>
 
-        <!-- Use Default Info -->
-        <div *ngIf="smtpForm.get('useDefault')?.value" class="default-info">
-          <p>✅ Using default SMTP settings from environment variables</p>
-          <p class="info-text">These settings are configured by the ROOT user in the system environment.</p>
-        </div>
+      <!-- Use Default Info (shown when useDefault is checked) -->
+      <div *ngIf="smtpForm.get('useDefault')?.value" class="default-info">
+        <p>✅ Using default SMTP settings from environment variables</p>
+        <p class="info-text">These settings are configured by the ROOT user in the system environment.</p>
+      </div>
 
-        <!-- Form Actions -->
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary" [disabled]="saving || smtpForm.invalid">
-            <span *ngIf="!saving">💾 Save Configuration</span>
-            <span *ngIf="saving">Saving...</span>
-          </button>
-          <button type="button" class="btn btn-secondary" (click)="loadSmtpConfiguration()" [disabled]="saving"
-                  *ngIf="!smtpForm.get('useDefault')?.value">
-            🔄 Reset
-          </button>
-        </div>
+      <!-- Form Actions (always visible) -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary save-btn" [disabled]="saving || (smtpForm.get('useDefault')?.value ? false : smtpForm.invalid)">
+          <ng-container *ngIf="!saving">💾 Save Configuration</ng-container>
+          <ng-container *ngIf="saving">Saving...</ng-container>
+        </button>
+        <button type="button" class="btn btn-secondary" (click)="loadSmtpConfiguration()" [disabled]="saving">
+          🔄 Reset
+        </button>
       </div>
     </form>
   </div>

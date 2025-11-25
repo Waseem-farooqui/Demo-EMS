@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, HostListener} from '@angular/core';
 import {Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd} from '@angular/router';
 import {CommonModule} from '@angular/common';
 import {AuthService} from './services/auth.service';
@@ -101,16 +101,39 @@ export class AppComponent implements OnInit {
 
   toggleMobileMenu(): void {
     this.isMobileMenuOpen = !this.isMobileMenuOpen;
+    // On mobile, also toggle sidebar visibility
+    if (window.innerWidth <= 1024) {
+      if (this.isMobileMenuOpen) {
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      } else {
+        document.body.style.overflow = '';
+      }
+    }
   }
 
   closeMobileMenu(): void {
     this.isMobileMenuOpen = false;
+    document.body.style.overflow = '';
   }
 
   toggleSidebar(): void {
-    this.isSidebarCollapsed = !this.isSidebarCollapsed;
-    // Save preference to localStorage
-    localStorage.setItem('sidebarCollapsed', String(this.isSidebarCollapsed));
+    // On desktop, toggle collapse
+    if (window.innerWidth > 1024) {
+      this.isSidebarCollapsed = !this.isSidebarCollapsed;
+      // Save preference to localStorage
+      localStorage.setItem('sidebarCollapsed', String(this.isSidebarCollapsed));
+    } else {
+      // On mobile, toggle menu
+      this.toggleMobileMenu();
+    }
+  }
+
+  @HostListener('window:resize', ['$event'])
+  onResize(event: any): void {
+    // Close mobile menu on resize to desktop
+    if (event.target.innerWidth > 1024 && this.isMobileMenuOpen) {
+      this.closeMobileMenu();
+    }
   }
 
   logout(): void {

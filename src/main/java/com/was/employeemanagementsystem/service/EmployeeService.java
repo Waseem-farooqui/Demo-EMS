@@ -26,6 +26,8 @@ import com.was.employeemanagementsystem.repository.LeaveBalanceRepository;
 import com.was.employeemanagementsystem.repository.AttendanceRepository;
 import com.was.employeemanagementsystem.repository.RotaScheduleRepository;
 import com.was.employeemanagementsystem.repository.RotaChangeLogRepository;
+import com.was.employeemanagementsystem.repository.NotificationRepository;
+import com.was.employeemanagementsystem.entity.Notification;
 import com.was.employeemanagementsystem.security.SecurityUtils;
 import com.was.employeemanagementsystem.util.PasswordGenerator;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +69,7 @@ public class EmployeeService {
     private final AttendanceRepository attendanceRepository;
     private final RotaScheduleRepository rotaScheduleRepository;
     private final RotaChangeLogRepository rotaChangeLogRepository;
+    private final NotificationRepository notificationRepository;
 
     public EmployeeService(EmployeeRepository employeeRepository,
                           UserRepository userRepository,
@@ -82,7 +85,8 @@ public class EmployeeService {
                           LeaveBalanceRepository leaveBalanceRepository,
                           AttendanceRepository attendanceRepository,
                           RotaScheduleRepository rotaScheduleRepository,
-                          RotaChangeLogRepository rotaChangeLogRepository) {
+                          RotaChangeLogRepository rotaChangeLogRepository,
+                          NotificationRepository notificationRepository) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
         this.departmentRepository = departmentRepository;
@@ -98,6 +102,7 @@ public class EmployeeService {
         this.attendanceRepository = attendanceRepository;
         this.rotaScheduleRepository = rotaScheduleRepository;
         this.rotaChangeLogRepository = rotaChangeLogRepository;
+        this.notificationRepository = notificationRepository;
     }
 
     public EmployeeDTO createEmployee(EmployeeDTO employeeDTO) {
@@ -508,6 +513,9 @@ public class EmployeeService {
         employee.setNextOfKinName(employeeDTO.getNextOfKinName());
         employee.setNextOfKinContact(employeeDTO.getNextOfKinContact());
         employee.setNextOfKinAddress(employeeDTO.getNextOfKinAddress());
+        employee.setEmergencyContactName(employeeDTO.getEmergencyContactName());
+        employee.setEmergencyContactPhone(employeeDTO.getEmergencyContactPhone());
+        employee.setEmergencyContactRelationship(employeeDTO.getEmergencyContactRelationship());
 
         // Update job information
         employee.setJobTitle(employeeDTO.getJobTitle());
@@ -625,17 +633,65 @@ public class EmployeeService {
             employeeRepository.save(employee); // Save to trigger cascade delete if configured
         }
 
-        // 8. Optionally delete user account if linked (but keep it for now to preserve login history)
-        // We'll just unlink the employee from the user
+        // 8. Delete all notifications related to this employee
+        // Delete notifications by user ID (if employee has a user account)
         if (employee.getUserId() != null) {
-            log.info("   👤 Unlinking user account (ID: {}) from employee", employee.getUserId());
-            employee.setUserId(null);
-            employeeRepository.save(employee);
+            List<Notification> userNotifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(employee.getUserId());
+            if (!userNotifications.isEmpty()) {
+                log.info("   🔔 Deleting {} notification(s) for user ID: {}", userNotifications.size(), employee.getUserId());
+                notificationRepository.deleteAll(userNotifications);
+            }
         }
 
-        // 9. Finally, delete the employee
+        // Delete notifications related to employee's documents
+        if (!documents.isEmpty()) {
+            for (Document doc : documents) {
+                List<Notification> docNotifications = notificationRepository.findByReferenceTypeAndReferenceId("DOCUMENT", doc.getId());
+                if (!docNotifications.isEmpty()) {
+                    log.info("   🔔 Deleting {} notification(s) for document ID: {}", docNotifications.size(), doc.getId());
+                    notificationRepository.deleteAll(docNotifications);
+                }
+            }
+        }
+
+        // Delete notifications related to employee's leaves
+        if (!leaves.isEmpty()) {
+            for (Leave leave : leaves) {
+                List<Notification> leaveNotifications = notificationRepository.findByReferenceTypeAndReferenceId("LEAVE", leave.getId());
+                if (!leaveNotifications.isEmpty()) {
+                    log.info("   🔔 Deleting {} notification(s) for leave ID: {}", leaveNotifications.size(), leave.getId());
+                    notificationRepository.deleteAll(leaveNotifications);
+                }
+            }
+        }
+
+        // 9. Delete user account if linked (to prevent duplication when same user registers again)
+        // This will also cascade delete verification tokens if configured
+        if (employee.getUserId() != null) {
+            Long userId = employee.getUserId();
+            log.info("   👤 Deleting user account (ID: {}) associated with employee", userId);
+            
+            try {
+                // Check if user exists before deleting
+                userRepository.findById(userId).ifPresent(user -> {
+                    // Delete user roles first (if not cascaded)
+                    user.getRoles().clear();
+                    userRepository.save(user);
+                    
+                    // Delete the user account
+                    // Note: Verification tokens will be deleted via cascade if configured
+                    userRepository.delete(user);
+                    log.info("   ✅ User account (ID: {}) deleted successfully", userId);
+                });
+            } catch (Exception e) {
+                log.error("   ⚠️ Failed to delete user account (ID: {}): {}", userId, e.getMessage());
+                // Continue with employee deletion even if user deletion fails
+            }
+        }
+
+        // 10. Finally, delete the employee
         employeeRepository.delete(employee);
-        log.info("✅ Employee ID: {} deleted successfully", id);
+        log.info("✅ Employee ID: {} - {} deleted successfully with all related records (documents, leaves, attendance, rota, notifications, user account)", id, employee.getFullName());
     }
 
     /**
@@ -694,6 +750,9 @@ public class EmployeeService {
         dto.setNextOfKinContact(employee.getNextOfKinContact());
         dto.setNextOfKinAddress(employee.getNextOfKinAddress());
         dto.setBloodGroup(employee.getBloodGroup());
+        dto.setEmergencyContactName(employee.getEmergencyContactName());
+        dto.setEmergencyContactPhone(employee.getEmergencyContactPhone());
+        dto.setEmergencyContactRelationship(employee.getEmergencyContactRelationship());
 
         // Job information
         dto.setJobTitle(employee.getJobTitle());
@@ -756,6 +815,9 @@ public class EmployeeService {
         employee.setNextOfKinContact(dto.getNextOfKinContact());
         employee.setNextOfKinAddress(dto.getNextOfKinAddress());
         employee.setBloodGroup(dto.getBloodGroup());
+        employee.setEmergencyContactName(dto.getEmergencyContactName());
+        employee.setEmergencyContactPhone(dto.getEmergencyContactPhone());
+        employee.setEmergencyContactRelationship(dto.getEmergencyContactRelationship());
 
         // Job information
         employee.setJobTitle(dto.getJobTitle());

@@ -175,6 +175,9 @@ public class UserManagementService {
         employee.setNextOfKinAddress(request.getNextOfKinAddress());
         employee.setBloodGroup(request.getBloodGroup());
         employee.setAllottedOrganization(request.getAllottedOrganization());
+        employee.setEmergencyContactName(request.getEmergencyContactName());
+        employee.setEmergencyContactPhone(request.getEmergencyContactPhone());
+        employee.setEmergencyContactRelationship(request.getEmergencyContactRelationship());
 
         // Parse date of joining
         if (request.getDateOfJoining() != null && !request.getDateOfJoining().isEmpty()) {

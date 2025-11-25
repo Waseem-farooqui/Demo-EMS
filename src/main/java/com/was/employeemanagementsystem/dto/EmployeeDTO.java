@@ -31,6 +31,11 @@ public class EmployeeDTO {
     private String nextOfKinAddress;
     private String bloodGroup;
 
+    // Emergency Contact Information
+    private String emergencyContactName;
+    private String emergencyContactPhone;
+    private String emergencyContactRelationship;
+
     // Job Information
     private String jobTitle;
     private String reference;

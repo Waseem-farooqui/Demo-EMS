@@ -72,6 +72,16 @@ public class Employee {
     @Column(name = "blood_group")
     private String bloodGroup;
 
+    // Emergency Contact Information
+    @Column(name = "emergency_contact_name")
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone")
+    private String emergencyContactPhone;
+
+    @Column(name = "emergency_contact_relationship")
+    private String emergencyContactRelationship;
+
     // Job Information
     @Column(name = "job_title")
     private String jobTitle;

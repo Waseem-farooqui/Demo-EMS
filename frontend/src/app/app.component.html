@@ -2,8 +2,18 @@
   <!-- Toast Notifications -->
   <app-toast></app-toast>
 
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay" 
+       *ngIf="isLoggedIn && showNavigation && isMobileMenuOpen"
+       (click)="closeMobileMenu()"
+       [class.active]="isMobileMenuOpen">
+  </div>
+
   <!-- Left Sidebar Navigation -->
-  <aside class="sidebar" *ngIf="isLoggedIn && showNavigation" [class.collapsed]="isSidebarCollapsed">
+  <aside class="sidebar" 
+         *ngIf="isLoggedIn && showNavigation" 
+         [class.collapsed]="isSidebarCollapsed"
+         [class.show]="isMobileMenuOpen">
     <!-- Brand Header -->
     <div class="sidebar-header">
       <a [routerLink]="isRoot ? '/root/dashboard' : '/dashboard'" class="brand-link">
@@ -97,7 +107,11 @@
     <!-- Top Header Bar -->
     <header class="top-header" *ngIf="isLoggedIn && showNavigation">
       <div class="header-left">
-        <button class="header-menu-toggle" (click)="toggleSidebar()" title="Toggle Sidebar">
+        <button class="header-menu-toggle" 
+                (click)="toggleMobileMenu()" 
+                title="Toggle Menu"
+                [attr.aria-label]="'Toggle Menu'"
+                [attr.aria-expanded]="isMobileMenuOpen">
           <span class="hamburger-icon">☰</span>
         </button>
       </div>

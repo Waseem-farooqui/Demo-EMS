@@ -127,6 +127,9 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       nextOfKinContact: [''],
       nextOfKinAddress: [''],
       bloodGroup: [''],
+      emergencyContactName: [''],
+      emergencyContactPhone: [''],
+      emergencyContactRelationship: [''],
       employmentRecords: this.fb.array([this.createEmploymentRecordGroup()])
     });
 
