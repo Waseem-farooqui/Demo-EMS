@@ -208,8 +208,8 @@ docker stop ems-backend-blue ems-frontend-blue 2>/dev/null || true
 
 print_success "All containers stopped"
 
-# Remove containers
-print_step "Step 5/20: Removing Containers"
+# Remove containers and volumes (for fresh deployment)
+print_step "Step 5/20: Removing Containers and Volumes"
 
 print_info "Removing containers..."
 docker-compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
@@ -217,7 +217,12 @@ docker rm -f ems-backend ems-frontend ems-mysql 2>/dev/null || true
 docker rm -f ems-backend-blue ems-frontend-blue 2>/dev/null || true
 docker ps -a | grep -E "ems-|demo-ems" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
-print_success "Containers removed"
+print_info "Removing volumes for fresh deployment..."
+docker volume rm employeemanagementsystem_mysql_data 2>/dev/null || true
+docker volume rm employeemanagementsystem_uploads_data 2>/dev/null || true
+docker volume ls | grep -E "ems-|demo-ems|employeemanagementsystem" | awk '{print $2}' | xargs -r docker volume rm 2>/dev/null || true
+
+print_success "Containers and volumes removed (fresh deployment ready)"
 
 # Remove images
 print_step "Step 6/20: Removing Old Images"
@@ -438,16 +443,32 @@ CREATE TABLE IF NOT EXISTS user_roles (
     PRIMARY KEY (user_id, role),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS departments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description VARCHAR(500),
+    code VARCHAR(50),
+    manager_id BIGINT,
+    is_active BOOLEAN DEFAULT TRUE,
+    organization_id BIGINT,
+    created_at DATETIME,
+    updated_at DATETIME,
+    UNIQUE KEY uk_code_org (code, organization_id),
+    UNIQUE KEY uk_name_org (name, organization_id),
+    INDEX idx_org_id (organization_id),
+    INDEX idx_manager_id (manager_id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    -- Note: Foreign key for manager_id will be added after employees table is created
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS employees (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(50),
     full_name VARCHAR(255) NOT NULL,
     person_type VARCHAR(50) NOT NULL,
     work_email VARCHAR(255) NOT NULL,
-    personal_email VARCHAR(255),
     phone_number VARCHAR(50),
     date_of_birth DATE,
     nationality VARCHAR(100),
-    address VARCHAR(500),
     present_address TEXT,
     previous_address TEXT,
     has_medical_condition BOOLEAN DEFAULT FALSE,
@@ -467,6 +488,14 @@ CREATE TABLE IF NOT EXISTS employees (
     working_timing VARCHAR(100),
     holiday_allowance INT,
     allotted_organization VARCHAR(255),
+    national_insurance_number VARCHAR(50),
+    share_code VARCHAR(50),
+    bank_account_number VARCHAR(50),
+    bank_sort_code VARCHAR(20),
+    bank_account_holder_name VARCHAR(255),
+    bank_name VARCHAR(255),
+    wage_rate VARCHAR(50),
+    contract_hours VARCHAR(50),
     user_id BIGINT,
     department_id BIGINT,
     organization_id BIGINT,
@@ -478,23 +507,6 @@ CREATE TABLE IF NOT EXISTS employees (
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-CREATE TABLE IF NOT EXISTS departments (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description VARCHAR(500),
-    code VARCHAR(50),
-    manager_id BIGINT,
-    is_active BOOLEAN DEFAULT TRUE,
-    organization_id BIGINT,
-    created_at DATETIME,
-    updated_at DATETIME,
-    UNIQUE KEY uk_code_org (code, organization_id),
-    UNIQUE KEY uk_name_org (name, organization_id),
-    INDEX idx_org_id (organization_id),
-    INDEX idx_manager_id (manager_id),
-    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    FOREIGN KEY (manager_id) REFERENCES employees(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS documents (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -511,6 +523,7 @@ CREATE TABLE IF NOT EXISTS documents (
     full_name VARCHAR(255),
     date_of_birth DATE,
     nationality VARCHAR(100),
+    visa_type VARCHAR(100),
     company_name VARCHAR(255),
     date_of_check DATE,
     reference_number VARCHAR(255),
@@ -678,6 +691,40 @@ SQL
         
         if [ "$FINAL_TABLES" -ge 10 ]; then
             print_success "Database tables created successfully ($FINAL_TABLES tables)"
+            
+            # Add foreign key constraint for departments.manager_id after employees table exists
+            print_info "Adding foreign key constraint for departments.manager_id..."
+            docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'ADDFK' 2>/dev/null || true
+USE employee_management_system;
+
+-- Check if foreign key constraint already exists
+SET @constraint_exists = (
+    SELECT COUNT(*) 
+    FROM information_schema.TABLE_CONSTRAINTS 
+    WHERE CONSTRAINT_SCHEMA = 'employee_management_system'
+    AND TABLE_NAME = 'departments'
+    AND CONSTRAINT_NAME = 'fk_departments_manager'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+
+-- Add foreign key constraint if it doesn't exist
+SET @sql = IF(@constraint_exists = 0,
+    'ALTER TABLE departments ADD CONSTRAINT fk_departments_manager FOREIGN KEY (manager_id) REFERENCES employees(id) ON DELETE SET NULL',
+    'SELECT "Foreign key constraint already exists" AS message'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SELECT 'Foreign key constraint added for departments.manager_id' AS status;
+ADDFK
+            
+            if [ $? -eq 0 ]; then
+                print_success "Foreign key constraint for departments.manager_id added"
+            else
+                print_warning "Could not add foreign key constraint (may already exist or tables not ready)"
+            fi
         else
             print_warning "Some tables may still be missing (found $FINAL_TABLES tables)"
             print_info "JPA will attempt to create missing tables on backend startup"
