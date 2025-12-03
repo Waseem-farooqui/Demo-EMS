@@ -5,9 +5,13 @@ import com.was.employeemanagementsystem.entity.AlertConfiguration;
 import com.was.employeemanagementsystem.repository.AlertConfigurationRepository;
 import com.was.employeemanagementsystem.security.SecurityUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,6 +22,9 @@ public class AlertConfigurationService {
 
     private final AlertConfigurationRepository alertConfigurationRepository;
     private final SecurityUtils securityUtils;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public AlertConfigurationService(AlertConfigurationRepository alertConfigurationRepository,
                                     SecurityUtils securityUtils) {
@@ -32,31 +39,63 @@ public class AlertConfigurationService {
     public void createDefaultConfigurationsForOrganization(Long organizationId, String contactEmail) {
         log.info("🔔 Creating default alert configurations for organization ID: {}", organizationId);
 
-        // Create default configurations for this organization
-        createDefaultIfNotExists(organizationId, "PASSPORT", 90, "ATTENTION", "EMAIL", contactEmail);
-        createDefaultIfNotExists(organizationId, "PASSPORT", 30, "WARNING", "BOTH", contactEmail);
-        createDefaultIfNotExists(organizationId, "PASSPORT", 7, "CRITICAL", "BOTH", contactEmail);
+        try {
+            // Create default configurations for this organization
+            createDefaultIfNotExists(organizationId, "PASSPORT", 90, "ATTENTION", "EMAIL", contactEmail);
+            createDefaultIfNotExists(organizationId, "PASSPORT", 30, "WARNING", "BOTH", contactEmail);
+            createDefaultIfNotExists(organizationId, "PASSPORT", 7, "CRITICAL", "BOTH", contactEmail);
 
-        createDefaultIfNotExists(organizationId, "VISA", 60, "ATTENTION", "EMAIL", contactEmail);
-        createDefaultIfNotExists(organizationId, "VISA", 30, "WARNING", "BOTH", contactEmail);
-        createDefaultIfNotExists(organizationId, "VISA", 7, "CRITICAL", "BOTH", contactEmail);
+            createDefaultIfNotExists(organizationId, "VISA", 60, "ATTENTION", "EMAIL", contactEmail);
+            createDefaultIfNotExists(organizationId, "VISA", 30, "WARNING", "BOTH", contactEmail);
+            createDefaultIfNotExists(organizationId, "VISA", 7, "CRITICAL", "BOTH", contactEmail);
 
-        log.info("✅ Default alert configurations created for organization ID: {}", organizationId);
+            log.info("✅ Default alert configurations created for organization ID: {}", organizationId);
+        } catch (Exception e) {
+            // Log error but don't fail organization creation
+            log.error("❌ Error creating default alert configurations for organization ID: {}. Error: {}", 
+                organizationId, e.getMessage());
+            log.debug("Exception details: ", e);
+            // Don't rethrow - allow organization creation to continue
+        }
     }
 
+    /**
+     * Create a single default configuration if it doesn't exist.
+     * Uses REQUIRES_NEW propagation to ensure each creation is in its own transaction.
+     * Uses noRollbackFor to prevent Hibernate session corruption when duplicate entries occur.
+     * Clears the EntityManager after catching exceptions to prevent session state issues.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = DataIntegrityViolationException.class)
     private void createDefaultIfNotExists(Long organizationId, String docType, int days, String priority, String notifType, String email) {
         // Check if configuration exists for this organization
         boolean exists = alertConfigurationRepository.existsByOrganizationIdAndDocumentTypeAndAlertPriority(
                 organizationId, docType, priority);
 
         if (!exists) {
-            AlertConfiguration config = new AlertConfiguration(
-                docType, days, email != null ? email : "admin@organization.com", priority, notifType
-            );
-            config.setOrganizationId(organizationId);
-            alertConfigurationRepository.save(config);
-            log.info("   ➕ Created default config for org {}: {} - {} priority - {} days", 
-                organizationId, docType, priority, days);
+            try {
+                AlertConfiguration config = new AlertConfiguration(
+                    docType, days, email != null ? email : "admin@organization.com", priority, notifType
+                );
+                config.setOrganizationId(organizationId);
+                alertConfigurationRepository.save(config);
+                log.info("   ➕ Created default config for org {}: {} - {} priority - {} days", 
+                    organizationId, docType, priority, days);
+            } catch (DataIntegrityViolationException e) {
+                // Handle race condition: another thread/process created it between check and save
+                // Clear the EntityManager to remove any failed entity from the session
+                entityManager.clear();
+                log.warn("   ⚠️  Duplicate entry detected (race condition) for org {}: {} - {} priority. Config already exists.", 
+                    organizationId, docType, priority);
+                log.debug("   Exception details: {}", e.getMessage());
+                // Exception is caught and handled, EntityManager cleared, transaction commits normally
+            } catch (Exception e) {
+                // Clear EntityManager for any other exceptions too
+                entityManager.clear();
+                log.error("   ❌ Error creating default config for org {}: {} - {} priority. Error: {}", 
+                    organizationId, docType, priority, e.getMessage());
+                log.debug("   Exception: ", e);
+                throw e; // Re-throw non-duplicate exceptions
+            }
         } else {
             log.debug("   ⏭️  Skipped (already exists for org {}): {} - {} priority", 
                 organizationId, docType, priority);
