@@ -28,5 +28,10 @@ public class LeaveDTO {
     private boolean hasHolidayForm;
     private String holidayFormFileName;
     private String financialYear;
+    
+    // Leave balance information (for admin/super admin view)
+    private Integer totalAllocated;
+    private Integer usedLeaves;
+    private Integer remainingLeaves;
 }
 

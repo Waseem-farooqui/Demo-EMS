@@ -60,6 +60,9 @@ public class Document {
     private String nationality;
 
     // UK VISA specific fields
+    @Column(name = "visa_type")
+    private String visaType; // e.g., Skilled Worker, Student, Family, etc.
+
     @Column(name = "company_name")
     private String companyName;
 

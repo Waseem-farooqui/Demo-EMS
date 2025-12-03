@@ -34,6 +34,7 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   employees: Employee[] = [];
   selectedEmployeeId: number = 0;
   documentType: string = '';
+  visaType: string = '';
   selectedFile: File | null = null;
   fileName: string = '';
 
@@ -42,6 +43,29 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   error: string | null = null;
   success: string | null = null;
   warning: string | null = null;
+  submitted = false;
+  attemptedSubmit = false;
+
+  // UK Visa Types
+  visaTypeOptions: string[] = [
+    'Skilled Worker Visa',
+    'Student Visa',
+    'Family Visa',
+    'Youth Mobility Scheme Visa',
+    'Health and Care Worker Visa',
+    'Global Talent Visa',
+    'Innovator Founder Visa',
+    'Start-up Visa',
+    'Seasonal Worker Visa',
+    'Creative Worker Visa',
+    'Charity Worker Visa',
+    'Religious Worker Visa',
+    'International Agreement Visa',
+    'UK Ancestry Visa',
+    'High Potential Individual (HPI) Visa',
+    'Graduate Visa',
+    'Other'
+  ];
 
   uploadedDocument: Document | null = null;
   existingDocuments: Document[] = [];
@@ -60,7 +84,9 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
     { value: 'SHARE_CODE', label: 'Share Code Proof' },
     { value: 'PROOF_OF_ADDRESS', label: 'Proof of Address' },
     { value: 'REGISTRATION_FORM', label: 'Registration Form' },
-    { value: 'CERTIFICATE', label: 'Professional Certificate' },
+    { value: 'CERTIFICATE', label: 'Certificate' },
+    { value: 'PROFESSIONAL_CERTIFICATE', label: 'Professional Certificate' },
+    { value: 'TERM_LETTER', label: 'Term Letter' },
     { value: 'NATIONAL_INSURANCE', label: 'National Insurance Document' },
     { value: 'BANK_STATEMENT', label: 'Bank Statement' },
     { value: 'OTHERS', label: 'Others' }
@@ -165,9 +191,20 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Validate visa type for VISA documents
+    if (this.documentType === 'VISA' && !this.visaType) {
+      this.error = 'Please select a visa type before uploading.';
+      return;
+    }
+
     this.uploading = true;
 
-    const uploadSub = this.documentService.uploadDocument(this.selectedEmployeeId, this.documentType, this.selectedFile).subscribe({
+    const uploadSub = this.documentService.uploadDocument(
+      this.selectedEmployeeId, 
+      this.documentType, 
+      this.selectedFile,
+      this.visaType || undefined
+    ).subscribe({
       next: (response) => {
         this.uploadedDocument = response;
         this.uploading = false;
@@ -199,10 +236,23 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
     this.subscriptions.push(uploadSub);
   }
 
+  onDocumentTypeChange(): void {
+    // Reset visaType if documentType is not VISA
+    if (this.documentType !== 'VISA') {
+      this.visaType = '';
+    }
+    // Reset form submission flags when document type changes
+    this.submitted = false;
+    this.attemptedSubmit = false;
+  }
+
   resetForm(): void {
     this.documentType = '';
+    this.visaType = '';
     this.selectedFile = null;
     this.fileName = '';
+    this.submitted = false;
+    this.attemptedSubmit = false;
     // Don't reset employee selection for non-admin users
     if (this.isAdmin) {
       this.selectedEmployeeId = 0;

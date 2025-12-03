@@ -119,6 +119,20 @@
           <span class="value badge-type">{{ getDocumentTypeLabel(document.documentType) }}</span>
         </div>
 
+        <!-- VISA Type - Only for VISA documents -->
+        <div class="info-item" *ngIf="document.documentType === 'VISA'">
+          <label>Visa Type:</label>
+          <span *ngIf="!editMode" class="value highlight">{{ document.visaType || 'Not specified' }}</span>
+          <select *ngIf="editMode"
+                  [(ngModel)]="manualVisaType"
+                  class="form-control">
+            <option value="">Select Visa Type</option>
+            <option *ngFor="let visa of visaTypeOptions" [value]="visa">
+              {{ visa }}
+            </option>
+          </select>
+        </div>
+
         <!-- CONTRACT specific fields -->
         <div class="info-item" *ngIf="document.documentType === 'CONTRACT' && document.contractDate">
           <label>📅 Date of Employment:</label>

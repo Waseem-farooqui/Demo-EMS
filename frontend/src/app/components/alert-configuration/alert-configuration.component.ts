@@ -39,7 +39,9 @@ export class AlertConfigurationComponent implements OnInit {
     { value: 'ID_CARD', label: 'ID Card' },
     { value: 'DRIVING_LICENSE', label: 'Driving License' },
     { value: 'CONTRACT', label: 'Contract' },
-    { value: 'CERTIFICATE', label: 'Certificate' }
+    { value: 'CERTIFICATE', label: 'Certificate' },
+    { value: 'PROFESSIONAL_CERTIFICATE', label: 'Professional Certificate' },
+    { value: 'TERM_LETTER', label: 'Term Letter' }
   ];
 
   alertPriorities = [

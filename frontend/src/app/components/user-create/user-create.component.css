@@ -588,6 +588,19 @@
   box-shadow: var(--shadow-md);
 }
 
+.form-section-header {
+  margin: 1.5rem 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.form-section-header h4 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
 .form-section {
   margin-bottom: 2rem;
   padding-bottom: 2rem;
@@ -658,7 +671,8 @@
   align-items: center;
 }
 
-.employment-record {
+.employment-record,
+.next-of-kin-record {
   border: 1px solid #e5e7eb;
   border-radius: var(--radius-lg);
   padding: 1.25rem;

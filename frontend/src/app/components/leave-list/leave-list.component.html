@@ -59,6 +59,7 @@ enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requ
           <th>Status</th>
           <th>Applied Date</th>
           <th *ngIf="isAdmin">Approved By</th>
+          <th *ngIf="isAdmin">Leave Balance</th>
           <th *ngIf="isSuperAdmin">Remarks</th>
           <th>Actions</th>
         </tr>
@@ -78,6 +79,14 @@ enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requ
           </td>
           <td>{{ leave.appliedDate | date: 'MMM dd, yyyy' }}</td>
           <td *ngIf="isAdmin">{{ leave.approvedBy || leave.rejectedBy || '-' }}</td>
+          <td *ngIf="isAdmin" class="balance-cell">
+            <span *ngIf="leave.remainingLeaves !== undefined && leave.totalAllocated !== undefined" 
+                  [class.balance-low]="leave.remainingLeaves <= 2"
+                  [class.balance-warning]="leave.remainingLeaves > 2 && leave.remainingLeaves <= 5">
+              {{ leave.remainingLeaves }}/{{ leave.totalAllocated }}
+            </span>
+            <span *ngIf="leave.remainingLeaves === undefined || leave.totalAllocated === undefined">-</span>
+          </td>
           <td *ngIf="isSuperAdmin" class="remarks-cell">
             {{ leave.remarks || '-' }}
           </td>
@@ -183,6 +192,19 @@ enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requ
           <p><strong>Leave Type:</strong> {{ selectedLeave.leaveType }}</p>
           <p><strong>Duration:</strong> {{ selectedLeave.startDate | date: 'MMM dd, yyyy' }} - {{ selectedLeave.endDate | date: 'MMM dd, yyyy' }} ({{ selectedLeave.numberOfDays }} days)</p>
           <p><strong>Reason:</strong> {{ selectedLeave.reason }}</p>
+          <div *ngIf="isAdmin && selectedLeave.remainingLeaves !== undefined && selectedLeave.totalAllocated !== undefined" class="leave-balance-info">
+            <p><strong>Leave Balance:</strong> 
+              <span [class.balance-low]="selectedLeave.remainingLeaves <= 2"
+                    [class.balance-warning]="selectedLeave.remainingLeaves > 2 && selectedLeave.remainingLeaves <= 5"
+                    [class.balance-good]="selectedLeave.remainingLeaves > 5">
+                {{ selectedLeave.remainingLeaves }} / {{ selectedLeave.totalAllocated }} remaining
+              </span>
+            </p>
+            <p class="balance-detail">
+              <small>Used: {{ selectedLeave.usedLeaves || 0 }} days | 
+              Remaining: {{ selectedLeave.remainingLeaves }} days</small>
+            </p>
+          </div>
           <div *ngIf="selectedLeave.hasHolidayForm" class="holiday-form-section">
             <p><strong>Holiday Form:</strong></p>
             <button

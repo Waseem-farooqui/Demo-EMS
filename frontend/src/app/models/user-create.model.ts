@@ -21,13 +21,12 @@ export interface CreateUserResponse {
 }
 
 export interface UserFormData {
+  title?: string;
   fullName: string;
   email: string;
-  personalEmail?: string;
   phoneNumber?: string;
   dateOfBirth?: string;
   nationality?: string;
-  address?: string;
   presentAddress?: string;
   previousAddress?: string;
   jobTitle: string;
@@ -41,9 +40,11 @@ export interface UserFormData {
   contractType: string;
   hasMedicalCondition: boolean;
   medicalConditionDetails?: string;
+  // Legacy next of kin fields (kept for backward compatibility)
   nextOfKinName?: string;
   nextOfKinContact?: string;
   nextOfKinAddress?: string;
+  nextOfKinList?: any[];
   employmentRecords?: any[];
   bloodGroup?: string;
   allottedOrganization?: string;

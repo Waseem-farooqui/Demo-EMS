@@ -373,6 +373,44 @@ public class LeaveService {
         dto.setHasHolidayForm(leave.getHolidayForm() != null);
         dto.setHolidayFormFileName(leave.getHolidayFormFileName());
         dto.setFinancialYear(leave.getFinancialYear());
+        
+        // Add leave balance information for admin/super admin users
+        if (securityUtils.isAdminOrSuperAdmin()) {
+            try {
+                String financialYear = leave.getFinancialYear() != null 
+                    ? leave.getFinancialYear() 
+                    : getCurrentFinancialYear();
+                
+                // Initialize leave balances if they don't exist
+                if (!leaveBalanceRepository.existsByEmployeeIdAndFinancialYear(
+                        leave.getEmployee().getId(), financialYear)) {
+                    log.info("Initializing leave balances for employee {} for financial year {}", 
+                            leave.getEmployee().getId(), financialYear);
+                    initializeLeaveBalances(leave.getEmployee().getId());
+                }
+                
+                LeaveBalance balance = leaveBalanceRepository
+                    .findByEmployeeIdAndFinancialYearAndLeaveType(
+                        leave.getEmployee().getId(), 
+                        financialYear, 
+                        leave.getLeaveType()
+                    )
+                    .orElse(null);
+                
+                if (balance != null) {
+                    dto.setTotalAllocated(balance.getTotalAllocated());
+                    dto.setUsedLeaves(balance.getUsedLeaves());
+                    dto.setRemainingLeaves(balance.getRemainingLeaves());
+                } else {
+                    log.warn("Leave balance not found for employee {}, financial year {}, leave type {}", 
+                            leave.getEmployee().getId(), financialYear, leave.getLeaveType());
+                }
+            } catch (Exception e) {
+                log.warn("Could not fetch leave balance for leave ID {}: {}", leave.getId(), e.getMessage());
+                // Continue without balance information if there's an error
+            }
+        }
+        
         return dto;
     }
 

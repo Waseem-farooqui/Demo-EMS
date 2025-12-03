@@ -5,6 +5,8 @@ import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.entity.Document;
 import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.User;
+import com.was.employeemanagementsystem.exception.ResourceNotFoundException;
+import com.was.employeemanagementsystem.exception.ValidationException;
 import com.was.employeemanagementsystem.repository.DocumentRepository;
 import com.was.employeemanagementsystem.repository.EmployeeRepository;
 import com.was.employeemanagementsystem.security.SecurityUtils;
@@ -47,6 +49,8 @@ public class DocumentService {
             "PROOF_OF_ADDRESS",
             "REGISTRATION_FORM",
             "CERTIFICATE",
+            "PROFESSIONAL_CERTIFICATE",
+            "TERM_LETTER",
             "NATIONAL_INSURANCE",
             "BANK_STATEMENT",
             "OTHERS"
@@ -204,12 +208,17 @@ public class DocumentService {
 
     public DocumentDTO uploadDocument(Long employeeId, String documentType, MultipartFile file, String preExtractedText)
             throws IOException, TikaException {
+        return uploadDocument(employeeId, documentType, file, preExtractedText, null);
+    }
+
+    public DocumentDTO uploadDocument(Long employeeId, String documentType, MultipartFile file, String preExtractedText, String visaType)
+            throws IOException, TikaException {
 
         Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee not found with id: " + employeeId));
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
 
         if (documentType == null) {
-            throw new RuntimeException("Document type is required");
+            throw new ValidationException("Document type is required");
         }
         documentType = documentType.trim().toUpperCase(Locale.ROOT);
 
@@ -232,12 +241,12 @@ public class DocumentService {
 
         // Check access permissions - admins/super admins can upload for anyone, users can upload for themselves
         if (!canAccessEmployee(employee)) {
-            throw new RuntimeException("Access denied. You can only upload documents for yourself.");
+            throw new AccessDeniedException("Access denied. You can only upload documents for yourself.");
         }
 
         // Validate document type
         if (!SUPPORTED_DOCUMENT_TYPES.contains(documentType)) {
-            throw new RuntimeException("Invalid document type. Supported types: " + SUPPORTED_DOCUMENT_TYPES);
+            throw new ValidationException("Invalid document type. Supported types: " + SUPPORTED_DOCUMENT_TYPES);
         }
 
         boolean requiresOcr = OCR_ENABLED_DOCUMENT_TYPES.contains(documentType);
@@ -356,6 +365,11 @@ public class DocumentService {
         Document document = new Document();
         document.setEmployee(employee);
         document.setDocumentType(documentType);
+        // Set visa type if provided and document type is VISA
+        if ("VISA".equals(documentType) && visaType != null && !visaType.trim().isEmpty()) {
+            document.setVisaType(visaType.trim());
+            log.info("✓ Set visa type: {}", visaType);
+        }
         document.setFileName(file.getOriginalFilename());
         document.setFilePath(filePath.toString());
         document.setFileType(file.getContentType());
@@ -582,10 +596,10 @@ public class DocumentService {
 
     public List<DocumentDTO> getDocumentsByEmployeeId(Long employeeId) {
         Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee not found with id: " + employeeId));
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
 
         if (!canAccessEmployee(employee)) {
-            throw new RuntimeException("Access denied. You can only view your own documents.");
+            throw new AccessDeniedException("Access denied. You can only view your own documents.");
         }
 
         return documentRepository.findByEmployeeId(employeeId).stream()
@@ -595,10 +609,10 @@ public class DocumentService {
 
     public DocumentDTO getDocumentById(Long id) {
         Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
 
         if (!canAccessEmployee(document.getEmployee())) {
-            throw new RuntimeException("Access denied. You can only view your own documents.");
+            throw new AccessDeniedException("Access denied. You can only view your own documents.");
         }
 
         // Track document view for ADMIN and SUPER_ADMIN
@@ -617,10 +631,10 @@ public class DocumentService {
 
     public void deleteDocument(Long id) {
         Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
 
         if (!canAccessEmployee(document.getEmployee())) {
-            throw new RuntimeException("Access denied. You can only delete your own documents.");
+            throw new AccessDeniedException("Access denied. You can only delete your own documents.");
         }
 
         String filePath = document.getFilePath();
@@ -656,15 +670,15 @@ public class DocumentService {
 
     public DocumentDTO updateDocument(Long id, Map<String, Object> updateData) {
         Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
 
         Employee employee = employeeRepository.findById(document.getEmployee().getId())
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
         // Check access permissions
         if (!canAccessEmployee(employee)) {
             log.warn("Unauthorized document update attempt for document ID: {}", id);
-            throw new RuntimeException("Access denied. You can only update your own documents.");
+            throw new AccessDeniedException("Access denied. You can only update your own documents.");
         }
 
         // Update fields if provided
@@ -738,15 +752,15 @@ public class DocumentService {
         log.info("🔍 Retrieving document image for ID: {}", id);
 
         Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
 
         Employee employee = employeeRepository.findById(document.getEmployee().getId())
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
         // Check access permissions
         if (!canAccessEmployee(employee)) {
             log.warn("❌ Unauthorized document access attempt for document ID: {}", id);
-            throw new RuntimeException("Access denied. You can only access your own documents.");
+            throw new AccessDeniedException("Access denied. You can only access your own documents.");
         }
 
         // Get file path and normalize it
@@ -774,7 +788,7 @@ public class DocumentService {
                 log.info("✓ Found file at alternative path: {}", alternativePath.toAbsolutePath());
                 filePath = alternativePath;
             } else {
-                throw new RuntimeException("Document file not found on server. Path: " + filePath.toAbsolutePath());
+                throw new ResourceNotFoundException("Document file not found on server. Path: " + filePath.toAbsolutePath());
             }
         }
 
@@ -786,7 +800,7 @@ public class DocumentService {
             return fileData;
         } catch (IOException e) {
             log.error("❌ Error reading file from disk: {}", e.getMessage(), e);
-            throw new RuntimeException("Error reading document file: " + e.getMessage());
+            throw new ValidationException("Error reading document file: " + e.getMessage());
         }
     }
 
@@ -893,6 +907,7 @@ public class DocumentService {
         dto.setNationality(document.getNationality());
 
         // UK VISA specific fields
+        dto.setVisaType(document.getVisaType());
         dto.setCompanyName(document.getCompanyName());
         dto.setDateOfCheck(document.getDateOfCheck());
         dto.setReferenceNumber(document.getReferenceNumber());

@@ -238,12 +238,31 @@
   cursor: pointer;
 }
 
+/* Form Section Headers */
+.form-section-header {
+  margin: 1.5rem 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.form-section-header h4 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
 /* Employment Records */
 .employment-records {
   margin-bottom: 2rem;
 }
 
-.employment-record-card {
+.next-of-kin-records {
+  margin-bottom: 2rem;
+}
+
+.employment-record-card,
+.next-of-kin-record-card {
   background: #f9fafb;
   border: 2px solid #e5e7eb;
   border-radius: 12px;

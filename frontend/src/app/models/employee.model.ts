@@ -4,34 +4,54 @@ export interface EmploymentRecord {
   employmentPeriod?: string;
   employerName?: string;
   employerAddress?: string;
+  contactPersonTitle?: string;
+  contactPersonName?: string;
+  contactPersonEmail?: string;
+}
+
+export interface NextOfKin {
+  id?: number;
+  name?: string;
+  contact?: string;
+  address?: string;
+  relationship?: string;
 }
 
 export interface Employee {
   id?: number;
+  title?: string;
   fullName: string;
   personType: string;
   workEmail: string;
-  personalEmail?: string;
   jobTitle: string;
   reference?: string;
   dateOfJoining: string;
   dateOfBirth?: string;
   phoneNumber?: string;
   nationality?: string;
-  address?: string;
   presentAddress?: string;
   previousAddress?: string;
   hasMedicalCondition?: boolean;
   medicalConditionDetails?: string;
+  // Legacy next of kin fields (kept for backward compatibility)
   nextOfKinName?: string;
   nextOfKinContact?: string;
   nextOfKinAddress?: string;
+  nextOfKinList?: NextOfKin[];
   bloodGroup?: string;
   workingTiming?: string;
   holidayAllowance?: number;
   employmentStatus?: string;
   contractType?: string;
   allottedOrganization?: string;
+  nationalInsuranceNumber?: string;
+  shareCode?: string;
+  bankAccountNumber?: string;
+  bankSortCode?: string;
+  bankAccountHolderName?: string;
+  bankName?: string;
+  wageRate?: string;
+  contractHours?: string;
   userId?: number;
   username?: string;  // Add username for display
   role?: string;  // User role (USER, ADMIN, SUPER_ADMIN)

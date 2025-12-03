@@ -8,146 +8,216 @@
     </div>
   </div>
 
-  <div class="filter-section">
-    <button
-      *ngFor="let filter of documentTypeFilters"
-      class="filter-btn"
-      [class.active]="filterType === filter.value"
-      (click)="filterByType(filter.value)">
-      {{ filter.label }}
-    </button>
-  </div>
-
-  <!-- Expiry Filter Status -->
-  <div *ngIf="expiryFilter !== 'all'" class="expiry-filter-banner">
-    <span class="filter-icon">🔍</span>
-    <span class="filter-text">{{ getExpiryFilterLabel() }}</span>
-    <button class="clear-filter-btn" (click)="clearExpiryFilter()">
-      ✕ Clear Filter
-    </button>
-  </div>
+  <div *ngIf="loading" class="loading">Loading documents...</div>
 
   <div *ngIf="error" class="error-message">{{ error }}</div>
 
-  <div *ngIf="loading" class="loading">Loading documents...</div>
-
-  <div *ngIf="!loading && filteredDocuments.length === 0" class="no-data">
-    <p>No documents found.</p>
-    <button (click)="uploadNewDocument()" class="btn btn-primary">Upload First Document</button>
+  <div *ngIf="!loading && documents.length === 0 && totalElements === 0" class="no-data">
+    No documents found. Click "Upload Document" to get started.
   </div>
 
-  <div *ngIf="!loading && filteredDocuments.length > 0" class="documents-grid">
-    <div *ngFor="let doc of filteredDocuments" class="document-card">
-      <div class="card-header">
-        <div class="doc-type" [class.type-passport]="doc.documentType === 'PASSPORT'"
-             [class.type-visa]="doc.documentType === 'VISA'"
-             [class.type-contract]="doc.documentType === 'CONTRACT'"
-             [class.type-resume]="doc.documentType === 'RESUME'"
-             [class.type-share-code]="doc.documentType === 'SHARE_CODE'">
-          {{ getDocumentTypeLabel(doc.documentType) }}
-        </div>
-        <!-- Only show expiry badge for documents that track expiry -->
-        <div *ngIf="shouldShowExpiryBadge(doc)"
-             class="expiry-badge"
-             [ngClass]="getExpiryStatus(doc.daysUntilExpiry)">
-          {{ getExpiryStatusText(doc.daysUntilExpiry) }}
-        </div>
+  <!-- Main Content Layout: Table -->
+  <div class="main-content-layout" *ngIf="!loading && (documents.length > 0 || totalElements > 0)">
+    <!-- Table Content Area -->
+    <div class="table-content-area">
+      <!-- Global Search Filter -->
+      <div class="global-search-container">
+        <label for="globalSearch" class="global-search-label">Filter</label>
+        <input
+          type="text"
+          id="globalSearch"
+          class="global-search-input"
+          placeholder="Search documents..."
+          [(ngModel)]="globalSearchQuery"
+          (input)="onGlobalSearchChange()"
+        />
       </div>
 
-      <div class="card-body">
-        <h3>{{ doc.employeeName }}</h3>
+      <!-- Document Type Filter Buttons -->
+      <div class="filter-section">
+        <button
+          *ngFor="let filter of documentTypeFilters"
+          class="filter-btn"
+          [class.active]="filterType === filter.value"
+          (click)="filterByType(filter.value)">
+          {{ filter.label }}
+        </button>
+      </div>
 
-        <div class="doc-info">
-          <div class="info-row" *ngIf="doc.documentNumber">
-            <span class="label">Document No:</span>
-            <span class="value">{{ doc.documentNumber }}</span>
-          </div>
+      <!-- Expiry Filter Status -->
+      <div *ngIf="expiryFilter !== 'all'" class="expiry-filter-banner">
+        <span class="filter-icon">🔍</span>
+        <span class="filter-text">{{ getExpiryFilterLabel() }}</span>
+        <button class="clear-filter-btn" (click)="clearExpiryFilter()">
+          ✕ Clear Filter
+        </button>
+      </div>
 
-          <div class="info-row" *ngIf="doc.expiryDate">
-            <span class="label">Expiry Date:</span>
-            <span class="value">{{ formatDate(doc.expiryDate) }}</span>
-          </div>
+      <div *ngIf="filteredDocuments.length === 0" class="no-results">
+        <div class="no-results-icon">🔍</div>
+        <p class="no-results-text">No documents match your search criteria</p>
+        <button class="btn btn-secondary" (click)="clearFilters()">Clear Filters</button>
+      </div>
 
-          <div class="info-row" *ngIf="doc.nationality">
-            <span class="label">Nationality:</span>
-            <span class="value">{{ doc.nationality }}</span>
-          </div>
+      <table *ngIf="filteredDocuments.length > 0" class="document-table">
+        <thead>
+          <tr>
+            <th (click)="onSort('employeeName')" class="sortable">
+              <span>Employee Name</span>
+              <span class="sort-icon">{{ getSortIcon('employeeName') }}</span>
+            </th>
+            <th (click)="onSort('documentType')" class="sortable">
+              <span>Document Type</span>
+              <span class="sort-icon">{{ getSortIcon('documentType') }}</span>
+            </th>
+            <th (click)="onSort('documentNumber')" class="sortable">
+              <span>Document Number</span>
+              <span class="sort-icon">{{ getSortIcon('documentNumber') }}</span>
+            </th>
+            <th (click)="onSort('expiryDate')" class="sortable">
+              <span>Expiry Date</span>
+              <span class="sort-icon">{{ getSortIcon('expiryDate') }}</span>
+            </th>
+            <th (click)="onSort('daysUntilExpiry')" class="sortable">
+              <span>Status</span>
+              <span class="sort-icon">{{ getSortIcon('daysUntilExpiry') }}</span>
+            </th>
+            <th (click)="onSort('uploadedDate')" class="sortable">
+              <span>Uploaded Date</span>
+              <span class="sort-icon">{{ getSortIcon('uploadedDate') }}</span>
+            </th>
+            <th (click)="onSort('lastViewedAt')" class="sortable">
+              <span>Last Viewed</span>
+              <span class="sort-icon">{{ getSortIcon('lastViewedAt') }}</span>
+            </th>
+            <th (click)="onSort('lastViewedBy')" class="sortable">
+              <span>Viewed By</span>
+              <span class="sort-icon">{{ getSortIcon('lastViewedBy') }}</span>
+            </th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let doc of filteredDocuments">
+            <td data-label="Employee Name">
+              <div class="employee-name">
+                <span class="name-icon">👤</span>
+                <strong>{{ doc.employeeName || '-' }}</strong>
+              </div>
+            </td>
+            <td data-label="Document Type">
+              <span class="doc-type-badge" 
+                    [class.type-passport]="doc.documentType === 'PASSPORT'"
+                    [class.type-visa]="doc.documentType === 'VISA'"
+                    [class.type-contract]="doc.documentType === 'CONTRACT'"
+                    [class.type-resume]="doc.documentType === 'RESUME'"
+                    [class.type-share-code]="doc.documentType === 'SHARE_CODE'"
+                    [class.type-professional-certificate]="doc.documentType === 'PROFESSIONAL_CERTIFICATE'"
+                    [class.type-term-letter]="doc.documentType === 'TERM_LETTER'">
+                {{ getDocumentTypeLabel(doc.documentType) }}
+              </span>
+            </td>
+            <td data-label="Document Number">
+              <span *ngIf="doc.documentNumber">{{ doc.documentNumber }}</span>
+              <span *ngIf="!doc.documentNumber" class="no-data-cell">-</span>
+            </td>
+            <td data-label="Expiry Date">
+              <span *ngIf="doc.expiryDate">{{ formatDate(doc.expiryDate) }}</span>
+              <span *ngIf="!doc.expiryDate" class="no-data-cell">-</span>
+            </td>
+            <td data-label="Status">
+              <div *ngIf="shouldShowExpiryBadge(doc)" 
+                   class="expiry-badge"
+                   [ngClass]="getExpiryStatus(doc.daysUntilExpiry)">
+                {{ getExpiryStatusText(doc.daysUntilExpiry) }}
+              </div>
+              <span *ngIf="!shouldShowExpiryBadge(doc)" class="no-data-cell">-</span>
+            </td>
+            <td data-label="Uploaded Date">
+              <span *ngIf="doc.uploadedDate">{{ formatDate(doc.uploadedDate) }}</span>
+              <span *ngIf="!doc.uploadedDate" class="no-data-cell">-</span>
+            </td>
+            <td data-label="Last Viewed">
+              <span *ngIf="doc.lastViewedAt" class="last-viewed-date">{{ formatDateTime(doc.lastViewedAt) }}</span>
+              <span *ngIf="!doc.lastViewedAt" class="no-data-cell">Never</span>
+            </td>
+            <td data-label="Viewed By">
+              <span *ngIf="doc.lastViewedBy" class="viewed-by-badge">{{ doc.lastViewedBy }}</span>
+              <span *ngIf="!doc.lastViewedBy" class="no-data-cell">-</span>
+            </td>
+            <td class="actions" data-label="Actions">
+              <button (click)="viewDetails(doc)" class="btn btn-details btn-sm" title="View Details">
+                👁️
+              </button>
+              <button (click)="deleteDocument(doc)" class="btn btn-delete btn-sm" title="Delete Document">
+                🗑️
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-          <div class="info-row">
-            <span class="label">Uploaded:</span>
-            <span class="value">{{ formatDate(doc.uploadedDate!) }}</span>
-          </div>
-
-          <div class="info-row" *ngIf="doc.lastViewedAt">
-            <span class="label">Last Viewed:</span>
-            <span class="value">{{ formatDateTime(doc.lastViewedAt) }}</span>
-          </div>
-
-          <div class="info-row" *ngIf="doc.lastViewedBy">
-            <span class="label">Viewed By:</span>
-            <span class="value">{{ doc.lastViewedBy }}</span>
-          </div>
+      <!-- Pagination Controls -->
+      <div class="pagination-container" *ngIf="usePagination && totalElements > 0">
+        <div class="pagination-left">
+          <label for="itemsPerPage" class="pagination-label">Items per page:</label>
+          <select 
+            id="itemsPerPage"
+            class="pagination-select" 
+            [value]="pageSize" 
+            (change)="onPageSizeChange(+$any($event.target).value)">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+        
+        <div class="pagination-center">
+          <span class="pagination-range">
+            {{ (currentPage * pageSize) + 1 }} - {{ Math.min((currentPage + 1) * pageSize, totalElements) }} of {{ totalElements }}
+          </span>
+        </div>
+        
+        <div class="pagination-right">
+          <button 
+            class="pagination-nav-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(0)"
+            title="First Page">
+            |<
+          </button>
+          <button 
+            class="pagination-nav-btn"
+            [disabled]="currentPage === 0"
+            (click)="onPageChange(currentPage - 1)"
+            title="Previous Page">
+            <
+          </button>
+          <button 
+            *ngFor="let pageNum of pageNumbers"
+            class="pagination-nav-btn"
+            [class.active]="pageNum === currentPage"
+            (click)="onPageChange(pageNum)">
+            {{ pageNum + 1 }}
+          </button>
+          <button 
+            class="pagination-nav-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(currentPage + 1)"
+            title="Next Page">
+            >
+          </button>
+          <button 
+            class="pagination-nav-btn"
+            [disabled]="currentPage >= totalPages - 1"
+            (click)="onPageChange(totalPages - 1)"
+            title="Last Page">
+            >|
+          </button>
         </div>
       </div>
-
-      <div class="card-actions">
-        <button (click)="viewDetails(doc)" class="btn-action btn-view">View Details</button>
-        <button (click)="deleteDocument(doc)" class="btn-action btn-delete">Delete</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Pagination Controls -->
-  <div class="pagination-container" *ngIf="usePagination && totalPages > 1">
-    <div class="pagination-info">
-      <span>Page {{ currentPage + 1 }} of {{ totalPages }}</span>
-      <span class="results-count">
-        Showing {{ (currentPage * pageSize) + 1 }} - {{ Math.min((currentPage + 1) * pageSize, totalElements) }} of {{ totalElements }} documents
-      </span>
-      <select class="page-size-select" [value]="pageSize" (change)="onPageSizeChange(+$any($event.target).value)">
-        <option value="5">5 per page</option>
-        <option value="10">10 per page</option>
-        <option value="25">25 per page</option>
-        <option value="50">50 per page</option>
-        <option value="100">100 per page</option>
-      </select>
-    </div>
-    <div class="pagination-controls">
-      <button 
-        class="pagination-btn"
-        [disabled]="currentPage === 0"
-        (click)="onPageChange(0)"
-        title="First Page">
-        ««
-      </button>
-      <button 
-        class="pagination-btn"
-        [disabled]="currentPage === 0"
-        (click)="onPageChange(currentPage - 1)"
-        title="Previous Page">
-        ‹
-      </button>
-      <button 
-        *ngFor="let pageNum of pageNumbers"
-        class="pagination-btn"
-        [class.active]="pageNum === currentPage"
-        (click)="onPageChange(pageNum)">
-        {{ pageNum + 1 }}
-      </button>
-      <button 
-        class="pagination-btn"
-        [disabled]="currentPage >= totalPages - 1"
-        (click)="onPageChange(currentPage + 1)"
-        title="Next Page">
-        ›
-      </button>
-      <button 
-        class="pagination-btn"
-        [disabled]="currentPage >= totalPages - 1"
-        (click)="onPageChange(totalPages - 1)"
-        title="Last Page">
-        »»
-      </button>
     </div>
   </div>
 
@@ -245,4 +315,3 @@
     </div>
   </div>
 </div>
-

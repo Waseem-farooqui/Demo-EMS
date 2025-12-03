@@ -21,6 +21,10 @@ export interface Leave {
   hasHolidayForm?: boolean;
   holidayFormFileName?: string;
   financialYear?: string;
+  // Leave balance information (for admin/super admin view)
+  totalAllocated?: number;
+  usedLeaves?: number;
+  remainingLeaves?: number;
 }
 
 export interface LeaveBalance {

@@ -42,7 +42,8 @@ public class DocumentController {
     public ResponseEntity<?> uploadDocument(
             @RequestParam("employeeId") Long employeeId,
             @RequestParam("documentType") String documentType,
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "visaType", required = false) String visaType) {
 
         log.info("Document upload request - EmployeeId: {}, Type: {}, File: {}",
             employeeId, documentType, file != null ? file.getOriginalFilename() : "null");
@@ -86,8 +87,9 @@ public class DocumentController {
             }
 
             // Pass pre-extracted text to avoid duplicate OCR processing
-            DocumentDTO document = documentService.uploadDocument(employeeId, documentType, file, extractedText);
-            log.info("✓ Document uploaded successfully - ID: {}, Type: {}", document.getId(), documentType);
+            DocumentDTO document = documentService.uploadDocument(employeeId, documentType, file, extractedText, visaType);
+            log.info("✓ Document uploaded successfully - ID: {}, Type: {}, VisaType: {}", 
+                document.getId(), documentType, visaType != null ? visaType : "N/A");
             return new ResponseEntity<>(document, HttpStatus.CREATED);
 
         } catch (IOException | TikaException e) {

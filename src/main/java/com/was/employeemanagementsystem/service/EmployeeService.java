@@ -2,10 +2,12 @@ package com.was.employeemanagementsystem.service;
 
 import com.was.employeemanagementsystem.dto.EmployeeDTO;
 import com.was.employeemanagementsystem.dto.EmploymentRecordDTO;
+import com.was.employeemanagementsystem.dto.NextOfKinDTO;
 import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.entity.Department;
 import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.EmploymentRecord;
+import com.was.employeemanagementsystem.entity.NextOfKin;
 import com.was.employeemanagementsystem.entity.User;
 import com.was.employeemanagementsystem.entity.Document;
 import com.was.employeemanagementsystem.entity.Leave;
@@ -216,20 +218,9 @@ public class EmployeeService {
             log.error("❌ Failed to initialize leave balances: {}", e.getMessage());
         }
 
-        // Send credentials via email (don't fail employee creation if email fails)
-        try {
-            emailService.sendAccountCreationEmail(
-                savedEmployee.getWorkEmail(),
-                savedEmployee.getFullName(),
-                finalUsername,
-                temporaryPassword,
-                currentUser.getOrganizationId() // Pass organization ID for SMTP configuration
-            );
-            log.info("✅ Account creation email sent to: {}", savedEmployee.getWorkEmail());
-        } catch (Exception e) {
-            log.error("❌ Failed to send account creation email to {} (employee still created): {}",
-                savedEmployee.getWorkEmail(), e.getMessage());
-        }
+        // Skip sending email for USER role employees
+        // Credentials are only displayed to admin, not emailed to the user
+        log.info("⏭️  Skipping email for USER role employee - credentials will be displayed to admin only");
 
         log.info("✓ Account creation complete for employee: {} with username: {}",
             savedEmployee.getFullName(), finalUsername);
@@ -485,34 +476,82 @@ public class EmployeeService {
     }
 
     public EmployeeDTO updateEmployee(Long id, EmployeeDTO employeeDTO) {
+        log.info("🔄 updateEmployee called - Employee ID: {}", id);
+        log.info("📋 Received EmployeeDTO - Name: {}, Email: {}, DepartmentId: {}", 
+                employeeDTO.getFullName(), employeeDTO.getWorkEmail(), employeeDTO.getDepartmentId());
+        
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
+                .orElseThrow(() -> {
+                    log.error("❌ Employee not found with id: {}", id);
+                    return new ResourceNotFoundException("Employee not found with id: " + id);
+                });
+
+        log.info("✓ Employee found - Name: {}, Email: {}, OrganizationId: {}", 
+                employee.getFullName(), employee.getWorkEmail(), employee.getOrganizationId());
 
         // Check access permissions
         if (!canAccessEmployee(employee)) {
-            throw new RuntimeException("Access denied. You can only update your own employee data.");
+            log.warn("⚠️ Access denied for employee update - Employee ID: {}", id);
+            throw new AccessDeniedException("Access denied. You can only update your own employee data.");
+        }
+        
+        log.info("✓ Access granted, proceeding with update...");
+
+        // Validate email if it's being changed
+        String currentEmail = employee.getWorkEmail();
+        String newEmail = employeeDTO.getWorkEmail();
+        
+        if (newEmail == null || newEmail.trim().isEmpty()) {
+            throw new ValidationException("Work email is required");
+        }
+        
+        // Check if email is being changed and if new email already exists for another employee
+        if (!currentEmail.equalsIgnoreCase(newEmail.trim())) {
+            User currentUser = securityUtils.getCurrentUser();
+            Long organizationId = currentUser != null ? currentUser.getOrganizationId() : employee.getOrganizationId();
+            
+            // Check if another employee (not the current one) has this email in the same organization
+            Optional<Employee> existingEmployee = employeeRepository.findByWorkEmail(newEmail.trim());
+            if (existingEmployee.isPresent()) {
+                Employee existing = existingEmployee.get();
+                if (!existing.getId().equals(id) && 
+                    existing.getOrganizationId() != null && 
+                    organizationId != null &&
+                    existing.getOrganizationId().equals(organizationId)) {
+                    log.warn("Attempt to update employee email to duplicate: {} in organization: {}",
+                            newEmail, organizationId);
+                    throw new DuplicateResourceException(
+                        "An employee with email '" + newEmail + 
+                        "' already exists in your organization. Please use a different email."
+                    );
+                }
+            }
         }
 
         // Update basic information
+        employee.setTitle(employeeDTO.getTitle());
         employee.setFullName(employeeDTO.getFullName());
         employee.setPersonType(employeeDTO.getPersonType());
-        employee.setWorkEmail(employeeDTO.getWorkEmail());
+        employee.setWorkEmail(newEmail.trim());
 
         // Update personal information
-        employee.setPersonalEmail(employeeDTO.getPersonalEmail());
         employee.setPhoneNumber(employeeDTO.getPhoneNumber());
         employee.setDateOfBirth(employeeDTO.getDateOfBirth());
         employee.setNationality(employeeDTO.getNationality());
-        employee.setAddress(employeeDTO.getAddress());
         employee.setPresentAddress(employeeDTO.getPresentAddress());
         employee.setPreviousAddress(employeeDTO.getPreviousAddress());
 
         boolean hasMedicalCondition = Boolean.TRUE.equals(employeeDTO.getHasMedicalCondition());
         employee.setHasMedicalCondition(hasMedicalCondition);
         employee.setMedicalConditionDetails(hasMedicalCondition ? employeeDTO.getMedicalConditionDetails() : null);
+        // Legacy next of kin fields (kept for backward compatibility)
         employee.setNextOfKinName(employeeDTO.getNextOfKinName());
         employee.setNextOfKinContact(employeeDTO.getNextOfKinContact());
         employee.setNextOfKinAddress(employeeDTO.getNextOfKinAddress());
+        
+        // Handle multiple next of kin entries
+        synchronizeNextOfKin(employee, employeeDTO.getNextOfKinList());
+        
         employee.setEmergencyContactName(employeeDTO.getEmergencyContactName());
         employee.setEmergencyContactPhone(employeeDTO.getEmergencyContactPhone());
         employee.setEmergencyContactRelationship(employeeDTO.getEmergencyContactRelationship());
@@ -525,6 +564,16 @@ public class EmployeeService {
         employee.setContractType(employeeDTO.getContractType());
         employee.setWorkingTiming(employeeDTO.getWorkingTiming());
         employee.setHolidayAllowance(employeeDTO.getHolidayAllowance());
+        
+        // Financial and Employment Details
+        employee.setNationalInsuranceNumber(employeeDTO.getNationalInsuranceNumber());
+        employee.setShareCode(employeeDTO.getShareCode());
+        employee.setBankAccountNumber(employeeDTO.getBankAccountNumber());
+        employee.setBankSortCode(employeeDTO.getBankSortCode());
+        employee.setBankAccountHolderName(employeeDTO.getBankAccountHolderName());
+        employee.setBankName(employeeDTO.getBankName());
+        employee.setWageRate(employeeDTO.getWageRate());
+        employee.setContractHours(employeeDTO.getContractHours());
 
         // Only admins and super admins can change userId
         if (securityUtils.isAdminOrSuperAdmin() && employeeDTO.getUserId() != null) {
@@ -533,8 +582,34 @@ public class EmployeeService {
 
         synchronizeEmploymentRecords(employee, employeeDTO.getEmploymentRecords());
 
+        // Update linked User account email if email was changed and employee has a linked user
+        if (!currentEmail.equalsIgnoreCase(newEmail.trim()) && employee.getUserId() != null) {
+            Optional<User> linkedUser = userRepository.findById(employee.getUserId());
+            if (linkedUser.isPresent()) {
+                User user = linkedUser.get();
+                // Check if new email already exists for another user in the same organization
+                User currentUser = securityUtils.getCurrentUser();
+                Long organizationId = currentUser != null ? currentUser.getOrganizationId() : employee.getOrganizationId();
+                
+                if (userRepository.existsByEmailAndOrganizationId(newEmail.trim(), organizationId) &&
+                    !user.getEmail().equalsIgnoreCase(newEmail.trim())) {
+                    log.warn("Cannot update employee email: User with email {} already exists in organization {}",
+                            newEmail, organizationId);
+                    throw new DuplicateResourceException(
+                        "A user account with email '" + newEmail + 
+                        "' already exists in your organization. Please use a different email."
+                    );
+                }
+                
+                user.setEmail(newEmail.trim());
+                userRepository.save(user);
+                log.info("✓ Updated linked User account email - User ID: {}, New Email: {}", user.getId(), newEmail);
+            }
+        }
+
         Employee updatedEmployee = employeeRepository.save(employee);
-        log.info("✓ Employee updated - ID: {}, Name: {}", updatedEmployee.getId(), updatedEmployee.getFullName());
+        log.info("✓ Employee updated - ID: {}, Name: {}, Email: {}", 
+                updatedEmployee.getId(), updatedEmployee.getFullName(), updatedEmployee.getWorkEmail());
         return convertToDTO(updatedEmployee);
     }
 
@@ -732,23 +807,33 @@ public class EmployeeService {
     EmployeeDTO convertToDTO(Employee employee) {
         EmployeeDTO dto = new EmployeeDTO();
         dto.setId(employee.getId());
+        dto.setTitle(employee.getTitle());
         dto.setFullName(employee.getFullName());
         dto.setPersonType(employee.getPersonType());
         dto.setWorkEmail(employee.getWorkEmail());
 
         // Personal information
-        dto.setPersonalEmail(employee.getPersonalEmail());
         dto.setPhoneNumber(employee.getPhoneNumber());
         dto.setDateOfBirth(employee.getDateOfBirth());
         dto.setNationality(employee.getNationality());
-        dto.setAddress(employee.getAddress());
         dto.setPresentAddress(employee.getPresentAddress());
         dto.setPreviousAddress(employee.getPreviousAddress());
         dto.setHasMedicalCondition(Boolean.TRUE.equals(employee.getHasMedicalCondition()));
         dto.setMedicalConditionDetails(employee.getMedicalConditionDetails());
+        // Legacy next of kin fields (kept for backward compatibility)
         dto.setNextOfKinName(employee.getNextOfKinName());
         dto.setNextOfKinContact(employee.getNextOfKinContact());
         dto.setNextOfKinAddress(employee.getNextOfKinAddress());
+        
+        // Multiple next of kin entries
+        if (employee.getNextOfKinList() != null && !employee.getNextOfKinList().isEmpty()) {
+            dto.setNextOfKinList(employee.getNextOfKinList().stream()
+                    .map(this::convertNextOfKinToDTO)
+                    .collect(Collectors.toList()));
+        } else {
+            dto.setNextOfKinList(new ArrayList<>());
+        }
+        
         dto.setBloodGroup(employee.getBloodGroup());
         dto.setEmergencyContactName(employee.getEmergencyContactName());
         dto.setEmergencyContactPhone(employee.getEmergencyContactPhone());
@@ -763,6 +848,16 @@ public class EmployeeService {
         dto.setWorkingTiming(employee.getWorkingTiming());
         dto.setHolidayAllowance(employee.getHolidayAllowance());
         dto.setAllottedOrganization(employee.getAllottedOrganization());
+        
+        // Financial and Employment Details
+        dto.setNationalInsuranceNumber(employee.getNationalInsuranceNumber());
+        dto.setShareCode(employee.getShareCode());
+        dto.setBankAccountNumber(employee.getBankAccountNumber());
+        dto.setBankSortCode(employee.getBankSortCode());
+        dto.setBankAccountHolderName(employee.getBankAccountHolderName());
+        dto.setBankName(employee.getBankName());
+        dto.setWageRate(employee.getWageRate());
+        dto.setContractHours(employee.getContractHours());
         dto.setUserId(employee.getUserId());
 
         // Add username and role if user exists
@@ -795,25 +890,29 @@ public class EmployeeService {
 
     private Employee convertToEntity(EmployeeDTO dto) {
         Employee employee = new Employee();
+        employee.setTitle(dto.getTitle());
         employee.setFullName(dto.getFullName());
         employee.setPersonType(dto.getPersonType());
         employee.setWorkEmail(dto.getWorkEmail());
 
         // Personal information
-        employee.setPersonalEmail(dto.getPersonalEmail());
         employee.setPhoneNumber(dto.getPhoneNumber());
         employee.setDateOfBirth(dto.getDateOfBirth());
         employee.setNationality(dto.getNationality());
-        employee.setAddress(dto.getAddress());
         employee.setPresentAddress(dto.getPresentAddress());
         employee.setPreviousAddress(dto.getPreviousAddress());
 
         boolean hasMedicalCondition = Boolean.TRUE.equals(dto.getHasMedicalCondition());
         employee.setHasMedicalCondition(hasMedicalCondition);
         employee.setMedicalConditionDetails(hasMedicalCondition ? dto.getMedicalConditionDetails() : null);
+        // Legacy next of kin fields (kept for backward compatibility)
         employee.setNextOfKinName(dto.getNextOfKinName());
         employee.setNextOfKinContact(dto.getNextOfKinContact());
         employee.setNextOfKinAddress(dto.getNextOfKinAddress());
+        
+        // Handle multiple next of kin entries
+        employee.setNextOfKinList(buildNextOfKinFromDto(dto.getNextOfKinList(), employee));
+        
         employee.setBloodGroup(dto.getBloodGroup());
         employee.setEmergencyContactName(dto.getEmergencyContactName());
         employee.setEmergencyContactPhone(dto.getEmergencyContactPhone());
@@ -828,6 +927,17 @@ public class EmployeeService {
         employee.setWorkingTiming(dto.getWorkingTiming());
         employee.setHolidayAllowance(dto.getHolidayAllowance());
         employee.setAllottedOrganization(dto.getAllottedOrganization());
+        
+        // Financial and Employment Details
+        employee.setNationalInsuranceNumber(dto.getNationalInsuranceNumber());
+        employee.setShareCode(dto.getShareCode());
+        employee.setBankAccountNumber(dto.getBankAccountNumber());
+        employee.setBankSortCode(dto.getBankSortCode());
+        employee.setBankAccountHolderName(dto.getBankAccountHolderName());
+        employee.setBankName(dto.getBankName());
+        employee.setWageRate(dto.getWageRate());
+        employee.setContractHours(dto.getContractHours());
+        
         employee.setUserId(dto.getUserId());
 
         // Set department if provided (SUPER_ADMIN only)
@@ -876,6 +986,9 @@ public class EmployeeService {
         record.setEmploymentPeriod(dto.getEmploymentPeriod());
         record.setEmployerName(dto.getEmployerName());
         record.setEmployerAddress(dto.getEmployerAddress());
+        record.setContactPersonTitle(dto.getContactPersonTitle());
+        record.setContactPersonName(dto.getContactPersonName());
+        record.setContactPersonEmail(dto.getContactPersonEmail());
         record.setEmployee(employee);
         return record;
     }
@@ -887,6 +1000,9 @@ public class EmployeeService {
         dto.setEmploymentPeriod(record.getEmploymentPeriod());
         dto.setEmployerName(record.getEmployerName());
         dto.setEmployerAddress(record.getEmployerAddress());
+        dto.setContactPersonTitle(record.getContactPersonTitle());
+        dto.setContactPersonName(record.getContactPersonName());
+        dto.setContactPersonEmail(record.getContactPersonEmail());
         return dto;
     }
 
@@ -898,7 +1014,71 @@ public class EmployeeService {
         return (dto.getJobTitle() == null || dto.getJobTitle().trim().isEmpty())
                 && (dto.getEmploymentPeriod() == null || dto.getEmploymentPeriod().trim().isEmpty())
                 && (dto.getEmployerName() == null || dto.getEmployerName().trim().isEmpty())
-                && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty());
+                && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty())
+                && (dto.getContactPersonTitle() == null || dto.getContactPersonTitle().trim().isEmpty())
+                && (dto.getContactPersonEmail() == null || dto.getContactPersonEmail().trim().isEmpty());
+    }
+
+    // Next of Kin methods
+    private void synchronizeNextOfKin(Employee employee, List<NextOfKinDTO> nextOfKinDTOs) {
+        if (employee.getNextOfKinList() == null) {
+            employee.setNextOfKinList(new ArrayList<>());
+        } else {
+            employee.getNextOfKinList().clear();
+        }
+
+        if (nextOfKinDTOs == null || nextOfKinDTOs.isEmpty()) {
+            return;
+        }
+
+        List<NextOfKin> nextOfKinList = nextOfKinDTOs.stream()
+                .filter(dto -> !isNextOfKinEmpty(dto))
+                .map(dto -> convertToNextOfKinEntity(dto, employee))
+                .collect(Collectors.toList());
+        employee.getNextOfKinList().addAll(nextOfKinList);
+    }
+
+    private List<NextOfKin> buildNextOfKinFromDto(List<NextOfKinDTO> nextOfKinDTOs, Employee employee) {
+        if (nextOfKinDTOs == null || nextOfKinDTOs.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return nextOfKinDTOs.stream()
+                .filter(dto -> !isNextOfKinEmpty(dto))
+                .map(dto -> convertToNextOfKinEntity(dto, employee))
+                .collect(Collectors.toList());
+    }
+
+    private NextOfKin convertToNextOfKinEntity(NextOfKinDTO dto, Employee employee) {
+        NextOfKin nextOfKin = new NextOfKin();
+        nextOfKin.setId(dto.getId());
+        nextOfKin.setName(dto.getName());
+        nextOfKin.setContact(dto.getContact());
+        nextOfKin.setAddress(dto.getAddress());
+        nextOfKin.setRelationship(dto.getRelationship());
+        nextOfKin.setEmployee(employee);
+        return nextOfKin;
+    }
+
+    private NextOfKinDTO convertNextOfKinToDTO(NextOfKin nextOfKin) {
+        NextOfKinDTO dto = new NextOfKinDTO();
+        dto.setId(nextOfKin.getId());
+        dto.setName(nextOfKin.getName());
+        dto.setContact(nextOfKin.getContact());
+        dto.setAddress(nextOfKin.getAddress());
+        dto.setRelationship(nextOfKin.getRelationship());
+        return dto;
+    }
+
+    private boolean isNextOfKinEmpty(NextOfKinDTO dto) {
+        if (dto == null) {
+            return true;
+        }
+
+        return (dto.getName() == null || dto.getName().trim().isEmpty())
+                && (dto.getContact() == null || dto.getContact().trim().isEmpty())
+                && (dto.getAddress() == null || dto.getAddress().trim().isEmpty())
+                && (dto.getRelationship() == null || dto.getRelationship().trim().isEmpty());
     }
 }
 

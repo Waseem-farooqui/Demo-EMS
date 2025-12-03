@@ -13,5 +13,8 @@ public class EmploymentRecordDTO {
     private String employmentPeriod;
     private String employerName;
     private String employerAddress;
+    private String contactPersonTitle;
+    private String contactPersonName;
+    private String contactPersonEmail;
 }
 

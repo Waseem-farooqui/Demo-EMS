@@ -9,9 +9,11 @@ import {RotaService} from '../../services/rota.service';
 import {DocumentService} from '../../services/document.service';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
+import {LeaveService} from '../../services/leave.service';
 import {Employee} from '../../models/employee.model';
 import {EmployeeWorkSummary} from '../../models/attendance.model';
 import {Document} from '../../models/document.model';
+import {LeaveBalance} from '../../models/leave.model';
 import {Subscription} from 'rxjs';
 
 interface User {
@@ -74,6 +76,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
   employeeWorkSummary: EmployeeWorkSummary | null = null;
   employeeRotaSchedule: Array<{date: string; dayOfWeek?: string; scheduleDate?: string; duty?: string; startTime?: string; endTime?: string}> = [];
   employeeDocuments: Document[] = [];
+  employeeLeaveBalances: LeaveBalance[] = [];
 
   // Document Viewer
   selectedDocumentId: number | null = null;
@@ -95,6 +98,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
     private attendanceService: AttendanceService,
     private rotaService: RotaService,
     private documentService: DocumentService,
+    private leaveService: LeaveService,
     private authService: AuthService,
     private toastService: ToastService,
     private sanitizer: DomSanitizer,
@@ -569,6 +573,19 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
         // Don't show error - employee might not have documents
       }
     });
+
+    // Load leave balances (for admins/super admins)
+    if (this.currentUser?.roles?.includes('ADMIN') || this.currentUser?.roles?.includes('SUPER_ADMIN')) {
+      this.leaveService.getLeaveBalances(employeeId).subscribe({
+        next: (balances) => {
+          this.employeeLeaveBalances = balances;
+        },
+        error: (err) => {
+          console.error('Error loading leave balances:', err);
+          // Don't show error - leave balances might not be initialized yet
+        }
+      });
+    }
   }
 
   closeDetailsModal(): void {
@@ -577,6 +594,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
     this.employeeWorkSummary = null;
     this.employeeRotaSchedule = [];
     this.employeeDocuments = [];
+    this.employeeLeaveBalances = [];
     this.closeDocumentViewer();
   }
 
@@ -713,5 +731,36 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
+  }
+
+  getPassportDocument(): Document | null {
+    if (!this.employeeDocuments || this.employeeDocuments.length === 0) {
+      return null;
+    }
+    return this.employeeDocuments.find(doc => doc.documentType === 'PASSPORT') || null;
+  }
+
+  getVisaDocument(): Document | null {
+    if (!this.employeeDocuments || this.employeeDocuments.length === 0) {
+      return null;
+    }
+    return this.employeeDocuments.find(doc => doc.documentType === 'VISA') || null;
+  }
+
+  isDocumentExpired(expiryDate: string | undefined): boolean {
+    if (!expiryDate) return false;
+    const expiry = new Date(expiryDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return expiry < today;
+  }
+
+  getLeaveBalanceStatusClass(remainingLeaves: number): string {
+    if (remainingLeaves <= 2) {
+      return 'balance-low';
+    } else if (remainingLeaves <= 5) {
+      return 'balance-warning';
+    }
+    return 'balance-good';
   }
 }

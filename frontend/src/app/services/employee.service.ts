@@ -37,7 +37,11 @@ export class EmployeeService {
   }
 
   updateEmployee(id: number, employee: Employee): Observable<Employee> {
-    return this.http.put<Employee>(`${this.apiUrl}/${id}`, employee);
+    console.log('EmployeeService.updateEmployee called with:', { id, employee });
+    const url = `${this.apiUrl}/${id}`;
+    console.log('PUT request URL:', url);
+    console.log('Request payload:', JSON.stringify(employee, null, 2));
+    return this.http.put<Employee>(url, employee);
   }
 
   deleteEmployee(id: number): Observable<void> {

@@ -90,9 +90,18 @@ public class EmployeeController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<EmployeeDTO> updateEmployee(@PathVariable Long id, @RequestBody EmployeeDTO employeeDTO) {
-        log.info("Updating employee ID: {}", id);
-        final EmployeeDTO updatedEmployee = employeeService.updateEmployee(id, employeeDTO);
-        return ResponseEntity.ok(updatedEmployee);
+        log.info("📥 PUT /employees/{} - Update employee request received", id);
+        log.info("📋 Request body - Name: {}, Email: {}, DepartmentId: {}", 
+                employeeDTO.getFullName(), employeeDTO.getWorkEmail(), employeeDTO.getDepartmentId());
+        
+        try {
+            final EmployeeDTO updatedEmployee = employeeService.updateEmployee(id, employeeDTO);
+            log.info("✅ Employee updated successfully - ID: {}, Name: {}", id, updatedEmployee.getFullName());
+            return ResponseEntity.ok(updatedEmployee);
+        } catch (Exception e) {
+            log.error("❌ Error updating employee ID {}: {}", id, e.getMessage(), e);
+            throw e; // Re-throw to let GlobalExceptionHandler handle it
+        }
     }
 
     /**

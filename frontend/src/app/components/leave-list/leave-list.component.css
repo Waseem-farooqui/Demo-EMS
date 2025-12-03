@@ -182,6 +182,65 @@
   color: #666;
 }
 
+.balance-cell {
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.balance-cell .balance-low {
+  color: #dc3545;
+  background-color: #f8d7da;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.balance-cell .balance-warning {
+  color: #856404;
+  background-color: #fff3cd;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.balance-cell span:not(.balance-low):not(.balance-warning) {
+  color: #28a745;
+  background-color: #d4edda;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.leave-balance-info {
+  margin: 15px 0;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #667eea;
+}
+
+.leave-balance-info .balance-low {
+  color: #dc3545;
+  font-weight: 700;
+}
+
+.leave-balance-info .balance-warning {
+  color: #856404;
+  font-weight: 700;
+}
+
+.leave-balance-info .balance-good {
+  color: #28a745;
+  font-weight: 700;
+}
+
+.balance-detail {
+  margin-top: 8px;
+  color: #666;
+  font-size: 12px;
+}
+
 /* Existing styles... */
 
 .filter-section {

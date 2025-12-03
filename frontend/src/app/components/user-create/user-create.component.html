@@ -152,6 +152,26 @@
       </div>
 
       <div class="form-group">
+        <label for="title">Title <span class="required">*</span></label>
+        <select
+          id="title"
+          formControlName="title"
+          class="form-control"
+          [class.invalid]="userForm.get('title')?.invalid && userForm.get('title')?.touched">
+          <option value="">Select Title</option>
+          <option value="Mr">Mr</option>
+          <option value="Mrs">Mrs</option>
+          <option value="Miss">Miss</option>
+          <option value="Ms">Ms</option>
+          <option value="Dr">Dr</option>
+          <option value="Prof">Prof</option>
+        </select>
+        <div class="field-error" *ngIf="userForm.get('title')?.invalid && userForm.get('title')?.touched">
+          Title is required
+        </div>
+      </div>
+
+      <div class="form-group">
         <label for="fullName">Full Name <span class="required">*</span></label>
         <input
           type="text"
@@ -177,17 +197,6 @@
         <div class="field-error" *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched">
           Valid email is required
         </div>
-      </div>
-
-      <div class="form-group">
-        <label for="personalEmail">Personal Email</label>
-        <input
-          type="email"
-          id="personalEmail"
-          formControlName="personalEmail"
-          class="form-control"
-          placeholder="optional@personal.com"
-        >
       </div>
 
       <div class="form-group">
@@ -224,17 +233,6 @@
       </div>
 
       <!-- Address Fields -->
-      <div class="form-group full-width">
-        <label for="address">Registered Address</label>
-        <textarea
-          id="address"
-          formControlName="address"
-          class="form-control"
-          rows="3"
-          placeholder="Enter official address"
-        ></textarea>
-      </div>
-
       <div class="form-group full-width">
         <label for="presentAddress">Present Address</label>
         <textarea
@@ -328,6 +326,106 @@
     </div>
   </div>
 
+  <div class="form-row">
+    <div class="form-group">
+      <label for="nationalInsuranceNumber">National Insurance Number</label>
+      <input
+        type="text"
+        id="nationalInsuranceNumber"
+        formControlName="nationalInsuranceNumber"
+        class="form-control"
+        placeholder="e.g., AB123456C"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="shareCode">Share Code</label>
+      <input
+        type="text"
+        id="shareCode"
+        formControlName="shareCode"
+        class="form-control"
+        placeholder="e.g., ABC123"
+      >
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="wageRate">Wage Rate</label>
+      <input
+        type="text"
+        id="wageRate"
+        formControlName="wageRate"
+        class="form-control"
+        placeholder="e.g., £15.50/hour or £30,000/year"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="contractHours">Contract Hours</label>
+      <input
+        type="text"
+        id="contractHours"
+        formControlName="contractHours"
+        class="form-control"
+        placeholder="e.g., 40 hours/week or Full-time"
+      >
+    </div>
+  </div>
+
+  <div class="form-section-header">
+    <h4>Bank Account Details</h4>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="bankAccountNumber">Account Number</label>
+      <input
+        type="text"
+        id="bankAccountNumber"
+        formControlName="bankAccountNumber"
+        class="form-control"
+        placeholder="Account number"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="bankSortCode">Sort Code</label>
+      <input
+        type="text"
+        id="bankSortCode"
+        formControlName="bankSortCode"
+        class="form-control"
+        placeholder="e.g., 12-34-56"
+      >
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="bankAccountHolderName">Account Holder Name</label>
+      <input
+        type="text"
+        id="bankAccountHolderName"
+        formControlName="bankAccountHolderName"
+        class="form-control"
+        placeholder="Account holder name"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="bankName">Bank Name</label>
+      <input
+        type="text"
+        id="bankName"
+        formControlName="bankName"
+        class="form-control"
+        placeholder="Bank name"
+      >
+    </div>
+  </div>
+
 </div>
 
 <!-- Step 3: Role & Department -->
@@ -353,13 +451,14 @@
     </div>
 
     <div class="form-group">
-      <label for="departmentId">Department</label>
+      <label for="departmentId">Department <span class="required">*</span></label>
       <select
         id="departmentId"
         formControlName="departmentId"
         class="form-control"
+        [class.invalid]="userForm.get('departmentId')?.invalid && userForm.get('departmentId')?.touched"
         (change)="onDepartmentChange($event)">
-        <option [value]="null">Select Department (Optional)</option>
+        <option [value]="null">Select Department</option>
         <option
           *ngFor="let dept of departments"
           [value]="dept.id"
@@ -367,6 +466,9 @@
           {{ getDepartmentDisplayName(dept) }}
         </option>
       </select>
+      <div class="error" *ngIf="userForm.get('departmentId')?.invalid && userForm.get('departmentId')?.touched">
+        Department is required.
+      </div>
       <small class="form-hint" *ngIf="isSuperAdmin && userForm.get('role')?.value === 'ADMIN'">
         ⚠️ Departments with existing admins cannot be selected
       </small>
@@ -429,25 +531,52 @@
 <div class="wizard-step" *ngIf="currentStep === 4">
   <div class="step-header">
     <h3>👨‍👩‍👧‍👦 Next of Kin</h3>
-    <p>Emergency contact information (Optional)</p>
+    <p>Add next of kin contact information (Optional)</p>
   </div>
-  <div class="form-row">
-    <div class="form-group">
-      <label for="nextOfKinName">Name</label>
-      <input type="text" id="nextOfKinName" class="form-control" formControlName="nextOfKinName"
-             placeholder="Emergency contact name">
-    </div>
-    <div class="form-group">
-      <label for="nextOfKinContact">Contact Number</label>
-      <input type="text" id="nextOfKinContact" class="form-control" formControlName="nextOfKinContact"
-             placeholder="+44 7000 000000">
-    </div>
+  <div class="section-header">
+    <h4>Next of Kin Contacts</h4>
+    <button type="button" class="btn btn-link" (click)="addNextOfKin()">
+      + Add Next of Kin
+    </button>
   </div>
-  <div class="form-row">
-    <div class="form-group full-width">
-      <label for="nextOfKinAddress">Address</label>
-      <textarea id="nextOfKinAddress" rows="3" class="form-control" formControlName="nextOfKinAddress"
-                placeholder="Emergency contact address"></textarea>
+
+  <div formArrayName="nextOfKinList">
+    <div
+      class="next-of-kin-record"
+      *ngFor="let kinGroup of nextOfKinList.controls; let i = index"
+      [formGroupName]="i"
+    >
+      <div class="record-header">
+        <h4>Next of Kin {{ i + 1 }}</h4>
+        <button type="button" class="btn-remove" (click)="removeNextOfKin(i)"
+                *ngIf="nextOfKinList.length > 1">
+          Remove
+        </button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label [for]="'nextOfKinName-' + i">Name</label>
+          <input type="text" [id]="'nextOfKinName-' + i" class="form-control" formControlName="name"
+                 placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label [for]="'nextOfKinContact-' + i">Contact Number</label>
+          <input type="text" [id]="'nextOfKinContact-' + i" class="form-control" formControlName="contact"
+                 placeholder="+44 7000 000000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label [for]="'nextOfKinRelationship-' + i">Relationship</label>
+          <input type="text" [id]="'nextOfKinRelationship-' + i" class="form-control" formControlName="relationship"
+                 placeholder="e.g., Spouse, Parent, Sibling">
+        </div>
+        <div class="form-group full-width">
+          <label [for]="'nextOfKinAddress-' + i">Address</label>
+          <textarea [id]="'nextOfKinAddress-' + i" rows="3" class="form-control" formControlName="address"
+                    placeholder="Full address"></textarea>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -500,6 +629,30 @@
           <label for="employerAddress-{{ i }}">Employer Address</label>
           <textarea [id]="'employerAddress-' + i" class="form-control" rows="2" formControlName="employerAddress"
                     placeholder="Company address"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="contactPersonTitle-{{ i }}">Contact Person Title</label>
+          <select [id]="'contactPersonTitle-' + i" class="form-control" formControlName="contactPersonTitle">
+            <option value="">Select Title</option>
+            <option value="Mr">Mr</option>
+            <option value="Mrs">Mrs</option>
+            <option value="Miss">Miss</option>
+            <option value="Ms">Ms</option>
+            <option value="Dr">Dr</option>
+            <option value="Prof">Prof</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="contactPersonName-{{ i }}">Contact Person Name</label>
+          <input type="text" [id]="'contactPersonName-' + i" class="form-control" formControlName="contactPersonName"
+                 placeholder="Contact person full name">
+        </div>
+        <div class="form-group">
+          <label for="contactPersonEmail-{{ i }}">Contact Person Email</label>
+          <input type="email" [id]="'contactPersonEmail-' + i" class="form-control" formControlName="contactPersonEmail"
+                 placeholder="contact@company.com">
         </div>
       </div>
     </div>

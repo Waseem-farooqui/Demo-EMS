@@ -28,7 +28,7 @@
   <div *ngIf="loading && isEditMode" class="loading">Loading employee data...</div>
 
   <!-- Wizard Form -->
-  <form [formGroup]="employeeForm" *ngIf="!loading || !isEditMode" class="wizard-form">
+  <form [formGroup]="employeeForm" (ngSubmit)="onSubmit()" *ngIf="!loading || !isEditMode" class="wizard-form">
     
     <!-- Step 1: Personal Information (with Address) -->
     <div class="wizard-step" *ngIf="currentStep === 1">
@@ -68,12 +68,6 @@
         </div>
 
         <div class="form-group">
-          <label for="personalEmail">Personal Email</label>
-          <input type="email" id="personalEmail" formControlName="personalEmail" 
-                 placeholder="optional@personal.com">
-        </div>
-
-        <div class="form-group">
           <label for="phoneNumber">Phone Number</label>
           <input type="tel" id="phoneNumber" formControlName="phoneNumber" 
                  placeholder="+44 20 1234 5678">
@@ -91,12 +85,6 @@
         </div>
 
         <!-- Address Information -->
-        <div class="form-group full-width">
-          <label for="address">Registered Address</label>
-          <textarea id="address" formControlName="address" rows="3" 
-                    placeholder="Enter official address"></textarea>
-        </div>
-
         <div class="form-group full-width">
           <label for="presentAddress">Present Address</label>
           <textarea id="presentAddress" formControlName="presentAddress" rows="3" 
@@ -170,13 +158,15 @@
 
       <div class="form-grid">
         <div class="form-group">
-          <label for="departmentId">Department</label>
-          <select id="departmentId" formControlName="departmentId">
-            <option [value]="null">Select Department (Optional)</option>
+          <label for="departmentId">Department <span class="required">*</span></label>
+          <select id="departmentId" formControlName="departmentId"
+                  [class.invalid]="isFieldInvalid('departmentId')">
+            <option [value]="null">Select Department</option>
             <option *ngFor="let dept of departments" [value]="dept.id">
               {{ dept.name }}
             </option>
           </select>
+          <div class="error" *ngIf="isFieldInvalid('departmentId')">Department is required.</div>
         </div>
 
         <div class="form-group full-width">
@@ -186,32 +176,116 @@
           <small class="form-hint">💡 For employees outsourced to other companies</small>
         </div>
       </div>
+
+      <div class="form-section-header">
+        <h4>Financial & Employment Details</h4>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="nationalInsuranceNumber">National Insurance Number</label>
+          <input type="text" id="nationalInsuranceNumber" formControlName="nationalInsuranceNumber" 
+                 placeholder="e.g., AB123456C">
+        </div>
+
+        <div class="form-group">
+          <label for="shareCode">Share Code</label>
+          <input type="text" id="shareCode" formControlName="shareCode" 
+                 placeholder="e.g., ABC123">
+        </div>
+
+        <div class="form-group">
+          <label for="wageRate">Wage Rate</label>
+          <input type="text" id="wageRate" formControlName="wageRate" 
+                 placeholder="e.g., £15.50/hour or £30,000/year">
+        </div>
+
+        <div class="form-group">
+          <label for="contractHours">Contract Hours</label>
+          <input type="text" id="contractHours" formControlName="contractHours" 
+                 placeholder="e.g., 40 hours/week or Full-time">
+        </div>
+      </div>
+
+      <div class="form-section-header">
+        <h4>Bank Account Details</h4>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="bankAccountNumber">Account Number</label>
+          <input type="text" id="bankAccountNumber" formControlName="bankAccountNumber" 
+                 placeholder="Account number">
+        </div>
+
+        <div class="form-group">
+          <label for="bankSortCode">Sort Code</label>
+          <input type="text" id="bankSortCode" formControlName="bankSortCode" 
+                 placeholder="e.g., 12-34-56">
+        </div>
+
+        <div class="form-group">
+          <label for="bankAccountHolderName">Account Holder Name</label>
+          <input type="text" id="bankAccountHolderName" formControlName="bankAccountHolderName" 
+                 placeholder="Account holder name">
+        </div>
+
+        <div class="form-group">
+          <label for="bankName">Bank Name</label>
+          <input type="text" id="bankName" formControlName="bankName" 
+                 placeholder="Bank name">
+        </div>
+      </div>
     </div>
 
     <!-- Step 4: Next of Kin -->
     <div class="wizard-step" *ngIf="currentStep === 4">
       <div class="step-header">
         <h3>👨‍👩‍👧‍👦 Next of Kin</h3>
-        <p>Emergency contact information (Optional)</p>
+        <p>Add next of kin contact information (Optional)</p>
+      </div>
+      <div class="section-header">
+        <h4>Next of Kin Contacts</h4>
+        <button type="button" class="btn-add-record" (click)="addNextOfKin()">
+          ➕ Add Next of Kin
+        </button>
       </div>
 
-      <div class="form-grid">
-        <div class="form-group">
-          <label for="nextOfKinName">Name</label>
-          <input type="text" id="nextOfKinName" formControlName="nextOfKinName" 
-                 placeholder="Full name">
-        </div>
+      <div formArrayName="nextOfKinList" class="next-of-kin-records">
+        <div *ngFor="let kinGroup of nextOfKinList.controls; let i = index" 
+             [formGroupName]="i" 
+             class="next-of-kin-record-card">
+          <div class="record-header">
+            <h4>Next of Kin {{ i + 1 }}</h4>
+            <button type="button" class="btn-remove" (click)="removeNextOfKin(i)" 
+                    *ngIf="nextOfKinList.length > 1">Remove</button>
+          </div>
 
-        <div class="form-group">
-          <label for="nextOfKinContact">Contact Number</label>
-          <input type="tel" id="nextOfKinContact" formControlName="nextOfKinContact" 
-                 placeholder="+44 20 1234 5678">
-        </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label [for]="'nextOfKinName-' + i">Name</label>
+              <input type="text" [id]="'nextOfKinName-' + i" formControlName="name" 
+                     placeholder="Full name">
+            </div>
 
-        <div class="form-group full-width">
-          <label for="nextOfKinAddress">Address</label>
-          <textarea id="nextOfKinAddress" formControlName="nextOfKinAddress" rows="3" 
-                    placeholder="Full address"></textarea>
+            <div class="form-group">
+              <label [for]="'nextOfKinContact-' + i">Contact Number</label>
+              <input type="tel" [id]="'nextOfKinContact-' + i" formControlName="contact" 
+                     placeholder="+44 20 1234 5678">
+            </div>
+
+            <div class="form-group">
+              <label [for]="'nextOfKinRelationship-' + i">Relationship</label>
+              <input type="text" [id]="'nextOfKinRelationship-' + i" formControlName="relationship" 
+                     placeholder="e.g., Spouse, Parent, Sibling">
+            </div>
+
+            <div class="form-group full-width">
+              <label [for]="'nextOfKinAddress-' + i">Address</label>
+              <textarea [id]="'nextOfKinAddress-' + i" formControlName="address" rows="3" 
+                        placeholder="Full address"></textarea>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -254,6 +328,31 @@
               <label>Employer Address</label>
               <textarea formControlName="employerAddress" rows="2" 
                         placeholder="Company address"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Contact Person Title</label>
+              <select formControlName="contactPersonTitle">
+                <option value="">Select Title</option>
+                <option value="Mr">Mr</option>
+                <option value="Mrs">Mrs</option>
+                <option value="Miss">Miss</option>
+                <option value="Ms">Ms</option>
+                <option value="Dr">Dr</option>
+                <option value="Prof">Prof</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Contact Person Name</label>
+              <input type="text" formControlName="contactPersonName" 
+                     class="form-control" placeholder="Contact person full name">
+            </div>
+
+            <div class="form-group">
+              <label>Contact Person Email</label>
+              <input type="email" formControlName="contactPersonEmail" 
+                     placeholder="contact@company.com">
             </div>
           </div>
         </div>
@@ -365,6 +464,9 @@
                 [disabled]="loading">
           {{ loading ? 'Saving...' : (isEditMode ? 'Update Employee' : 'Create Employee') }}
         </button>
+        <div *ngIf="currentStep === totalSteps && employeeForm.invalid && employeeForm.touched" class="form-validation-hint" style="margin-top: 0.5rem;">
+          <small class="text-danger">⚠️ Please complete all required fields before submitting.</small>
+        </div>
       </div>
     </div>
   </form>

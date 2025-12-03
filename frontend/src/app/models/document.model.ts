@@ -15,6 +15,7 @@ export interface Document {
   nationality?: string;
 
   // UK VISA specific fields
+  visaType?: string;
   companyName?: string;
   dateOfCheck?: string;
   referenceNumber?: string;

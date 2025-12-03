@@ -53,6 +53,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
   selectedDocuments: File[] = [];
   documentTypes: string[] = ['PASSPORT', 'VISA', 'CONTRACT', 'RESUME', 'SHARE_CODE', 
                              'PROOF_OF_ADDRESS', 'REGISTRATION_FORM', 'CERTIFICATE',
+                             'PROFESSIONAL_CERTIFICATE', 'TERM_LETTER',
                              'NATIONAL_INSURANCE', 'BANK_STATEMENT'];
   documentTypeMap: { [key: string]: string } = {};
 
@@ -102,30 +103,39 @@ export class UserCreateComponent implements OnInit, OnDestroy {
 
   initForm(): void {
     this.userForm = this.fb.group({
+      title: ['', Validators.required],
       fullName: ['', [Validators.required, Validators.minLength(3)]],
       email: ['', [Validators.required, Validators.email]],
-      personalEmail: ['', [Validators.email]],
       phoneNumber: [''],
       dateOfBirth: [''],
       nationality: [''],
-      address: [''],
       presentAddress: [''],
       previousAddress: [''],
       jobTitle: ['', Validators.required],
       personType: ['Employee', Validators.required],
       role: ['USER', Validators.required],
-      departmentId: [null], // Optional
+      departmentId: [null, Validators.required],
       customDepartmentName: [''],
       allottedOrganization: [''],
       reference: [''],
       dateOfJoining: [this.formatDate(new Date()), [Validators.required, this.dateNotInFutureValidator()]],
       employmentStatus: ['FULL_TIME', Validators.required],
       contractType: ['PERMANENT', Validators.required],
+      nationalInsuranceNumber: [''],
+      shareCode: [''],
+      bankAccountNumber: [''],
+      bankSortCode: [''],
+      bankAccountHolderName: [''],
+      bankName: [''],
+      wageRate: [''],
+      contractHours: [''],
       hasMedicalCondition: [false],
       medicalConditionDetails: [''],
+      // Legacy next of kin fields (kept for backward compatibility)
       nextOfKinName: [''],
       nextOfKinContact: [''],
       nextOfKinAddress: [''],
+      nextOfKinList: this.fb.array([this.createNextOfKinGroup()]),
       bloodGroup: [''],
       emergencyContactName: [''],
       emergencyContactPhone: [''],
@@ -304,10 +314,12 @@ export class UserCreateComponent implements OnInit, OnDestroy {
     this.showCredentials = false;
 
     const sanitizedRecords = this.getSanitizedEmploymentRecords();
+    const sanitizedNextOfKin = this.getSanitizedNextOfKin();
     let formData = this.userForm.getRawValue(); // Get all values including disabled fields
     formData.hasMedicalCondition = !!formData.hasMedicalCondition;
     formData.medicalConditionDetails = formData.hasMedicalCondition ? formData.medicalConditionDetails : '';
     formData.employmentRecords = sanitizedRecords;
+    formData.nextOfKinList = sanitizedNextOfKin;
 
     // Handle custom department creation
     if (this.showCustomDepartment && formData.customDepartmentName) {
@@ -450,7 +462,10 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       jobTitle: [record?.jobTitle || ''],
       employmentPeriod: [record?.employmentPeriod || ''],
       employerName: [record?.employerName || ''],
-      employerAddress: [record?.employerAddress || '']
+      employerAddress: [record?.employerAddress || ''],
+      contactPersonTitle: [record?.contactPersonTitle || ''],
+      contactPersonName: [record?.contactPersonName || ''],
+      contactPersonEmail: [record?.contactPersonEmail || '']
     });
   }
 
@@ -467,7 +482,52 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       (record.jobTitle && record.jobTitle.trim()) ||
       (record.employmentPeriod && record.employmentPeriod.trim()) ||
       (record.employerName && record.employerName.trim()) ||
-      (record.employerAddress && record.employerAddress.trim())
+      (record.employerAddress && record.employerAddress.trim()) ||
+      (record.contactPersonTitle && record.contactPersonTitle.trim()) ||
+      (record.contactPersonName && record.contactPersonName.trim()) ||
+      (record.contactPersonEmail && record.contactPersonEmail.trim())
+    );
+  }
+
+  get nextOfKinList(): FormArray {
+    return this.userForm.get('nextOfKinList') as FormArray;
+  }
+
+  addNextOfKin(kin?: any): void {
+    this.nextOfKinList.push(this.createNextOfKinGroup(kin));
+  }
+
+  removeNextOfKin(index: number): void {
+    if (this.nextOfKinList.length === 1) {
+      this.nextOfKinList.at(0).reset();
+      return;
+    }
+    this.nextOfKinList.removeAt(index);
+  }
+
+  private createNextOfKinGroup(kin?: any): FormGroup {
+    return this.fb.group({
+      name: [kin?.name || ''],
+      contact: [kin?.contact || ''],
+      address: [kin?.address || ''],
+      relationship: [kin?.relationship || '']
+    });
+  }
+
+  private getSanitizedNextOfKin(): any[] {
+    const nextOfKin = this.nextOfKinList.getRawValue() as any[];
+    return nextOfKin.filter(kin => this.isNextOfKinFilled(kin));
+  }
+
+  private isNextOfKinFilled(kin: any): boolean {
+    if (!kin) {
+      return false;
+    }
+    return !!(
+      (kin.name && kin.name.trim()) ||
+      (kin.contact && kin.contact.trim()) ||
+      (kin.address && kin.address.trim()) ||
+      (kin.relationship && kin.relationship.trim())
     );
   }
 
@@ -564,6 +624,8 @@ export class UserCreateComponent implements OnInit, OnDestroy {
     });
     this.employmentRecords.clear();
     this.addEmploymentRecord();
+    this.nextOfKinList.clear();
+    this.addNextOfKin();
     // Clear selected documents
     this.selectedDocuments = [];
     this.documentTypeMap = {};
@@ -623,9 +685,9 @@ export class UserCreateComponent implements OnInit, OnDestroy {
 
   validateCurrentStep(): boolean {
     const stepFields: { [key: number]: string[] } = {
-      1: ['fullName', 'email'], // Personal Information
+      1: ['title', 'fullName', 'email'], // Personal Information
       2: ['dateOfJoining'], // Work Information
-      3: ['jobTitle'], // Role & Department (jobTitle is required)
+      3: ['jobTitle', 'departmentId'], // Role & Department (jobTitle and departmentId are required)
       4: [], // Next of Kin (all optional)
       5: [], // Previous Employment (all optional)
       6: [], // Medical Information (all optional)

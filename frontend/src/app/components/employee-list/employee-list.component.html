@@ -184,6 +184,10 @@
           <h4 class="section-title">📋 Personal Information</h4>
           <div class="info-grid">
             <div class="info-item">
+              <span class="info-label">Title:</span>
+              <span class="info-value">{{ selectedEmployee.title || '-' }}</span>
+            </div>
+            <div class="info-item">
               <span class="info-label">Full Name:</span>
               <span class="info-value">{{ selectedEmployee.fullName }}</span>
             </div>
@@ -205,10 +209,6 @@
               <span class="info-value">{{ selectedEmployee.workEmail }}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">Personal Email:</span>
-              <span class="info-value">{{ selectedEmployee.personalEmail || '-' }}</span>
-            </div>
-            <div class="info-item">
               <span class="info-label">Phone:</span>
               <span class="info-value">{{ selectedEmployee.phoneNumber || '-' }}</span>
             </div>
@@ -219,10 +219,6 @@
             <div class="info-item">
               <span class="info-label">Nationality:</span>
               <span class="info-value">{{ selectedEmployee.nationality || '-' }}</span>
-            </div>
-            <div class="info-item full-width">
-              <span class="info-label">Registered Address:</span>
-              <span class="info-value">{{ selectedEmployee.address || '-' }}</span>
             </div>
             <div class="info-item full-width">
               <span class="info-label">Present Address:</span>
@@ -307,7 +303,33 @@
         <!-- Next of Kin Section -->
         <div class="details-section">
           <h4 class="section-title">👨‍👩‍👧‍👦 Next of Kin</h4>
-          <div class="info-grid">
+          <div *ngIf="selectedEmployee.nextOfKinList && selectedEmployee.nextOfKinList.length > 0" class="next-of-kin-list">
+            <div *ngFor="let kin of selectedEmployee.nextOfKinList; let i = index" class="next-of-kin-item">
+              <div class="kin-header">
+                <h5>Next of Kin {{ i + 1 }}</h5>
+              </div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">Name:</span>
+                  <span class="info-value">{{ kin.name || '-' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Contact:</span>
+                  <span class="info-value">{{ kin.contact || '-' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Relationship:</span>
+                  <span class="info-value">{{ kin.relationship || '-' }}</span>
+                </div>
+                <div class="info-item full-width">
+                  <span class="info-label">Address:</span>
+                  <span class="info-value">{{ kin.address || '-' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Fallback to legacy single next of kin if list is empty -->
+          <div *ngIf="(!selectedEmployee.nextOfKinList || selectedEmployee.nextOfKinList.length === 0) && (selectedEmployee.nextOfKinName || selectedEmployee.nextOfKinContact || selectedEmployee.nextOfKinAddress)" class="info-grid">
             <div class="info-item">
               <span class="info-label">Name:</span>
               <span class="info-value">{{ selectedEmployee.nextOfKinName || '-' }}</span>
@@ -320,6 +342,58 @@
               <span class="info-label">Address:</span>
               <span class="info-value">{{ selectedEmployee.nextOfKinAddress || '-' }}</span>
             </div>
+          </div>
+          <div *ngIf="(!selectedEmployee.nextOfKinList || selectedEmployee.nextOfKinList.length === 0) && !selectedEmployee.nextOfKinName && !selectedEmployee.nextOfKinContact && !selectedEmployee.nextOfKinAddress" class="no-data-small">
+            📭 No next of kin information provided
+          </div>
+        </div>
+
+        <!-- Financial & Employment Details Section -->
+        <div class="details-section">
+          <h4 class="section-title">💰 Financial & Employment Details</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">National Insurance Number:</span>
+              <span class="info-value">{{ selectedEmployee.nationalInsuranceNumber || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Share Code:</span>
+              <span class="info-value">{{ selectedEmployee.shareCode || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Wage Rate:</span>
+              <span class="info-value">{{ selectedEmployee.wageRate || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Contract Hours:</span>
+              <span class="info-value">{{ selectedEmployee.contractHours || '-' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bank Details Section -->
+        <div class="details-section">
+          <h4 class="section-title">🏦 Bank Details</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Bank Name:</span>
+              <span class="info-value">{{ selectedEmployee.bankName || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Account Holder Name:</span>
+              <span class="info-value">{{ selectedEmployee.bankAccountHolderName || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Account Number:</span>
+              <span class="info-value">{{ selectedEmployee.bankAccountNumber || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Sort Code:</span>
+              <span class="info-value">{{ selectedEmployee.bankSortCode || '-' }}</span>
+            </div>
+          </div>
+          <div *ngIf="!selectedEmployee.bankName && !selectedEmployee.bankAccountHolderName && !selectedEmployee.bankAccountNumber && !selectedEmployee.bankSortCode" class="no-data-small">
+            No bank details provided
           </div>
         </div>
 
@@ -338,6 +412,12 @@
                 </div>
                 <div *ngIf="record.employerAddress">
                   <span class="record-label">Address:</span> {{ record.employerAddress }}
+                </div>
+                <div *ngIf="record.contactPersonTitle || record.contactPersonName || record.contactPersonEmail">
+                  <span class="record-label">Contact Person:</span>
+                  <span *ngIf="record.contactPersonTitle">{{ record.contactPersonTitle }} </span>
+                  <span *ngIf="record.contactPersonName">{{ record.contactPersonName }}</span>
+                  <span *ngIf="record.contactPersonEmail"> ({{ record.contactPersonEmail }})</span>
                 </div>
               </div>
             </div>
@@ -384,6 +464,36 @@
                     </div>
                   </div>
                 </div>
+
+        <!-- Leave Balance Section (for Admins/Super Admins) -->
+        <div class="details-section" *ngIf="(currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('SUPER_ADMIN')) && employeeLeaveBalances.length > 0">
+          <h4 class="section-title">🏖️ Leave Balance</h4>
+          <div class="leave-balance-grid">
+            <div *ngFor="let balance of employeeLeaveBalances" class="leave-balance-card" 
+                 [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
+              <div class="balance-header">
+                <span class="balance-type">{{ balance.leaveType }}</span>
+                <span class="balance-year">{{ balance.financialYear }}</span>
+              </div>
+              <div class="balance-details">
+                <div class="balance-item">
+                  <span class="balance-label">Total Allocated:</span>
+                  <span class="balance-value">{{ balance.totalAllocated }} days</span>
+                </div>
+                <div class="balance-item">
+                  <span class="balance-label">Used:</span>
+                  <span class="balance-value used">{{ balance.usedLeaves }} days</span>
+                </div>
+                <div class="balance-item">
+                  <span class="balance-label">Remaining:</span>
+                  <span class="balance-value remaining" [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
+                    {{ balance.remainingLeaves }} days
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Working Hours Section -->
         <div class="details-section" *ngIf="employeeWorkSummary">
@@ -455,9 +565,42 @@
           </div>
         </div>
 
+        <!-- Document Information Section -->
+        <div class="details-section" *ngIf="getPassportDocument() || getVisaDocument()">
+          <h4 class="section-title">📄 Document Information</h4>
+          <div class="info-grid">
+            <div class="info-item" *ngIf="getPassportDocument()">
+              <span class="info-label">Passport Number:</span>
+              <span class="info-value">{{ getPassportDocument()?.documentNumber || '-' }}</span>
+            </div>
+            <div class="info-item" *ngIf="getPassportDocument()">
+              <span class="info-label">Passport Expiry Date:</span>
+              <span class="info-value" [class.expired]="isDocumentExpired(getPassportDocument()?.expiryDate)">
+                {{ getPassportDocument()?.expiryDate ? (getPassportDocument()?.expiryDate | date:'mediumDate') : '-' }}
+                <span *ngIf="isDocumentExpired(getPassportDocument()?.expiryDate)" class="expired-badge">EXPIRED</span>
+              </span>
+            </div>
+            <div class="info-item" *ngIf="getVisaDocument()">
+              <span class="info-label">Visa Number:</span>
+              <span class="info-value">{{ getVisaDocument()?.documentNumber || getVisaDocument()?.referenceNumber || '-' }}</span>
+            </div>
+            <div class="info-item" *ngIf="getVisaDocument()">
+              <span class="info-label">Visa Type:</span>
+              <span class="info-value">{{ getVisaDocument()?.visaType || '-' }}</span>
+            </div>
+            <div class="info-item" *ngIf="getVisaDocument()">
+              <span class="info-label">Visa Expiry Date:</span>
+              <span class="info-value" [class.expired]="isDocumentExpired(getVisaDocument()?.expiryDate)">
+                {{ getVisaDocument()?.expiryDate ? (getVisaDocument()?.expiryDate | date:'mediumDate') : '-' }}
+                <span *ngIf="isDocumentExpired(getVisaDocument()?.expiryDate)" class="expired-badge">EXPIRED</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
         <!-- Documents Section -->
         <div class="details-section">
-          <h4 class="section-title">📄 Documents</h4>
+          <h4 class="section-title">📄 Uploaded Documents</h4>
 
           <!-- Document List -->
           <div *ngIf="employeeDocuments && employeeDocuments.length > 0" class="documents-section">

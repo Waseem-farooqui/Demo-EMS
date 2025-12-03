@@ -3,9 +3,11 @@ package com.was.employeemanagementsystem.service;
 import com.was.employeemanagementsystem.dto.CreateUserRequest;
 import com.was.employeemanagementsystem.dto.CreateUserResponse;
 import com.was.employeemanagementsystem.dto.EmploymentRecordDTO;
+import com.was.employeemanagementsystem.dto.NextOfKinDTO;
 import com.was.employeemanagementsystem.entity.Department;
 import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.EmploymentRecord;
+import com.was.employeemanagementsystem.entity.NextOfKin;
 import com.was.employeemanagementsystem.entity.User;
 import com.was.employeemanagementsystem.exception.DuplicateResourceException;
 import com.was.employeemanagementsystem.exception.ResourceNotFoundException;
@@ -143,6 +145,7 @@ public class UserManagementService {
 
         // Create Employee
         Employee employee = new Employee();
+        employee.setTitle(request.getTitle());
         employee.setFullName(request.getFullName());
         employee.setWorkEmail(request.getEmail());
         employee.setJobTitle(request.getJobTitle() != null && !request.getJobTitle().trim().isEmpty() 
@@ -156,10 +159,18 @@ public class UserManagementService {
         employee.setContractType(request.getContractType() != null ? request.getContractType() : "PERMANENT");
         employee.setWorkingTiming(request.getWorkingTiming() != null ? request.getWorkingTiming() : "9:00 AM - 5:00 PM");
         employee.setHolidayAllowance(request.getHolidayAllowance() != null ? request.getHolidayAllowance() : 20);
-        employee.setPersonalEmail(request.getPersonalEmail());
         employee.setPhoneNumber(request.getPhoneNumber());
         employee.setNationality(request.getNationality());
-        employee.setAddress(request.getAddress());
+        
+        // Financial and Employment Details
+        employee.setNationalInsuranceNumber(request.getNationalInsuranceNumber());
+        employee.setShareCode(request.getShareCode());
+        employee.setBankAccountNumber(request.getBankAccountNumber());
+        employee.setBankSortCode(request.getBankSortCode());
+        employee.setBankAccountHolderName(request.getBankAccountHolderName());
+        employee.setBankName(request.getBankName());
+        employee.setWageRate(request.getWageRate());
+        employee.setContractHours(request.getContractHours());
         employee.setPresentAddress(request.getPresentAddress());
         employee.setPreviousAddress(request.getPreviousAddress());
 
@@ -170,9 +181,14 @@ public class UserManagementService {
         boolean hasMedicalCondition = Boolean.TRUE.equals(request.getHasMedicalCondition());
         employee.setHasMedicalCondition(hasMedicalCondition);
         employee.setMedicalConditionDetails(hasMedicalCondition ? request.getMedicalConditionDetails() : null);
+        // Legacy next of kin fields (kept for backward compatibility)
         employee.setNextOfKinName(request.getNextOfKinName());
         employee.setNextOfKinContact(request.getNextOfKinContact());
         employee.setNextOfKinAddress(request.getNextOfKinAddress());
+        
+        // Handle multiple next of kin entries
+        applyNextOfKin(employee, request.getNextOfKinList());
+        
         employee.setBloodGroup(request.getBloodGroup());
         employee.setAllottedOrganization(request.getAllottedOrganization());
         employee.setEmergencyContactName(request.getEmergencyContactName());
@@ -187,6 +203,7 @@ public class UserManagementService {
         }
 
         applyEmploymentRecords(employee, request.getEmploymentRecords());
+        applyNextOfKin(employee, request.getNextOfKinList());
 
         Employee savedEmployee = employeeRepository.save(employee);
         log.info("✓ Employee profile created - ID: {}", savedEmployee.getId());
@@ -223,21 +240,26 @@ public class UserManagementService {
             // Don't fail user creation if leave balance initialization fails
         }
 
-        // Send email with credentials
+        // Send email with credentials only for ADMIN and SUPER_ADMIN roles
+        // USER role credentials are only displayed to admin, not emailed
         boolean emailSent = false;
-        try {
-            emailService.sendAccountCreationEmail(
-                request.getEmail(),
-                request.getFullName(),
-                username,
-                temporaryPassword,
-                currentUser.getOrganizationId() // Pass organization ID for SMTP configuration
-            );
-            emailSent = true;
-            log.info("✓ Credentials email sent to: {}", request.getEmail());
-        } catch (Exception e) {
-            log.warn("⚠ Failed to send email to {}: {}", request.getEmail(), e.getMessage());
-            // Continue - admin will see credentials in response
+        if (!assignedRole.equals("USER")) {
+            try {
+                emailService.sendAccountCreationEmail(
+                    request.getEmail(),
+                    request.getFullName(),
+                    username,
+                    temporaryPassword,
+                    currentUser.getOrganizationId() // Pass organization ID for SMTP configuration
+                );
+                emailSent = true;
+                log.info("✓ Credentials email sent to: {} (Role: {})", request.getEmail(), assignedRole);
+            } catch (Exception e) {
+                log.warn("⚠ Failed to send email to {}: {}", request.getEmail(), e.getMessage());
+                // Continue - admin will see credentials in response
+            }
+        } else {
+            log.info("⏭️  Skipping email for USER role - credentials will be displayed to admin only");
         }
 
         // Build response with credentials
@@ -251,9 +273,13 @@ public class UserManagementService {
         response.setRole(assignedRole);
         response.setDepartmentName(department != null ? department.getName() : null);
         response.setEmailSent(emailSent);
-        response.setMessage(emailSent
-            ? "User created successfully! Credentials sent via email."
-            : "User created successfully! Email failed - please share credentials manually.");
+        if (assignedRole.equals("USER")) {
+            response.setMessage("User created successfully! Credentials are displayed below (not emailed to user).");
+        } else {
+            response.setMessage(emailSent
+                ? "User created successfully! Credentials sent via email."
+                : "User created successfully! Email failed - please share credentials manually.");
+        }
 
         log.info("✅ User creation complete - {} / {} in {}",
                  username, assignedRole, department != null ? department.getName() : "No Department");
@@ -272,7 +298,7 @@ public class UserManagementService {
             return;
         }
 
-        recordDTOs.stream()
+                recordDTOs.stream()
                 .filter(dto -> !isEmploymentRecordEmpty(dto))
                 .forEach(dto -> {
                     EmploymentRecord record = new EmploymentRecord();
@@ -280,6 +306,9 @@ public class UserManagementService {
                     record.setEmploymentPeriod(dto.getEmploymentPeriod());
                     record.setEmployerName(dto.getEmployerName());
                     record.setEmployerAddress(dto.getEmployerAddress());
+                    record.setContactPersonTitle(dto.getContactPersonTitle());
+                    record.setContactPersonName(dto.getContactPersonName());
+                    record.setContactPersonEmail(dto.getContactPersonEmail());
                     record.setEmployee(employee);
                     employee.getEmploymentRecords().add(record);
                 });
@@ -292,7 +321,44 @@ public class UserManagementService {
         return (dto.getJobTitle() == null || dto.getJobTitle().trim().isEmpty())
                 && (dto.getEmploymentPeriod() == null || dto.getEmploymentPeriod().trim().isEmpty())
                 && (dto.getEmployerName() == null || dto.getEmployerName().trim().isEmpty())
-                && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty());
+                && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty())
+                && (dto.getContactPersonTitle() == null || dto.getContactPersonTitle().trim().isEmpty())
+                && (dto.getContactPersonEmail() == null || dto.getContactPersonEmail().trim().isEmpty());
+    }
+
+    private void applyNextOfKin(Employee employee, List<NextOfKinDTO> nextOfKinDTOs) {
+        if (employee.getNextOfKinList() == null) {
+            employee.setNextOfKinList(new ArrayList<>());
+        } else {
+            employee.getNextOfKinList().clear();
+        }
+
+        if (nextOfKinDTOs == null || nextOfKinDTOs.isEmpty()) {
+            return;
+        }
+
+        nextOfKinDTOs.stream()
+                .filter(dto -> !isNextOfKinEmpty(dto))
+                .forEach(dto -> {
+                    NextOfKin nextOfKin = new NextOfKin();
+                    nextOfKin.setName(dto.getName());
+                    nextOfKin.setContact(dto.getContact());
+                    nextOfKin.setAddress(dto.getAddress());
+                    nextOfKin.setRelationship(dto.getRelationship());
+                    nextOfKin.setEmployee(employee);
+                    employee.getNextOfKinList().add(nextOfKin);
+                });
+    }
+
+    private boolean isNextOfKinEmpty(NextOfKinDTO dto) {
+        if (dto == null) {
+            return true;
+        }
+
+        return (dto.getName() == null || dto.getName().trim().isEmpty())
+                && (dto.getContact() == null || dto.getContact().trim().isEmpty())
+                && (dto.getAddress() == null || dto.getAddress().trim().isEmpty())
+                && (dto.getRelationship() == null || dto.getRelationship().trim().isEmpty());
     }
 
     private void validateRequest(CreateUserRequest request) {

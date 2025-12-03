@@ -37,6 +37,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   manualIssuingCountry = '';
   manualIssueDate = '';
   manualExpiryDate = '';
+  manualVisaType = '';
 
   saving = false;
   saveSuccess = false;
@@ -49,6 +50,8 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     'PROOF_OF_ADDRESS',
     'REGISTRATION_FORM',
     'CERTIFICATE',
+    'PROFESSIONAL_CERTIFICATE',
+    'TERM_LETTER',
     'NATIONAL_INSURANCE',
     'BANK_STATEMENT'
   ]);
@@ -60,6 +63,8 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     'PROOF_OF_ADDRESS',
     'REGISTRATION_FORM',
     'CERTIFICATE',
+    'PROFESSIONAL_CERTIFICATE',
+    'TERM_LETTER',
     'NATIONAL_INSURANCE',
     'BANK_STATEMENT',
     'OTHERS'
@@ -74,10 +79,33 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     PROOF_OF_ADDRESS: 'Proof of Address',
     REGISTRATION_FORM: 'Registration Form',
     CERTIFICATE: 'Certificate',
+    PROFESSIONAL_CERTIFICATE: 'Professional Certificate',
+    TERM_LETTER: 'Term Letter',
     NATIONAL_INSURANCE: 'National Insurance',
     BANK_STATEMENT: 'Bank Statement',
     OTHERS: 'Others'
   };
+
+  // UK Visa Types
+  visaTypeOptions: string[] = [
+    'Skilled Worker Visa',
+    'Student Visa',
+    'Family Visa',
+    'Youth Mobility Scheme Visa',
+    'Health and Care Worker Visa',
+    'Global Talent Visa',
+    'Innovator Founder Visa',
+    'Start-up Visa',
+    'Seasonal Worker Visa',
+    'Creative Worker Visa',
+    'Charity Worker Visa',
+    'Religious Worker Visa',
+    'International Agreement Visa',
+    'UK Ancestry Visa',
+    'High Potential Individual (HPI) Visa',
+    'Graduate Visa',
+    'Other'
+  ];
 
   constructor(
     private route: ActivatedRoute,
@@ -111,6 +139,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
         this.manualIssuingCountry = data.issuingCountry || '';
         this.manualIssueDate = data.issueDate || '';
         this.manualExpiryDate = data.expiryDate || '';
+        this.manualVisaType = data.visaType || '';
 
         // Load document image
         this.loadDocumentImage(id);
@@ -228,6 +257,15 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     this.editMode = true;
     this.saveSuccess = false;
     this.saveError = null;
+    
+    // Initialize manual fields with current document values
+    if (this.document) {
+      this.manualDocumentNumber = this.document.documentNumber || '';
+      this.manualIssuingCountry = this.document.issuingCountry || '';
+      this.manualIssueDate = this.document.issueDate || '';
+      this.manualExpiryDate = this.document.expiryDate || '';
+      this.manualVisaType = this.document.visaType || '';
+    }
   }
 
   cancelEdit(): void {
@@ -240,6 +278,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
       this.manualIssuingCountry = this.document.issuingCountry || '';
       this.manualIssueDate = this.document.issueDate || '';
       this.manualExpiryDate = this.document.expiryDate || '';
+      this.manualVisaType = this.document.visaType || '';
     }
   }
 
@@ -256,12 +295,17 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     this.saveError = null;
     this.saveSuccess = false;
 
-    const updateData = {
+    const updateData: any = {
       documentNumber: this.manualDocumentNumber,
       issuingCountry: this.manualIssuingCountry,
       issueDate: this.manualIssueDate || null,
       expiryDate: this.manualExpiryDate
     };
+
+    // Include visa type for VISA documents
+    if (this.document.documentType === 'VISA') {
+      updateData.visaType = this.manualVisaType || null;
+    }
 
     this.documentService.updateDocument(this.document.id!, updateData).subscribe({
       next: (updated) => {
