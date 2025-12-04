@@ -5,7 +5,8 @@
   <!-- Mobile Sidebar Overlay -->
   <div class="sidebar-overlay" 
        *ngIf="isLoggedIn && showNavigation && isMobileMenuOpen"
-       (click)="closeMobileMenu()"
+       (click)="closeMobileMenu($event)"
+       (touchstart)="closeMobileMenu($event)"
        [class.active]="isMobileMenuOpen">
   </div>
 
@@ -40,28 +41,28 @@
       </div>
       
       <!-- Dashboard -->
-      <a *ngIf="!isRoot && !isAdmin" routerLink="/dashboard" routerLinkActive="active" class="nav-item" [title]="'Dashboard'">
+      <a *ngIf="!isRoot && !isAdmin" routerLink="/dashboard" routerLinkActive="active" class="nav-item" [title]="'Dashboard'" (click)="onNavItemClick()">
         <span class="nav-icon">🏠</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">Dashboard</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
       </a>
 
       <!-- Employees (for ADMIN) -->
-      <a *ngIf="!isRoot && isAdmin" routerLink="/employees" routerLinkActive="active" class="nav-item" [title]="'Employees'">
+      <a *ngIf="!isRoot && isAdmin" routerLink="/employees" routerLinkActive="active" class="nav-item" [title]="'Employees'" (click)="onNavItemClick()">
         <span class="nav-icon">👥</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">Employees</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
       </a>
 
       <!-- Organizations (for ROOT) -->
-      <a *ngIf="isRoot" routerLink="/root/dashboard" routerLinkActive="active" class="nav-item" [title]="'Organizations'">
+      <a *ngIf="isRoot" routerLink="/root/dashboard" routerLinkActive="active" class="nav-item" [title]="'Organizations'" (click)="onNavItemClick()">
         <span class="nav-icon">🏢</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">Organizations</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
       </a>
 
       <!-- Attendance only for ADMIN and USER, not SUPER_ADMIN -->
-      <a *ngIf="!isRoot && !isSuperAdmin" routerLink="/attendance" routerLinkActive="active" class="nav-item" [title]="'Attendance'">
+      <a *ngIf="!isRoot && !isSuperAdmin" routerLink="/attendance" routerLinkActive="active" class="nav-item" [title]="'Attendance'" (click)="onNavItemClick()">
         <span class="nav-icon">📍</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">Attendance</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
@@ -72,29 +73,29 @@
         <div class="nav-section-title">PAGES</div>
       </div>
 
-      <a *ngIf="!isRoot" routerLink="/rota" routerLinkActive="active" class="nav-item" [title]="'ROTA'">
+      <a *ngIf="!isRoot" routerLink="/rota" routerLinkActive="active" class="nav-item" [title]="'ROTA'" (click)="onNavItemClick()">
         <span class="nav-icon">📋</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">ROTA</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
       </a>
-      <a *ngIf="!isRoot" routerLink="/documents" routerLinkActive="active" class="nav-item" [title]="'Documents'">
+      <a *ngIf="!isRoot" routerLink="/documents" routerLinkActive="active" class="nav-item" [title]="'Documents'" (click)="onNavItemClick()">
         <span class="nav-icon">📄</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">Documents</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
       </a>
-      <a *ngIf="!isRoot" routerLink="/leaves" routerLinkActive="active" class="nav-item" [title]="'Leaves'">
+      <a *ngIf="!isRoot" routerLink="/leaves" routerLinkActive="active" class="nav-item" [title]="'Leaves'" (click)="onNavItemClick()">
         <span class="nav-icon">🏖️</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">Leaves</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
       </a>
       <!-- Alert Configuration only for SUPER_ADMIN -->
-      <a *ngIf="isSuperAdmin" routerLink="/alert-configuration" routerLinkActive="active" class="nav-item" [title]="'Alert Config'">
+      <a *ngIf="isSuperAdmin" routerLink="/alert-configuration" routerLinkActive="active" class="nav-item" [title]="'Alert Config'" (click)="onNavItemClick()">
         <span class="nav-icon">📧</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">Alert Config</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
       </a>
       <!-- SMTP Configuration only for SUPER_ADMIN -->
-      <a *ngIf="isSuperAdmin" routerLink="/smtp-configuration" routerLinkActive="active" class="nav-item" [title]="'SMTP Settings'">
+      <a *ngIf="isSuperAdmin" routerLink="/smtp-configuration" routerLinkActive="active" class="nav-item" [title]="'SMTP Settings'" (click)="onNavItemClick()">
         <span class="nav-icon">📮</span>
         <span class="nav-text" *ngIf="!isSidebarCollapsed">SMTP Settings</span>
         <span class="nav-arrow" *ngIf="!isSidebarCollapsed">›</span>
@@ -108,10 +109,12 @@
     <header class="top-header" *ngIf="isLoggedIn && showNavigation">
       <div class="header-left">
         <button class="header-menu-toggle" 
-                (click)="toggleMobileMenu()" 
+                (click)="toggleMobileMenu($event)" 
+                (touchstart)="toggleMobileMenu($event)"
                 title="Toggle Menu"
                 [attr.aria-label]="'Toggle Menu'"
-                [attr.aria-expanded]="isMobileMenuOpen">
+                [attr.aria-expanded]="isMobileMenuOpen"
+                type="button">
           <span class="hamburger-icon">☰</span>
         </button>
       </div>

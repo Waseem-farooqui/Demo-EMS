@@ -99,21 +99,35 @@ export class AppComponent implements OnInit {
     });
   }
 
-  toggleMobileMenu(): void {
+  toggleMobileMenu(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
     this.isMobileMenuOpen = !this.isMobileMenuOpen;
     // On mobile, also toggle sidebar visibility
     if (window.innerWidth <= 1024) {
       if (this.isMobileMenuOpen) {
         document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
       } else {
         document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
       }
     }
   }
 
-  closeMobileMenu(): void {
+  closeMobileMenu(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
     this.isMobileMenuOpen = false;
     document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
   }
 
   toggleSidebar(): void {
@@ -132,6 +146,13 @@ export class AppComponent implements OnInit {
   onResize(event: any): void {
     // Close mobile menu on resize to desktop
     if (event.target.innerWidth > 1024 && this.isMobileMenuOpen) {
+      this.closeMobileMenu();
+    }
+  }
+
+  onNavItemClick(): void {
+    // Close mobile menu when a navigation item is clicked
+    if (window.innerWidth <= 1024 && this.isMobileMenuOpen) {
       this.closeMobileMenu();
     }
   }

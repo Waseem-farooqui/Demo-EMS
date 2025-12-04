@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { NotificationService } from '../../services/notification.service';
@@ -13,6 +13,9 @@ import { Subscription } from 'rxjs';
   styleUrls: ['./notification-dropdown.component.css']
 })
 export class NotificationDropdownComponent implements OnInit, OnDestroy {
+  @ViewChild('dropdown', { static: false }) dropdownElement?: ElementRef;
+  @ViewChild('bellButton', { static: false }) bellButtonElement?: ElementRef;
+  
   isOpen = false;
   notifications: Notification[] = [];
   unreadCount = 0;
@@ -20,7 +23,8 @@ export class NotificationDropdownComponent implements OnInit, OnDestroy {
 
   constructor(
     private notificationService: NotificationService,
-    private router: Router
+    private router: Router,
+    private elementRef: ElementRef
   ) {}
 
   ngOnInit(): void {
@@ -36,17 +40,66 @@ export class NotificationDropdownComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
+    // Remove body click listener
+    document.removeEventListener('click', this.handleDocumentClick);
+    document.removeEventListener('touchstart', this.handleDocumentClick);
   }
 
-  toggleDropdown(): void {
+  @HostListener('document:click', ['$event'])
+  @HostListener('document:touchstart', ['$event'])
+  handleDocumentClick = (event: Event): void => {
+    if (!this.isOpen) return;
+    
+    const target = event.target as HTMLElement;
+    const clickedInside = this.elementRef.nativeElement.contains(target);
+    
+    if (!clickedInside) {
+      this.closeDropdown();
+    }
+  }
+
+  toggleDropdown(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    const wasOpen = this.isOpen;
     this.isOpen = !this.isOpen;
+    
     if (this.isOpen) {
       this.loadNotifications();
+      // Prevent body scroll on mobile
+      if (window.innerWidth <= 768) {
+        document.body.classList.add('dropdown-open');
+      }
+      // Add listeners when opening
+      setTimeout(() => {
+        document.addEventListener('click', this.handleDocumentClick, true);
+        document.addEventListener('touchstart', this.handleDocumentClick, true);
+      }, 0);
+    } else {
+      // Remove listeners when closing
+      document.removeEventListener('click', this.handleDocumentClick, true);
+      document.removeEventListener('touchstart', this.handleDocumentClick, true);
+      // Restore body scroll
+      if (window.innerWidth <= 768) {
+        document.body.classList.remove('dropdown-open');
+      }
     }
   }
 
   closeDropdown(): void {
-    this.isOpen = false;
+    if (this.isOpen) {
+      this.isOpen = false;
+      // Remove listeners
+      document.removeEventListener('click', this.handleDocumentClick, true);
+      document.removeEventListener('touchstart', this.handleDocumentClick, true);
+      // Restore body scroll
+      if (window.innerWidth <= 768) {
+        document.body.classList.remove('dropdown-open');
+      }
+    }
   }
 
   loadNotifications(): void {

@@ -238,18 +238,70 @@
   bottom: 0;
   z-index: 1000;
   background: transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Make backdrop more visible on mobile for better UX */
+@media (max-width: 768px) {
+  .notification-backdrop {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+  }
 }
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
+  .notification-container {
+    position: relative;
+  }
+
   .notification-dropdown {
     position: fixed;
     top: 60px;
     right: 8px;
     left: 8px;
     width: auto;
+    max-width: calc(100vw - 16px);
     max-height: calc(100vh - 80px);
+    z-index: 1002;
+    transform: translateX(0);
+    opacity: 1;
+    visibility: visible;
   }
+
+  .notification-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1001;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+  }
+
+  .notification-bell {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Ensure dropdown is visible on mobile */
+@media (max-width: 768px) {
+  .notification-dropdown {
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}
+
+/* Prevent body scroll when dropdown is open on mobile */
+body.dropdown-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 

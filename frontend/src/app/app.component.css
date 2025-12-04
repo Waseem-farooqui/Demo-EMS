@@ -509,16 +509,23 @@ body {
 /* Responsive Design */
 @media (max-width: 1024px) {
   .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 1000;
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
     width: 260px;
     max-width: 260px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .sidebar.show {
     transform: translateX(0);
+    visibility: visible;
   }
 
   .sidebar.collapsed {
@@ -529,6 +536,7 @@ body {
 
   .sidebar.collapsed.show {
     transform: translateX(0);
+    visibility: visible;
   }
 
   /* On mobile, main content should always be full width */
@@ -543,6 +551,22 @@ body {
 
   .sidebar-overlay {
     display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sidebar-overlay.active {
+    opacity: 1;
+    visibility: visible;
   }
 }
 
@@ -569,6 +593,10 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    z-index: 1001;
+    position: relative;
   }
 
   .header-search {
