@@ -270,6 +270,7 @@ docker-compose -f "$COMPOSE_FILE" ps
 
 echo ""
 print_success "Selected container(s) deployed successfully!"
+print_info "Access application: https://vertexdigitalsystem.com"
 if [ "$USE_BACKUP" = true ] && [ -n "$BACKUP_PATH" ]; then
     print_info "Backup location: $BACKUP_PATH"
 fi

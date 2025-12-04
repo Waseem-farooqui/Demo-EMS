@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml}"
 BACKUP_DIR="${BACKUP_DIR:-/backups/ems}"
 SSL_DIR="${SSL_DIR:-$SCRIPT_DIR/ssl}"
-DOMAIN="${DOMAIN:-localhost}"
+DOMAIN="${DOMAIN:-vertexdigitalsystem.com}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Load environment variables

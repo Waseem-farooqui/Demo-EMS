@@ -113,8 +113,8 @@ docker-compose -f "$COMPOSE_FILE" ps
 
 echo ""
 print_success "Backend and Frontend deployed successfully!"
-print_info "Backend: http://localhost:${BACKEND_PORT:-8080}"
-print_info "Frontend: http://localhost:${FRONTEND_PORT:-80} or https://localhost:${FRONTEND_HTTPS_PORT:-443}"
+print_info "Frontend: https://vertexdigitalsystem.com"
+print_info "Backend API: https://vertexdigitalsystem.com/api"
 print_info "MySQL: Running (unchanged)"
 echo ""
 

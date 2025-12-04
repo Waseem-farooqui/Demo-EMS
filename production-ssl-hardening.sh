@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SSL_DIR="${SSL_DIR:-$SCRIPT_DIR/ssl}"
-DOMAIN="${DOMAIN:-localhost}"
+DOMAIN="${DOMAIN:-vertexdigitalsystem.com}"
 EMAIL="${EMAIL:-admin@example.com}"
 USE_LETSENCRYPT="${USE_LETSENCRYPT:-false}"
 

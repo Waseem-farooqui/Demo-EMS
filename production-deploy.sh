@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="${BACKUP_DIR:-/backups/ems}"
 SSL_DIR="${SSL_DIR:-$SCRIPT_DIR/ssl}"
-DOMAIN="${DOMAIN:-localhost}"
+DOMAIN="${DOMAIN:-vertexdigitalsystem.com}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Banner
@@ -1681,7 +1681,7 @@ echo "  • Backend Port: ${BACKEND_PORT:-8080}"
 echo ""
 
 print_info "📝 Next Steps:"
-echo "  1. Access application: http://localhost:${FRONTEND_PORT:-80}"
+echo "  1. Access application: https://vertexdigitalsystem.com"
 echo "  2. Create ROOT account (first-time setup)"
 echo "  3. Verify all functionality"
 echo "  4. Review logs: docker-compose logs -f"
@@ -1720,7 +1720,7 @@ if command -v xdg-open &> /dev/null; then
     read -p "Open application in browser? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        xdg-open "http://localhost:${FRONTEND_PORT:-80}" &> /dev/null &
+        xdg-open "https://vertexdigitalsystem.com" &> /dev/null &
     fi
 fi
 
