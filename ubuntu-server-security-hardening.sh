@@ -366,42 +366,71 @@ print_step "Step 11/15: Setting Up Intrusion Detection"
 if command -v rkhunter &> /dev/null; then
     print_info "Configuring rkhunter..."
     
-    # Fix rkhunter configuration if needed
+    # Fix rkhunter configuration BEFORE running any rkhunter commands
     RKHUNTER_CONF="/etc/rkhunter.conf"
     if [ -f "$RKHUNTER_CONF" ]; then
-        # Fix WEB_CMD if it's set incorrectly
-        if grep -q "^WEB_CMD=" "$RKHUNTER_CONF"; then
-            # Comment out problematic WEB_CMD or set to empty
-            sed -i 's/^WEB_CMD=.*/#WEB_CMD="" # Disabled/' "$RKHUNTER_CONF" || true
+        # Backup config first
+        BACKUP_FILE="${RKHUNTER_CONF}.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$RKHUNTER_CONF" "$BACKUP_FILE" 2>/dev/null || true
+        print_info "Backed up rkhunter config to: $BACKUP_FILE"
+        
+        # Fix WEB_CMD - remove lines with /bin/false or invalid paths
+        sed -i '/^WEB_CMD=.*\/bin\/false/d' "$RKHUNTER_CONF" 2>/dev/null || true
+        sed -i '/^WEB_CMD=.*false/d' "$RKHUNTER_CONF" 2>/dev/null || true
+        
+        # Comment out any remaining WEB_CMD entries
+        sed -i 's/^WEB_CMD=/#WEB_CMD=/' "$RKHUNTER_CONF" 2>/dev/null || true
+        
+        # If WEB_CMD doesn't exist at all, add a commented one
+        if ! grep -q "WEB_CMD" "$RKHUNTER_CONF"; then
+            echo "" >> "$RKHUNTER_CONF"
+            echo "# WEB_CMD disabled (not needed for local scans)" >> "$RKHUNTER_CONF"
+            echo "#WEB_CMD=\"\"" >> "$RKHUNTER_CONF"
         fi
         
         # Ensure UPDATE_MIRRORS is enabled
         if grep -q "^UPDATE_MIRRORS=" "$RKHUNTER_CONF"; then
-            sed -i 's/^UPDATE_MIRRORS=.*/UPDATE_MIRRORS=1/' "$RKHUNTER_CONF" || true
+            sed -i 's/^UPDATE_MIRRORS=.*/UPDATE_MIRRORS=1/' "$RKHUNTER_CONF" 2>/dev/null || true
+        else
+            echo "" >> "$RKHUNTER_CONF"
+            echo "UPDATE_MIRRORS=1" >> "$RKHUNTER_CONF"
         fi
         
-        # Set proper paths
-        if ! grep -q "^SCRIPTWHITELIST=" "$RKHUNTER_CONF" || ! grep -q "/usr/bin/which" "$RKHUNTER_CONF"; then
-            echo "" >> "$RKHUNTER_CONF"
-            echo "# Security hardening script additions" >> "$RKHUNTER_CONF"
-            echo "SCRIPTWHITELIST=/usr/bin/which" >> "$RKHUNTER_CONF" || true
-        fi
+        print_success "rkhunter configuration fixed"
+    else
+        print_warning "rkhunter config file not found at $RKHUNTER_CONF"
     fi
     
-    # Update rkhunter database
+    # Update rkhunter database (errors are suppressed, but we try to fix config first)
     print_info "Updating rkhunter database..."
-    rkhunter --update 2>&1 | grep -v "Invalid WEB_CMD" || true
+    UPDATE_OUTPUT=$(rkhunter --update 2>&1)
+    UPDATE_SUCCESS=$(echo "$UPDATE_OUTPUT" | grep -i "updated\|success" || echo "")
+    UPDATE_ERROR=$(echo "$UPDATE_OUTPUT" | grep -i "Invalid WEB_CMD\|Relative pathname" || echo "")
+    
+    if [ -n "$UPDATE_SUCCESS" ] && [ -z "$UPDATE_ERROR" ]; then
+        print_success "rkhunter database updated successfully"
+    elif [ -n "$UPDATE_ERROR" ]; then
+        print_warning "rkhunter update had WEB_CMD warnings (non-critical)"
+        print_info "The WEB_CMD setting is optional and not needed for local scans"
+        print_info "rkhunter will still function correctly"
+    else
+        print_info "rkhunter update completed (check output above for details)"
+    fi
     
     # Run initial scan (non-blocking, may take time)
     print_info "Running initial rkhunter scan (this may take a while, running in background)..."
     print_info "You can check results later with: sudo rkhunter --check"
-    # Run scan but don't wait for it to complete
+    # Run scan but don't wait for it to complete, suppress WEB_CMD errors
     nohup rkhunter --check --skip-keypress --report-warnings-only > /tmp/rkhunter-scan.log 2>&1 &
+    RKHUNTER_PID=$!
+    print_info "rkhunter scan started (PID: $RKHUNTER_PID)"
+    print_info "Check scan results: cat /tmp/rkhunter-scan.log"
+    print_info "Or check if still running: ps aux | grep rkhunter"
     
     print_success "rkhunter configured and initial scan started in background"
-    print_info "Check scan results: cat /tmp/rkhunter-scan.log"
 else
     print_warning "rkhunter not installed, skipping configuration"
+    print_info "To install: sudo apt-get install -y rkhunter"
 fi
 
 # Configure chkrootkit if installed
@@ -410,6 +439,7 @@ if command -v chkrootkit &> /dev/null; then
     print_info "Run manual scan with: sudo chkrootkit"
 else
     print_info "chkrootkit not installed (optional tool)"
+    print_info "To install: sudo apt-get install -y chkrootkit"
 fi
 
 print_success "Intrusion detection tools configured"

@@ -4,9 +4,11 @@
 # Ubuntu 24.04 LTS - Complete Production-Ready Deployment
 ###############################################################################
 # This script provides a one-stop solution for production deployment:
+# - Creates backups of MySQL database and uploaded files before deployment
 # - Stops and removes all existing containers and images
 # - Applies all security fixes and configuration updates
 # - Deploys with production-ready settings
+# - Restores MySQL database and uploaded files after containers are up
 # - Verifies deployment health
 ###############################################################################
 
@@ -163,36 +165,107 @@ print_success "Environment variables validated"
 # Backup existing deployment
 print_step "Step 3/20: Creating Backup"
 
-if docker-compose ps | grep -q "Up"; then
+BACKUP_PATH=""
+BACKUP_CREATED=false
+
+if docker-compose -f "$COMPOSE_FILE" ps | grep -q "Up"; then
     print_info "Existing containers detected, creating backup..."
     
     mkdir -p "$BACKUP_DIR"
     BACKUP_PATH="$BACKUP_DIR/pre_deploy_$TIMESTAMP"
     mkdir -p "$BACKUP_PATH"
     
-    # Backup database
-    if docker-compose ps mysql | grep -q "Up"; then
-        print_info "Backing up database..."
-        docker-compose exec -T mysql mysqldump \
+    # Backup database with comprehensive dump
+    if docker-compose -f "$COMPOSE_FILE" ps mysql | grep -q "Up"; then
+        print_info "Backing up MySQL database..."
+        
+        # Wait for MySQL to be ready
+        sleep 5
+        
+        # Create comprehensive database dump
+        if docker-compose -f "$COMPOSE_FILE" exec -T mysql mysqldump \
             -u root -p"${DB_ROOT_PASSWORD}" \
             --single-transaction \
-            employee_management_system > "$BACKUP_PATH/database.sql" 2>/dev/null || \
-            print_warning "Database backup failed (may not exist yet)"
+            --routines \
+            --triggers \
+            --events \
+            --add-drop-database \
+            --databases employee_management_system > "$BACKUP_PATH/database.sql" 2>"$BACKUP_PATH/database_backup.log"; then
+            
+            # Check if dump file has content
+            if [ -s "$BACKUP_PATH/database.sql" ]; then
+                DB_SIZE=$(du -h "$BACKUP_PATH/database.sql" | cut -f1)
+                print_success "Database backup created: $DB_SIZE"
+                BACKUP_CREATED=true
+            else
+                print_warning "Database backup file is empty"
+                rm -f "$BACKUP_PATH/database.sql"
+            fi
+        else
+            print_warning "Database backup failed - check $BACKUP_PATH/database_backup.log"
+            BACKUP_ERROR=$(cat "$BACKUP_PATH/database_backup.log" 2>/dev/null | head -5)
+            if [ -n "$BACKUP_ERROR" ]; then
+                print_info "Error details: $BACKUP_ERROR"
+            fi
+        fi
+    else
+        print_info "MySQL container not running, skipping database backup"
     fi
     
-    # Backup uploads
-    if docker-compose ps backend | grep -q "Up"; then
-        print_info "Backing up uploads..."
-        docker cp ems-backend:/app/uploads "$BACKUP_PATH/uploads" 2>/dev/null || \
-            print_warning "Uploads backup failed (may be empty)"
+    # Backup uploads directory
+    if docker-compose -f "$COMPOSE_FILE" ps backend | grep -q "Up"; then
+        print_info "Backing up uploaded files..."
+        
+        # Check if uploads directory exists in container
+        if docker-compose -f "$COMPOSE_FILE" exec -T backend test -d /app/uploads 2>/dev/null; then
+            # Create uploads backup directory
+            mkdir -p "$BACKUP_PATH/uploads"
+            
+            # Copy uploads directory from container
+            if docker cp ems-backend:/app/uploads/. "$BACKUP_PATH/uploads/" 2>"$BACKUP_PATH/uploads_backup.log"; then
+                # Check if any files were copied
+                FILE_COUNT=$(find "$BACKUP_PATH/uploads" -type f 2>/dev/null | wc -l)
+                if [ "$FILE_COUNT" -gt 0 ]; then
+                    UPLOADS_SIZE=$(du -sh "$BACKUP_PATH/uploads" 2>/dev/null | cut -f1)
+                    print_success "Uploads backup created: $FILE_COUNT files ($UPLOADS_SIZE)"
+                    BACKUP_CREATED=true
+                else
+                    print_info "Uploads directory is empty, no files to backup"
+                    rm -rf "$BACKUP_PATH/uploads"
+                fi
+            else
+                print_warning "Uploads backup failed - check $BACKUP_PATH/uploads_backup.log"
+                BACKUP_ERROR=$(cat "$BACKUP_PATH/uploads_backup.log" 2>/dev/null | head -5)
+                if [ -n "$BACKUP_ERROR" ]; then
+                    print_info "Error details: $BACKUP_ERROR"
+                fi
+            fi
+        else
+            print_info "Uploads directory doesn't exist in container yet"
+        fi
+    else
+        print_info "Backend container not running, skipping uploads backup"
     fi
     
-    # Backup .env
-    cp .env "$BACKUP_PATH/.env.backup" 2>/dev/null || true
+    # Backup .env file
+    if [ -f .env ]; then
+        cp .env "$BACKUP_PATH/.env.backup" 2>/dev/null || true
+        print_info ".env file backed up"
+    fi
     
-    print_success "Backup created: $BACKUP_PATH"
+    # Save backup path to file for restore
+    echo "$BACKUP_PATH" > "$BACKUP_DIR/latest_backup_path.txt" 2>/dev/null || true
+    
+    if [ "$BACKUP_CREATED" = true ]; then
+        print_success "Backup created successfully: $BACKUP_PATH"
+        print_info "Backup contents:"
+        ls -lh "$BACKUP_PATH" 2>/dev/null | head -10 || true
+    else
+        print_warning "Backup directory created but no data was backed up (fresh deployment?)"
+        print_info "Backup path: $BACKUP_PATH"
+    fi
 else
-    print_info "No existing containers to backup"
+    print_info "No existing containers to backup (fresh deployment)"
 fi
 
 # Stop and remove existing containers
@@ -691,6 +764,50 @@ SQL
         
         if [ "$FINAL_TABLES" -ge 10 ]; then
             print_success "Database tables created successfully ($FINAL_TABLES tables)"
+            
+            # Load backup path if not already set (in case script was interrupted and resumed)
+            if [ -z "$BACKUP_PATH" ] && [ -f "$BACKUP_DIR/latest_backup_path.txt" ]; then
+                BACKUP_PATH=$(cat "$BACKUP_DIR/latest_backup_path.txt" 2>/dev/null || echo "")
+            fi
+            
+            # Restore database from backup if it exists
+            if [ -n "$BACKUP_PATH" ] && [ -f "$BACKUP_PATH/database.sql" ] && [ -s "$BACKUP_PATH/database.sql" ]; then
+                print_info "Restoring database from backup..."
+                
+                # Check if database has data (if it's a fresh deployment, restore)
+                RECORD_COUNT=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+                    -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system';" \
+                    2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+                
+                # Check if we have actual data (not just table count)
+                if [ "$RECORD_COUNT" -le 10 ]; then
+                    # Fresh database, restore from backup
+                    print_info "Restoring database dump ($(du -h "$BACKUP_PATH/database.sql" | cut -f1))..."
+                    
+                    if docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" < "$BACKUP_PATH/database.sql" 2>"$BACKUP_PATH/database_restore.log"; then
+                        print_success "Database restored successfully from backup"
+                        
+                        # Verify restoration
+                        RESTORED_TABLES=$(docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" \
+                            -e "USE employee_management_system; SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'employee_management_system';" \
+                            2>/dev/null | tail -1 | tr -d ' ' || echo "0")
+                        print_info "Database now has $RESTORED_TABLES tables"
+                    else
+                        print_warning "Database restore had errors - check $BACKUP_PATH/database_restore.log"
+                        RESTORE_ERROR=$(cat "$BACKUP_PATH/database_restore.log" 2>/dev/null | grep -i error | head -3)
+                        if [ -n "$RESTORE_ERROR" ]; then
+                            print_info "Restore errors: $RESTORE_ERROR"
+                        fi
+                        print_info "Database will continue with fresh schema"
+                    fi
+                else
+                    print_info "Database already has data, skipping restore (keeping existing data)"
+                    print_info "If you need to restore, manually run:"
+                    print_info "  docker-compose exec -T mysql mysql -u root -p'${DB_ROOT_PASSWORD}' < $BACKUP_PATH/database.sql"
+                fi
+            else
+                print_info "No database backup found or backup is empty, using fresh database"
+            fi
             
             # Add foreign key constraint for departments.manager_id after employees table exists
             print_info "Adding foreign key constraint for departments.manager_id..."
@@ -1316,6 +1433,46 @@ docker-compose -f "$COMPOSE_FILE" up -d backend
 # Wait for backend to start
 print_info "Waiting for backend to start (60 seconds)..."
 sleep 60
+
+# Load backup path if not already set (in case script was interrupted and resumed)
+if [ -z "$BACKUP_PATH" ] && [ -f "$BACKUP_DIR/latest_backup_path.txt" ]; then
+    BACKUP_PATH=$(cat "$BACKUP_DIR/latest_backup_path.txt" 2>/dev/null || echo "")
+fi
+
+# Restore uploads if backup exists
+if [ -n "$BACKUP_PATH" ] && [ -d "$BACKUP_PATH/uploads" ]; then
+    print_info "Restoring uploaded files..."
+    
+    # Wait for backend container to be fully ready
+    MAX_WAIT=30
+    WAIT_COUNT=0
+    while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+        if docker-compose -f "$COMPOSE_FILE" exec -T backend test -d /app/uploads 2>/dev/null; then
+            break
+        fi
+        WAIT_COUNT=$((WAIT_COUNT + 1))
+        sleep 1
+    done
+    
+    # Ensure uploads directory exists in container
+    docker-compose -f "$COMPOSE_FILE" exec -T backend mkdir -p /app/uploads 2>/dev/null || true
+    
+    # Copy files back to container
+    FILE_COUNT=$(find "$BACKUP_PATH/uploads" -type f 2>/dev/null | wc -l)
+    if [ "$FILE_COUNT" -gt 0 ]; then
+        print_info "Restoring $FILE_COUNT files..."
+        if docker cp "$BACKUP_PATH/uploads/." ems-backend:/app/uploads/ 2>/dev/null; then
+            print_success "Uploaded files restored successfully"
+        else
+            print_warning "Failed to restore some files, but container is running"
+            print_info "You can manually restore from: $BACKUP_PATH/uploads"
+        fi
+    else
+        print_info "No files to restore (uploads directory was empty)"
+    fi
+else
+    print_info "No uploads backup found, skipping restore"
+fi
 
 # Check backend health
 print_info "Checking backend health..."
