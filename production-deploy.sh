@@ -26,6 +26,8 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="${BACKUP_DIR:-/backups/ems}"
+SSL_DIR="${SSL_DIR:-$SCRIPT_DIR/ssl}"
+DOMAIN="${DOMAIN:-localhost}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Banner
@@ -389,12 +391,61 @@ docker system prune -f > /dev/null 2>&1
 
 print_success "Docker system cleaned"
 
+# Setup SSL Certificates
+print_step "Step 10/20: Setting Up SSL Certificates"
+
+# Check if SSL certificates exist
+if [ ! -f "$SSL_DIR/$DOMAIN.crt" ] || [ ! -f "$SSL_DIR/$DOMAIN.key" ]; then
+    print_warning "SSL certificates not found at $SSL_DIR/$DOMAIN.crt"
+    print_info "Generating self-signed certificates for development..."
+    
+    # Check if generate-ssl-cert.sh exists
+    if [ -f "$SCRIPT_DIR/generate-ssl-cert.sh" ]; then
+        chmod +x "$SCRIPT_DIR/generate-ssl-cert.sh"
+        DOMAIN="$DOMAIN" "$SCRIPT_DIR/generate-ssl-cert.sh" || {
+            print_warning "SSL certificate generation failed, but continuing..."
+            print_info "You can generate certificates manually with: ./generate-ssl-cert.sh"
+        }
+    else
+        print_warning "generate-ssl-cert.sh not found, skipping SSL setup"
+        print_info "For production, use Let's Encrypt: ./setup-letsencrypt.sh"
+    fi
+else
+    print_success "SSL certificates found: $SSL_DIR/$DOMAIN.crt"
+fi
+
+# Create symlinks for nginx (nginx expects cert.crt and cert.key)
+if [ -f "$SSL_DIR/$DOMAIN.crt" ] && [ -f "$SSL_DIR/$DOMAIN.key" ]; then
+    mkdir -p "$SSL_DIR"
+    if [ ! -f "$SSL_DIR/cert.crt" ]; then
+        cp "$SSL_DIR/$DOMAIN.crt" "$SSL_DIR/cert.crt" 2>/dev/null || true
+    fi
+    if [ ! -f "$SSL_DIR/cert.key" ]; then
+        cp "$SSL_DIR/$DOMAIN.key" "$SSL_DIR/cert.key" 2>/dev/null || true
+    fi
+    # Copy DH params if they exist
+    if [ -f "$SSL_DIR/dhparam.pem" ] && [ ! -f "$SSL_DIR/dhparam.pem" ]; then
+        cp "$SSL_DIR/dhparam.pem" "$SSL_DIR/dhparam.pem" 2>/dev/null || true
+    fi
+    print_success "SSL certificates prepared for nginx"
+fi
+
 # Build images
 print_step "Step 11/20: Building Docker Images"
 
 print_info "Building backend image (this may take 5-10 minutes)..."
-docker-compose -f "$COMPOSE_FILE" build --no-cache backend || {
+# Build backend with DNS configuration
+print_info "Building backend with DNS configuration..."
+# Configure DNS for build if needed
+export DOCKER_BUILDKIT=1
+docker-compose -f "$COMPOSE_FILE" build --no-cache \
+    --build-arg BUILDKIT_INLINE_CACHE=1 \
+    backend || {
     print_error "Backend build failed!"
+    print_info "Troubleshooting DNS issues..."
+    print_info "1. Check internet connectivity: ping -c 3 repo.maven.apache.org"
+    print_info "2. Check Docker DNS: docker run --rm maven:3.8-openjdk-11-slim nslookup repo.maven.apache.org"
+    print_info "3. Try building with custom DNS: docker build --dns 8.8.8.8 --dns 8.8.4.4 -t test-build -f Dockerfile ."
     exit 1
 }
 
