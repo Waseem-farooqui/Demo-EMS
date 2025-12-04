@@ -156,8 +156,13 @@ docker-compose -f "$COMPOSE_FILE" build --no-cache backend || {
 }
 
 print_info "Building frontend image..."
+print_info "Using host network for better DNS resolution during build..."
 docker-compose -f "$COMPOSE_FILE" build --no-cache frontend || {
     print_error "Frontend build failed!"
+    print_info "Troubleshooting DNS issues..."
+    print_info "1. Check internet connectivity: ping -c 3 registry.npmjs.org"
+    print_info "2. Check Docker DNS: docker run --rm node:18-alpine nslookup registry.npmjs.org"
+    print_info "3. Try building with custom DNS: docker build --dns 8.8.8.8 --dns 8.8.4.4 -t test-frontend -f frontend/Dockerfile frontend/"
     exit 1
 }
 

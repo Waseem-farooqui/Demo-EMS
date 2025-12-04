@@ -5,6 +5,18 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
+# Install network tools for troubleshooting
+RUN apk add --no-cache curl dnsutils
+
+# Configure DNS for better connectivity
+RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf && \
+    echo "nameserver 8.8.4.4" >> /etc/resolv.conf && \
+    echo "nameserver 1.1.1.1" >> /etc/resolv.conf || true
+
+# Test DNS resolution before npm install
+RUN echo "Testing DNS resolution..." && \
+    nslookup registry.npmjs.org || echo "DNS test completed" || true
+
 # Build arguments for environment variables
 ARG API_URL
 ARG API_BASE_URL
@@ -18,9 +30,19 @@ ENV FRONTEND_URL=${FRONTEND_URL:-http://localhost}
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies with retry logic and timeout settings
 # Use npm install instead of npm ci for compatibility
-RUN npm install --legacy-peer-deps
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm install --legacy-peer-deps || \
+    (echo "First attempt failed, waiting 10 seconds and retrying..." && \
+     sleep 10 && \
+     npm install --legacy-peer-deps) || \
+    (echo "Second attempt failed, waiting 20 seconds and retrying..." && \
+     sleep 20 && \
+     npm install --legacy-peer-deps --verbose)
 
 # Copy source code
 COPY . .

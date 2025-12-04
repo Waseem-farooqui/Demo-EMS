@@ -148,6 +148,7 @@ services:
         API_URL: ${API_URL:-https://vertexdigitalsystem.com/api}
         API_BASE_URL: ${API_BASE_URL:-https://vertexdigitalsystem.com}
         FRONTEND_URL: ${FRONTEND_URL:-https://vertexdigitalsystem.com}
+      network: host  # Use host network for better DNS resolution during build
     container_name: ems-frontend
     restart: unless-stopped
     # Minimal resources for frontend (static files)
