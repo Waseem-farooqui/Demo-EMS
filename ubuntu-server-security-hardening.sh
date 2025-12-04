@@ -362,12 +362,55 @@ print_success "AppArmor enabled"
 # Step 11: Set Up Intrusion Detection
 print_step "Step 11/15: Setting Up Intrusion Detection"
 
-# Run rkhunter update
-rkhunter --update
+# Configure rkhunter if installed
+if command -v rkhunter &> /dev/null; then
+    print_info "Configuring rkhunter..."
+    
+    # Fix rkhunter configuration if needed
+    RKHUNTER_CONF="/etc/rkhunter.conf"
+    if [ -f "$RKHUNTER_CONF" ]; then
+        # Fix WEB_CMD if it's set incorrectly
+        if grep -q "^WEB_CMD=" "$RKHUNTER_CONF"; then
+            # Comment out problematic WEB_CMD or set to empty
+            sed -i 's/^WEB_CMD=.*/#WEB_CMD="" # Disabled/' "$RKHUNTER_CONF" || true
+        fi
+        
+        # Ensure UPDATE_MIRRORS is enabled
+        if grep -q "^UPDATE_MIRRORS=" "$RKHUNTER_CONF"; then
+            sed -i 's/^UPDATE_MIRRORS=.*/UPDATE_MIRRORS=1/' "$RKHUNTER_CONF" || true
+        fi
+        
+        # Set proper paths
+        if ! grep -q "^SCRIPTWHITELIST=" "$RKHUNTER_CONF" || ! grep -q "/usr/bin/which" "$RKHUNTER_CONF"; then
+            echo "" >> "$RKHUNTER_CONF"
+            echo "# Security hardening script additions" >> "$RKHUNTER_CONF"
+            echo "SCRIPTWHITELIST=/usr/bin/which" >> "$RKHUNTER_CONF" || true
+        fi
+    fi
+    
+    # Update rkhunter database
+    print_info "Updating rkhunter database..."
+    rkhunter --update 2>&1 | grep -v "Invalid WEB_CMD" || true
+    
+    # Run initial scan (non-blocking, may take time)
+    print_info "Running initial rkhunter scan (this may take a while, running in background)..."
+    print_info "You can check results later with: sudo rkhunter --check"
+    # Run scan but don't wait for it to complete
+    nohup rkhunter --check --skip-keypress --report-warnings-only > /tmp/rkhunter-scan.log 2>&1 &
+    
+    print_success "rkhunter configured and initial scan started in background"
+    print_info "Check scan results: cat /tmp/rkhunter-scan.log"
+else
+    print_warning "rkhunter not installed, skipping configuration"
+fi
 
-# Run initial scan
-print_info "Running initial rkhunter scan (this may take a while)..."
-rkhunter --check --skip-keypress --report-warnings-only || true
+# Configure chkrootkit if installed
+if command -v chkrootkit &> /dev/null; then
+    print_info "chkrootkit is installed and ready to use"
+    print_info "Run manual scan with: sudo chkrootkit"
+else
+    print_info "chkrootkit not installed (optional tool)"
+fi
 
 print_success "Intrusion detection tools configured"
 
