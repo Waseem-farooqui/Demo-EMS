@@ -1052,6 +1052,7 @@ public class EmployeeService {
     private NextOfKin convertToNextOfKinEntity(NextOfKinDTO dto, Employee employee) {
         NextOfKin nextOfKin = new NextOfKin();
         nextOfKin.setId(dto.getId());
+        nextOfKin.setTitle(dto.getTitle());
         nextOfKin.setName(dto.getName());
         nextOfKin.setContact(dto.getContact());
         nextOfKin.setAddress(dto.getAddress());
@@ -1063,6 +1064,7 @@ public class EmployeeService {
     private NextOfKinDTO convertNextOfKinToDTO(NextOfKin nextOfKin) {
         NextOfKinDTO dto = new NextOfKinDTO();
         dto.setId(nextOfKin.getId());
+        dto.setTitle(nextOfKin.getTitle());
         dto.setName(nextOfKin.getName());
         dto.setContact(nextOfKin.getContact());
         dto.setAddress(nextOfKin.getAddress());
@@ -1075,7 +1077,8 @@ public class EmployeeService {
             return true;
         }
 
-        return (dto.getName() == null || dto.getName().trim().isEmpty())
+        return (dto.getTitle() == null || dto.getTitle().trim().isEmpty())
+                && (dto.getName() == null || dto.getName().trim().isEmpty())
                 && (dto.getContact() == null || dto.getContact().trim().isEmpty())
                 && (dto.getAddress() == null || dto.getAddress().trim().isEmpty())
                 && (dto.getRelationship() == null || dto.getRelationship().trim().isEmpty());

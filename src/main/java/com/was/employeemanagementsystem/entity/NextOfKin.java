@@ -19,6 +19,9 @@ public class NextOfKin {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "title")
+    private String title; // Mr, Mrs, Miss, Ms, Dr, Prof, etc.
+
     @Column(name = "name", nullable = false)
     private String name;
 

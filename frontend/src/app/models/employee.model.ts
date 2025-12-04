@@ -11,6 +11,7 @@ export interface EmploymentRecord {
 
 export interface NextOfKin {
   id?: number;
+  title?: string; // Mr, Mrs, Miss, Ms, Dr, Prof, etc.
   name?: string;
   contact?: string;
   address?: string;

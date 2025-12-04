@@ -309,9 +309,15 @@
                 <h5>Next of Kin {{ i + 1 }}</h5>
               </div>
               <div class="info-grid">
+                <div class="info-item" *ngIf="kin.title">
+                  <span class="info-label">Title:</span>
+                  <span class="info-value">{{ kin.title }}</span>
+                </div>
                 <div class="info-item">
                   <span class="info-label">Name:</span>
-                  <span class="info-value">{{ kin.name || '-' }}</span>
+                  <span class="info-value">
+                    <span *ngIf="kin.title">{{ kin.title }} </span>{{ kin.name || '-' }}
+                  </span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">Contact:</span>

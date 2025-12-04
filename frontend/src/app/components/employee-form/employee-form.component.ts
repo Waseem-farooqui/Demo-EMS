@@ -461,6 +461,7 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
 
   private createNextOfKinGroup(kin?: any): FormGroup {
     return this.fb.group({
+      title: [kin?.title || ''],
       name: [kin?.name || ''],
       contact: [kin?.contact || ''],
       address: [kin?.address || ''],
