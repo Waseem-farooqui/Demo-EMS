@@ -8,9 +8,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-// Explicitly scan entities to ensure JPA finds them
-@EntityScan(basePackages = "com.was.employeemanagementsystem.entity")
-@EnableJpaRepositories(basePackages = "com.was.employeemanagementsystem.repository")
+// Explicitly scan entities to ensure JPA finds them (includes inventory entities)
+@EntityScan(basePackages = {
+    "com.was.employeemanagementsystem.entity",
+    "com.was.employeemanagementsystem.entity.inventory"
+})
+@EnableJpaRepositories(basePackages = {
+    "com.was.employeemanagementsystem.repository",
+    "com.was.employeemanagementsystem.repository.inventory"
+})
 public class EmployeeManagementSystemApplication {
 
     public static void main(String[] args) {

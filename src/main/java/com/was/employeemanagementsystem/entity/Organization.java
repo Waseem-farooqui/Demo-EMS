@@ -1,5 +1,6 @@
 package com.was.employeemanagementsystem.entity;
 
+import com.was.employeemanagementsystem.enums.SystemType;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -24,6 +25,10 @@ public class Organization {
 
     @Column(nullable = false, unique = true)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "system_type", nullable = false, length = 50)
+    private SystemType systemType = SystemType.EMPLOYEE_MANAGEMENT;
 
     @Column(name = "logo_path")
     private String logoPath;
