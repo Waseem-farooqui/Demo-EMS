@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
+import {PageResponse} from '../models/page-response.model';
 import {environment} from '../../environments/environment';
 
 export interface Rota {
@@ -17,6 +18,14 @@ export interface Rota {
 
 // Backend returns flat list of RotaScheduleEntryDTO, not grouped format
 // After transformation, this becomes grouped format with schedules object
+export interface DayScheduleEntry {
+  dayOfWeek?: string;
+  duty?: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  isOffDay?: boolean;
+}
+
 export interface RotaSchedule {
   id?: number;
   rotaId?: number;
@@ -30,13 +39,7 @@ export interface RotaSchedule {
   isOffDay?: boolean;
   // Grouped format (after transformation) - always present after loadSchedules()
   schedules: {
-    [date: string]: {
-      dayOfWeek: string;
-      duty: string;
-      startTime: string | null;
-      endTime: string | null;
-      isOffDay: boolean;
-    };
+    [date: string]: DayScheduleEntry | undefined;
   };
 }
 
@@ -98,6 +101,13 @@ export class RotaService {
 
   getAllRotas(): Observable<Rota[]> {
     return this.http.get<Rota[]>(this.apiUrl);
+  }
+
+  getAllRotasPaginated(page: number = 0, size: number = 10): Observable<PageResponse<Rota>> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('size', size.toString());
+    return this.http.get<PageResponse<Rota>>(`${this.apiUrl}/paginated`, { params });
   }
 
   getRotaSchedules(rotaId: number): Observable<RotaSchedule[]> {

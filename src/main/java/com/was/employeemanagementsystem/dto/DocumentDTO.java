@@ -26,6 +26,7 @@ public class DocumentDTO {
     private String nationality;
 
     // UK VISA specific fields
+    private String visaType; // e.g., Skilled Worker, Student, Family, etc.
     private String companyName;
     private LocalDate dateOfCheck;
     private String referenceNumber;

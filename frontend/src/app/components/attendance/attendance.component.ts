@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, OnDestroy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Router} from '@angular/router';
@@ -8,6 +8,15 @@ import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
 import {Attendance, WorkLocationOption} from '../../models/attendance.model';
 import {environment} from '../../../environments/environment';
+import {Subscription} from 'rxjs';
+
+interface User {
+  id?: number;
+  email?: string;
+  username?: string;
+  roles?: string[];
+  organizationId?: number;
+}
 
 @Component({
   selector: 'app-attendance',
@@ -16,8 +25,8 @@ import {environment} from '../../../environments/environment';
   templateUrl: './attendance.component.html',
   styleUrls: ['./attendance.component.css']
 })
-export class AttendanceComponent implements OnInit {
-  currentUser: any;
+export class AttendanceComponent implements OnInit, OnDestroy {
+  currentUser: User | null = null;
   employeeId: number | null = null;
   currentStatus: Attendance | null = null;
   isCheckedIn = false;
@@ -37,6 +46,8 @@ export class AttendanceComponent implements OnInit {
 
   loading = false;
   loadingEmployee = true;
+
+  private subscriptions: Subscription[] = [];
 
   constructor(
     private attendanceService: AttendanceService,
@@ -73,7 +84,7 @@ export class AttendanceComponent implements OnInit {
     }
 
     // Fetch employee by work email
-    this.http.get<any[]>(`${environment.apiUrl}/employees`).subscribe({
+    const employeesSub = this.http.get<any[]>(`${environment.apiUrl}/employees`).subscribe({
       next: (employees) => {
         const employee = employees.find(emp => emp.workEmail === userEmail);
         if (employee) {
@@ -92,10 +103,11 @@ export class AttendanceComponent implements OnInit {
         this.loadingEmployee = false;
       }
     });
+    this.subscriptions.push(employeesSub);
   }
 
   loadWorkLocations(): void {
-    this.attendanceService.getWorkLocations().subscribe({
+    const locationsSub = this.attendanceService.getWorkLocations().subscribe({
       next: (locations) => {
         this.workLocations = locations;
         if (locations.length > 0) {
@@ -107,12 +119,13 @@ export class AttendanceComponent implements OnInit {
         this.toastService.error('Failed to load work locations');
       }
     });
+    this.subscriptions.push(locationsSub);
   }
 
   loadCurrentStatus(): void {
     if (!this.employeeId) return;
 
-    this.attendanceService.getCurrentStatus(this.employeeId).subscribe({
+    const statusSub = this.attendanceService.getCurrentStatus(this.employeeId).subscribe({
       next: (response) => {
         if (response.status === 'CHECKED_OUT') {
           this.isCheckedIn = false;
@@ -131,6 +144,7 @@ export class AttendanceComponent implements OnInit {
         this.checkTodayAttendance();
       }
     });
+    this.subscriptions.push(statusSub);
   }
 
   checkTodayAttendance(): void {
@@ -140,7 +154,7 @@ export class AttendanceComponent implements OnInit {
     const todayStr = this.formatDate(today);
     
     // Load today's attendance to check if user has already checked in
-    this.attendanceService.getAttendanceByDateRange(
+    const todaySub = this.attendanceService.getAttendanceByDateRange(
       this.employeeId,
       todayStr,
       todayStr
@@ -154,6 +168,7 @@ export class AttendanceComponent implements OnInit {
         // Don't show error to user, just log it
       }
     });
+    this.subscriptions.push(todaySub);
   }
 
   initializeDateRange(): void {
@@ -179,7 +194,7 @@ export class AttendanceComponent implements OnInit {
 
     this.loading = true;
 
-    this.attendanceService.checkIn(
+    const checkInSub = this.attendanceService.checkIn(
       this.employeeId,
       this.selectedLocation,
       this.checkInNotes
@@ -199,6 +214,7 @@ export class AttendanceComponent implements OnInit {
         this.loading = false;
       }
     });
+    this.subscriptions.push(checkInSub);
   }
 
   checkOut(): void {
@@ -209,7 +225,7 @@ export class AttendanceComponent implements OnInit {
 
     this.loading = true;
 
-    this.attendanceService.checkOut(
+    const checkOutSub = this.attendanceService.checkOut(
       this.employeeId,
       this.checkOutNotes
     ).subscribe({
@@ -229,12 +245,13 @@ export class AttendanceComponent implements OnInit {
         this.loading = false;
       }
     });
+    this.subscriptions.push(checkOutSub);
   }
 
   loadAttendanceHistory(): void {
     if (!this.startDate || !this.endDate || !this.employeeId) return;
 
-    this.attendanceService.getAttendanceByDateRange(
+    const historySub = this.attendanceService.getAttendanceByDateRange(
       this.employeeId,
       this.startDate,
       this.endDate
@@ -249,6 +266,7 @@ export class AttendanceComponent implements OnInit {
         this.toastService.error('Failed to load attendance history');
       }
     });
+    this.subscriptions.push(historySub);
   }
 
   checkIfCheckedInToday(history: Attendance[]): void {
@@ -292,6 +310,11 @@ export class AttendanceComponent implements OnInit {
 
   formatTime(dateTime: string): string {
     return new Date(dateTime).toLocaleTimeString();
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
   }
 }
 

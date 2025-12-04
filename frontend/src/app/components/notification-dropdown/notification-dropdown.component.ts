@@ -87,7 +87,8 @@ export class NotificationDropdownComponent implements OnInit, OnDestroy {
     if (notification.referenceType === 'LEAVE' && notification.referenceId) {
       this.router.navigate(['/leaves']);
     } else if (notification.referenceType === 'DOCUMENT' && notification.referenceId) {
-      this.router.navigate(['/documents']);
+      // Navigate to the specific document detail page
+      this.router.navigate(['/documents', notification.referenceId]);
     }
   }
 

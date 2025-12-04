@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, OnDestroy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Router, RouterModule} from '@angular/router';
@@ -7,6 +7,21 @@ import {EmployeeService} from '../../services/employee.service';
 import {AuthService} from '../../services/auth.service';
 import {Document} from '../../models/document.model';
 import {Employee} from '../../models/employee.model';
+import {Subscription} from 'rxjs';
+
+interface DocumentTypeOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+interface User {
+  id?: number;
+  email?: string;
+  username?: string;
+  roles?: string[];
+  organizationId?: number;
+}
 
 @Component({
   selector: 'app-document-upload',
@@ -15,10 +30,11 @@ import {Employee} from '../../models/employee.model';
   templateUrl: './document-upload.component.html',
   styleUrls: ['./document-upload.component.css']
 })
-export class DocumentUploadComponent implements OnInit {
+export class DocumentUploadComponent implements OnInit, OnDestroy {
   employees: Employee[] = [];
   selectedEmployeeId: number = 0;
   documentType: string = '';
+  visaType: string = '';
   selectedFile: File | null = null;
   fileName: string = '';
 
@@ -27,15 +43,57 @@ export class DocumentUploadComponent implements OnInit {
   error: string | null = null;
   success: string | null = null;
   warning: string | null = null;
+  submitted = false;
+  attemptedSubmit = false;
+
+  // UK Visa Types
+  visaTypeOptions: string[] = [
+    'Skilled Worker Visa',
+    'Student Visa',
+    'Family Visa',
+    'Youth Mobility Scheme Visa',
+    'Health and Care Worker Visa',
+    'Global Talent Visa',
+    'Innovator Founder Visa',
+    'Start-up Visa',
+    'Seasonal Worker Visa',
+    'Creative Worker Visa',
+    'Charity Worker Visa',
+    'Religious Worker Visa',
+    'International Agreement Visa',
+    'UK Ancestry Visa',
+    'High Potential Individual (HPI) Visa',
+    'Graduate Visa',
+    'Other'
+  ];
 
   uploadedDocument: Document | null = null;
   existingDocuments: Document[] = [];
   duplicateDocument: Document | null = null;
 
-  currentUser: any;
+  currentUser: User | null = null;
   isAdmin = false;
 
-  documentTypes = ['PASSPORT', 'VISA', 'CONTRACT', 'RESUME', 'SHARE_CODE'];
+  private subscriptions: Subscription[] = [];
+
+  documentTypeOptions: DocumentTypeOption[] = [
+    { value: 'PASSPORT', label: 'Passport (ID Document)' },
+    { value: 'VISA', label: 'Visa / Work Permission' },
+    { value: 'CONTRACT', label: 'Employment Contract' },
+    { value: 'RESUME', label: 'CV / Resume' },
+    { value: 'SHARE_CODE', label: 'Share Code Proof' },
+    { value: 'PROOF_OF_ADDRESS', label: 'Proof of Address' },
+    { value: 'REGISTRATION_FORM', label: 'Registration Form' },
+    { value: 'CERTIFICATE', label: 'Certificate' },
+    { value: 'PROFESSIONAL_CERTIFICATE', label: 'Professional Certificate' },
+    { value: 'TERM_LETTER', label: 'Term Letter' },
+    { value: 'NATIONAL_INSURANCE', label: 'National Insurance Document' },
+    { value: 'BANK_STATEMENT', label: 'Bank Statement' },
+    { value: 'OTHERS', label: 'Others' }
+  ];
+
+  private readonly ocrDocumentTypes = new Set(['PASSPORT', 'VISA', 'CONTRACT']);
+  private readonly identityDocumentTypes = new Set(['PASSPORT', 'VISA']);
 
   constructor(
     private documentService: DocumentService,
@@ -54,7 +112,7 @@ export class DocumentUploadComponent implements OnInit {
 
   loadEmployees(): void {
     this.loading = true;
-    this.employeeService.getAllEmployees().subscribe({
+    const employeesSub = this.employeeService.getAllEmployees().subscribe({
       next: (data) => {
         this.employees = data;
         // For non-admin, auto-select their employee
@@ -69,10 +127,11 @@ export class DocumentUploadComponent implements OnInit {
         console.error('Error loading employees:', err);
       }
     });
+    this.subscriptions.push(employeesSub);
   }
 
   loadExistingDocuments(): void {
-    this.documentService.getAllDocuments().subscribe({
+    const documentsSub = this.documentService.getAllDocuments().subscribe({
       next: (data) => {
         this.existingDocuments = data;
       },
@@ -80,6 +139,7 @@ export class DocumentUploadComponent implements OnInit {
         console.error('Error loading existing documents:', err);
       }
     });
+    this.subscriptions.push(documentsSub);
   }
 
   onFileSelected(event: any): void {
@@ -131,9 +191,20 @@ export class DocumentUploadComponent implements OnInit {
       return;
     }
 
+    // Validate visa type for VISA documents
+    if (this.documentType === 'VISA' && !this.visaType) {
+      this.error = 'Please select a visa type before uploading.';
+      return;
+    }
+
     this.uploading = true;
 
-    this.documentService.uploadDocument(this.selectedEmployeeId, this.documentType, this.selectedFile).subscribe({
+    const uploadSub = this.documentService.uploadDocument(
+      this.selectedEmployeeId, 
+      this.documentType, 
+      this.selectedFile,
+      this.visaType || undefined
+    ).subscribe({
       next: (response) => {
         this.uploadedDocument = response;
         this.uploading = false;
@@ -147,7 +218,7 @@ export class DocumentUploadComponent implements OnInit {
 
         if (duplicate) {
           this.duplicateDocument = duplicate;
-          this.warning = `Warning: A similar ${response.documentType} document already exists with number ${duplicate.documentNumber}. Uploaded on ${this.formatDate(duplicate.uploadedDate!)}.`;
+          this.warning = `Warning: A similar ${this.getDocumentTypeLabel(response.documentType)} document already exists with number ${duplicate.documentNumber}. Uploaded on ${this.formatDate(duplicate.uploadedDate!)}.`;
         }
 
         // Reload documents list
@@ -162,12 +233,26 @@ export class DocumentUploadComponent implements OnInit {
         this.uploading = false;
       }
     });
+    this.subscriptions.push(uploadSub);
+  }
+
+  onDocumentTypeChange(): void {
+    // Reset visaType if documentType is not VISA
+    if (this.documentType !== 'VISA') {
+      this.visaType = '';
+    }
+    // Reset form submission flags when document type changes
+    this.submitted = false;
+    this.attemptedSubmit = false;
   }
 
   resetForm(): void {
     this.documentType = '';
+    this.visaType = '';
     this.selectedFile = null;
     this.fileName = '';
+    this.submitted = false;
+    this.attemptedSubmit = false;
     // Don't reset employee selection for non-admin users
     if (this.isAdmin) {
       this.selectedEmployeeId = 0;
@@ -210,6 +295,39 @@ export class DocumentUploadComponent implements OnInit {
     if (daysUntilExpiry <= 30) return 'EXPIRING SOON';
     if (daysUntilExpiry <= 90) return 'EXPIRES IN ' + daysUntilExpiry + ' DAYS';
     return 'VALID';
+  }
+
+  isCurrentSelectionOcr(): boolean {
+    return this.isOcrDocumentType(this.documentType);
+  }
+
+  isOcrDocumentType(type?: string | null): boolean {
+    if (!type) { return false; }
+    return this.ocrDocumentTypes.has(type.toUpperCase());
+  }
+
+  requiresMetadata(type?: string | null): boolean {
+    if (!type) { return false; }
+    return this.identityDocumentTypes.has(type.toUpperCase());
+  }
+
+  shouldShowMetadataCard(document?: Document | null): boolean {
+    return !!document && this.requiresMetadata(document.documentType);
+  }
+
+  getDocumentTypeLabel(type?: string | null): string {
+    if (!type) { return 'Document'; }
+    const upperType = type.toUpperCase();
+    const option = this.documentTypeOptions.find(opt => opt.value === upperType);
+    if (option) {
+      return option.label;
+    }
+    return upperType.replace(/_/g, ' ');
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
   }
 }
 

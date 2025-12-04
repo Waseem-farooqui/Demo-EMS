@@ -4,14 +4,23 @@
     <div class="processing-modal">
       <div class="processing-content">
         <div class="spinner-large"></div>
-        <h3>Processing Document...</h3>
-        <p class="processing-steps">
-          <span class="step">📤 Uploading file</span>
-          <span class="step">🔍 Extracting text with OCR</span>
-          <span class="step">📝 Analyzing document data</span>
-          <span class="step">💾 Saving to database</span>
-        </p>
-        <p class="processing-note">Please wait, this may take a few moments...</p>
+        <h3>{{ isCurrentSelectionOcr() ? 'Processing Document...' : 'Uploading Document...' }}</h3>
+        <ng-container *ngIf="isCurrentSelectionOcr(); else quickUploadInfo">
+          <p class="processing-steps">
+            <span class="step">📤 Uploading file</span>
+            <span class="step">🔍 Extracting text with OCR</span>
+            <span class="step">📝 Analyzing document data</span>
+            <span class="step">💾 Saving to database</span>
+          </p>
+          <p class="processing-note">Identity documents take a little longer while we automatically capture key details.</p>
+        </ng-container>
+        <ng-template #quickUploadInfo>
+          <p class="processing-steps">
+            <span class="step">📤 Uploading secure copy</span>
+            <span class="step">🗂️ Storing in encrypted archive</span>
+          </p>
+          <p class="processing-note">Supporting documents are saved instantly without OCR.</p>
+        </ng-template>
       </div>
     </div>
   </div>
@@ -19,7 +28,10 @@
   <div class="header">
     <div class="header-left">
       <h2>Upload Document</h2>
-      <p class="subtitle">Upload passport, visa, contract, resume, or share code documents</p>
+      <p class="subtitle">
+        Upload identity documents (passport / visa), contracts, resumes & share codes, or supporting proofs
+        like proof of address, registration forms, certificates, national insurance letters, and bank statements.
+      </p>
     </div>
     <div class="header-right">
       <button (click)="viewAllDocuments()" class="btn btn-secondary">View All Documents</button>
@@ -34,7 +46,7 @@
 
   <div *ngIf="warning" class="alert alert-warning">
     <span class="alert-icon">⚠</span>
-    <div [innerHTML]="warning"></div>
+    <div>{{ warning }}</div>
   </div>
 
   <div *ngIf="success && !uploadedDocument" class="alert alert-success">
@@ -68,11 +80,35 @@
           id="documentType"
           name="documentType"
           [(ngModel)]="documentType"
+          (change)="onDocumentTypeChange()"
           required
           class="form-control">
           <option value="" disabled>Select Document Type</option>
-          <option *ngFor="let type of documentTypes" [value]="type">{{ type }}</option>
+          <option *ngFor="let type of documentTypeOptions" [value]="type.value">
+            {{ type.label }}
+          </option>
         </select>
+      </div>
+
+      <!-- Visa Type Dropdown (Conditional) -->
+      <div class="form-group" *ngIf="documentType === 'VISA'">
+        <label for="visaType">Visa Type *</label>
+        <select
+          id="visaType"
+          name="visaType"
+          [(ngModel)]="visaType"
+          required
+          class="form-control"
+          [class.invalid]="documentType === 'VISA' && !visaType && (submitted || attemptedSubmit)">
+          <option value="" disabled>Select Visa Type</option>
+          <option *ngFor="let visa of visaTypeOptions" [value]="visa">
+            {{ visa }}
+          </option>
+        </select>
+        <small class="form-text">Please select the type of UK visa</small>
+        <div class="error" *ngIf="documentType === 'VISA' && !visaType && (submitted || attemptedSubmit)">
+          Visa type is required when uploading a visa document.
+        </div>
       </div>
 
       <div class="form-group">
@@ -97,7 +133,7 @@
         <button
           type="submit"
           class="btn btn-primary"
-          [disabled]="uploading || !selectedFile || !documentType || !selectedEmployeeId">
+          [disabled]="uploading || !selectedFile || !documentType || !selectedEmployeeId || (documentType === 'VISA' && !visaType)">
           <span *ngIf="uploading">Uploading & Extracting...</span>
           <span *ngIf="!uploading">Upload Document</span>
         </button>
@@ -132,9 +168,13 @@
           </div>
           <div class="info-item">
             <label>Document Type:</label>
-            <span class="badge badge-info">{{ uploadedDocument.documentType === 'SHARE_CODE' ? 'SHARE CODE' : uploadedDocument.documentType }}</span>
+            <span class="badge badge-info">{{ getDocumentTypeLabel(uploadedDocument.documentType) }}</span>
           </div>
-          <div class="info-item" *ngIf="uploadedDocument.documentType === 'PASSPORT' || uploadedDocument.documentType === 'VISA'">
+          <div class="info-item" *ngIf="uploadedDocument.documentType === 'VISA'">
+            <label>Visa Type:</label>
+            <span class="highlight">{{ uploadedDocument.visaType || 'Not specified' }}</span>
+          </div>
+          <div class="info-item" *ngIf="shouldShowMetadataCard(uploadedDocument)">
             <label>Document Number: *</label>
             <span class="highlight">{{ uploadedDocument.documentNumber || '❌ Not extracted' }}</span>
           </div>
@@ -162,7 +202,7 @@
         </div>
       </div>
 
-      <div class="section" *ngIf="(uploadedDocument.documentType === 'PASSPORT' || uploadedDocument.documentType === 'VISA') && (uploadedDocument.issueDate || uploadedDocument.expiryDate)">
+      <div class="section" *ngIf="shouldShowMetadataCard(uploadedDocument) && (uploadedDocument.issueDate || uploadedDocument.expiryDate)">
         <h4>Important Dates</h4>
         <div class="info-grid">
           <div class="info-item" *ngIf="uploadedDocument.issueDate">
@@ -195,11 +235,19 @@
             <label>Date of Birth:</label>
             <span>{{ formatDate(uploadedDocument.dateOfBirth) }}</span>
           </div>
-          <div class="info-item" *ngIf="(uploadedDocument.documentType === 'PASSPORT' || uploadedDocument.documentType === 'VISA') && uploadedDocument.issuingCountry">
+          <div class="info-item" *ngIf="shouldShowMetadataCard(uploadedDocument) && uploadedDocument.issuingCountry">
             <label>Issuing Country: *</label>
             <span>{{ uploadedDocument.issuingCountry || '❌ Not extracted' }}</span>
           </div>
         </div>
+      </div>
+
+      <div class="section" *ngIf="uploadedDocument && !shouldShowMetadataCard(uploadedDocument)">
+        <h4>Quick Upload Complete</h4>
+        <p>
+          This supporting document doesn’t require OCR data. You can view the original file from the documents list—
+          images open in the image viewer and PDFs open in the built‑in PDF viewer.
+        </p>
       </div>
 
 

@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, OnDestroy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {ActivatedRoute, Router, RouterModule} from '@angular/router';
@@ -8,6 +8,17 @@ import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
 import {Leave, LeaveBalance, BlockedDate} from '../../models/leave.model';
 import {Employee} from '../../models/employee.model';
+import {Subscription} from 'rxjs';
+
+interface User {
+  id?: number;
+  userId?: number;
+  email?: string;
+  username?: string;
+  roles?: string[];
+  organizationId?: number;
+  user?: { id?: number; userId?: number };
+}
 
 @Component({
   selector: 'app-leave-form',
@@ -16,7 +27,7 @@ import {Employee} from '../../models/employee.model';
   templateUrl: './leave-form.component.html',
   styleUrls: ['./leave-form.component.css']
 })
-export class LeaveFormComponent implements OnInit {
+export class LeaveFormComponent implements OnInit, OnDestroy {
   leave: Leave = {
     employeeId: 0,
     leaveType: '',
@@ -29,6 +40,7 @@ export class LeaveFormComponent implements OnInit {
   leaveBalances: LeaveBalance[] = [];
   blockedDates: BlockedDate[] = [];
   selectedFile: File | null = null;
+  selectedHolidayFormFile: File | null = null;
 
   leaveTypes = [
     {value: 'ANNUAL', label: 'Annual Leave'},
@@ -42,9 +54,11 @@ export class LeaveFormComponent implements OnInit {
   error: string | null = null;
   success: string | null = null;
   loading = false;
-  currentUser: any;
+  currentUser: User | null = null;
   isAdmin = false;
   today: string;
+
+  private subscriptions: Subscription[] = [];
 
   constructor(
     private leaveService: LeaveService,
@@ -83,7 +97,7 @@ export class LeaveFormComponent implements OnInit {
   }
 
   loadEmployees(): void {
-    this.employeeService.getAllEmployees().subscribe({
+    const employeesSub = this.employeeService.getAllEmployees().subscribe({
       next: (data) => {
         this.employees = data;
         // For non-admin users, auto-select their employee
@@ -98,6 +112,7 @@ export class LeaveFormComponent implements OnInit {
         this.toastService.error('Failed to load employees');
       }
     });
+    this.subscriptions.push(employeesSub);
   }
 
   onEmployeeChange(): void {
@@ -108,7 +123,7 @@ export class LeaveFormComponent implements OnInit {
   }
 
   loadLeaveBalances(employeeId: number): void {
-    this.leaveService.getLeaveBalances(employeeId).subscribe({
+    const balancesSub = this.leaveService.getLeaveBalances(employeeId).subscribe({
       next: (balances) => {
         this.leaveBalances = balances;
       },
@@ -116,10 +131,11 @@ export class LeaveFormComponent implements OnInit {
         console.error('Error loading leave balances:', err);
       }
     });
+    this.subscriptions.push(balancesSub);
   }
 
   loadBlockedDates(employeeId: number): void {
-    this.leaveService.getBlockedDates(employeeId).subscribe({
+    const datesSub = this.leaveService.getBlockedDates(employeeId).subscribe({
       next: (dates) => {
         this.blockedDates = dates;
       },
@@ -127,6 +143,7 @@ export class LeaveFormComponent implements OnInit {
         console.error('Error loading blocked dates:', err);
       }
     });
+    this.subscriptions.push(datesSub);
   }
 
   getBalance(leaveType: string): number {
@@ -163,9 +180,78 @@ export class LeaveFormComponent implements OnInit {
     }
   }
 
+  onHolidayFormSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        this.toastService.error('Only JPG, PNG, and PDF files are allowed');
+        event.target.value = '';
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        this.toastService.error('File size must be less than 5MB');
+        event.target.value = '';
+        return;
+      }
+      this.selectedHolidayFormFile = file;
+    }
+  }
+
+  isHolidayFormRequired(): boolean {
+    // Don't show in edit mode
+    if (this.isEditMode) {
+      return false;
+    }
+
+    // Need an employee selected
+    if (!this.leave.employeeId || this.leave.employeeId === 0) {
+      return false;
+    }
+
+    // Find the selected employee
+    const selectedEmployee = this.employees.find(emp => emp.id === this.leave.employeeId);
+    if (!selectedEmployee) {
+      return false;
+    }
+
+    // Employee must have a userId (user account) for holiday form to be relevant
+    if (!selectedEmployee.userId) {
+      return false;
+    }
+
+    // If current user is ADMIN/SUPER_ADMIN
+    if (this.isAdmin && this.currentUser) {
+      // Try different possible properties for user ID
+      const currentUserId = this.currentUser.id || 
+                           this.currentUser.userId || 
+                           (this.currentUser as any)?.user?.id ||
+                           (this.currentUser as any)?.user?.userId;
+      
+      // Check if admin is applying for their own leave
+      if (currentUserId != null && selectedEmployee.userId != null) {
+        const currentId = Number(currentUserId);
+        const selectedId = Number(selectedEmployee.userId);
+        if (currentId === selectedId && !isNaN(currentId) && !isNaN(selectedId)) {
+          // ADMIN applying for own leave - holiday form NOT required
+          return false;
+        }
+      }
+      
+      // ADMIN selecting any other employee (staff member) - holiday form IS required
+      // This covers the case where admin is applying leave for staff members
+      return true;
+    }
+
+    // Regular USER applying for their own leave - holiday form IS required
+    return true;
+  }
+
   loadLeave(id: number): void {
     this.loading = true;
-    this.leaveService.getLeaveById(id).subscribe({
+    const leaveSub = this.leaveService.getLeaveById(id).subscribe({
       next: (data) => {
         this.leave = {
           ...data,
@@ -180,6 +266,7 @@ export class LeaveFormComponent implements OnInit {
         this.loading = false;
       }
     });
+    this.subscriptions.push(leaveSub);
   }
 
   formatDateForInput(dateString: string): string {
@@ -244,11 +331,17 @@ export class LeaveFormComponent implements OnInit {
       return;
     }
 
+    // Check if holiday form is required
+    if (this.isHolidayFormRequired() && !this.selectedHolidayFormFile) {
+      this.toastService.error('Holiday form is required for this leave application');
+      return;
+    }
+
     this.loading = true;
 
     if (this.isEditMode && this.leaveId) {
       // Update existing leave
-      this.leaveService.updateLeave(this.leaveId, this.leave).subscribe({
+      const updateSub = this.leaveService.updateLeave(this.leaveId, this.leave).subscribe({
         next: () => {
           this.toastService.success('Leave updated successfully!');
           this.loading = false;
@@ -261,6 +354,7 @@ export class LeaveFormComponent implements OnInit {
           console.error('Error updating leave:', err);
         }
       });
+      this.subscriptions.push(updateSub);
     } else {
       // Create new leave with FormData
       const formData = new FormData();
@@ -274,7 +368,11 @@ export class LeaveFormComponent implements OnInit {
         formData.append('medicalCertificate', this.selectedFile);
       }
 
-      this.leaveService.applyLeave(formData).subscribe({
+      if (this.selectedHolidayFormFile) {
+        formData.append('holidayForm', this.selectedHolidayFormFile);
+      }
+
+      const applySub = this.leaveService.applyLeave(formData).subscribe({
         next: () => {
           this.toastService.success('Leave applied successfully!');
           this.loading = false;
@@ -287,6 +385,7 @@ export class LeaveFormComponent implements OnInit {
           console.error('Error applying leave:', err);
         }
       });
+      this.subscriptions.push(applySub);
     }
   }
 
@@ -304,5 +403,11 @@ export class LeaveFormComponent implements OnInit {
     }
     return 0;
   }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
+  }
 }
+
 

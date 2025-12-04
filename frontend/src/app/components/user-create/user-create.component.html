@@ -1,9 +1,48 @@
-<div class="user-create-container">
-  <div class="page-header">
-    <h2>👤 Create New User</h2>
-    <p class="subtitle">
-      {{ isSuperAdmin ? 'Create ADMIN or USER with department assignment' : 'Create USER in your department' }}
+<div class="wizard-container" role="main" aria-label="User creation wizard">
+  <!-- Processing Overlay -->
+  <div *ngIf="loading" class="processing-overlay">
+    <div class="processing-modal">
+      <div class="processing-content">
+        <div class="spinner-large"></div>
+        <h3>Creating User...</h3>
+        <p class="processing-steps">
+          <span class="step">👤 Creating user account</span>
+          <span class="step">📧 Sending welcome email</span>
+          <span class="step">💾 Saving employee profile</span>
+          <span class="step">📄 Processing documents</span>
+        </p>
+        <p class="processing-note">Please wait while we create the user account and set up their profile.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wizard-header">
+    <h1>👤 Create New User</h1>
+    <p class="wizard-subtitle" aria-live="polite" aria-atomic="true">
+      Step <span>{{ currentStep }}</span> of <span>{{ totalSteps }}</span>
     </p>
+  </div>
+
+  <!-- Progress Steps -->
+  <div class="wizard-progress">
+    <div class="progress-bar">
+      <div class="progress-fill" [style.width.%]="(currentStep / totalSteps) * 100"></div>
+    </div>
+    <nav class="steps-indicator" aria-label="Wizard steps">
+      <button
+        *ngFor="let step of steps"
+        type="button"
+        class="step-indicator"
+        [class.active]="currentStep === step.number"
+        [class.completed]="currentStep > step.number"
+        (click)="goToStep(step.number)"
+        [attr.aria-current]="currentStep === step.number ? 'step' : null"
+        [attr.aria-label]="'Step ' + step.number + ': ' + step.title"
+        [attr.aria-disabled]="currentStep < step.number ? 'true' : null">
+        <span class="step-icon" aria-hidden="true">{{ step.icon }}</span>
+        <span class="step-title">{{ step.title }}</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Success Alert with Credentials -->
@@ -13,9 +52,11 @@
       <div>
         <h3>User Created Successfully!</h3>
         <p class="credentials-subtitle">
-          {{ createdCredentials.emailSent
-             ? 'Credentials sent via email. You can also share them manually:'
-             : '⚠️ Email failed - Please share these credentials manually:' }}
+          {{
+            createdCredentials.emailSent
+              ? 'Credentials sent via email. You can also share them manually:'
+              : '⚠️ Email failed - Please share these credentials manually:'
+          }}
         </p>
       </div>
     </div>
@@ -52,7 +93,8 @@
         <label>Temporary Password:</label>
         <div class="credential-value-row">
           <span class="credential-value password">{{ createdCredentials.temporaryPassword }}</span>
-          <button type="button" (click)="copyToClipboard(createdCredentials.temporaryPassword, 'Password')" class="btn-copy">
+          <button type="button" (click)="copyToClipboard(createdCredentials.temporaryPassword, 'Password')"
+                  class="btn-copy">
             📋 Copy
           </button>
         </div>
@@ -94,245 +136,674 @@
   </div>
 
   <!-- Error Alert -->
-  <div *ngIf="error && !showCredentials" class="alert alert-error">
-    <span class="alert-icon">⚠️</span>
-    {{ error }}
+  <div *ngIf="error && !showCredentials" class="alert alert-error" role="alert" aria-live="polite" aria-atomic="true">
+    <span class="alert-icon" aria-hidden="true">⚠️</span>
+    <span>{{ error }}</span>
   </div>
 
   <!-- User Creation Form -->
-  <form *ngIf="!showCredentials" [formGroup]="userForm" (ngSubmit)="onSubmit()" class="user-form">
+  <form *ngIf="!showCredentials" [formGroup]="userForm" (ngSubmit)="onSubmit()" class="wizard-form">
 
-    <!-- Personal Information Section -->
-    <div class="form-section">
-      <h3>📝 Personal Information</h3>
+    <!-- Step 1: Personal Information -->
+    <div class="wizard-step" *ngIf="currentStep === 1">
+      <div class="step-header">
+        <h3>👤 Personal Information</h3>
+        <p>Enter basic personal details and address information</p>
+      </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label for="fullName">Full Name *</label>
-          <input
-            type="text"
-            id="fullName"
-            formControlName="fullName"
-            class="form-control"
-            placeholder="Enter full name"
-          >
-          <div class="field-error" *ngIf="userForm.get('fullName')?.invalid && userForm.get('fullName')?.touched">
-            Full name is required (minimum 3 characters)
+      <div class="form-group">
+        <label for="title">Title <span class="required">*</span></label>
+        <select
+          id="title"
+          formControlName="title"
+          class="form-control"
+          [class.invalid]="userForm.get('title')?.invalid && userForm.get('title')?.touched">
+          <option value="">Select Title</option>
+          <option value="Mr">Mr</option>
+          <option value="Mrs">Mrs</option>
+          <option value="Miss">Miss</option>
+          <option value="Ms">Ms</option>
+          <option value="Dr">Dr</option>
+          <option value="Prof">Prof</option>
+        </select>
+        <div class="field-error" *ngIf="userForm.get('title')?.invalid && userForm.get('title')?.touched">
+          Title is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="fullName">Full Name <span class="required">*</span></label>
+        <input
+          type="text"
+          id="fullName"
+          formControlName="fullName"
+          class="form-control"
+          placeholder="Enter full name"
+        >
+        <div class="field-error" *ngIf="userForm.get('fullName')?.invalid && userForm.get('fullName')?.touched">
+          Full name is required (minimum 3 characters)
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email Address <span class="required">*</span></label>
+        <input
+          type="email"
+          id="email"
+          formControlName="email"
+          class="form-control"
+          placeholder="user@company.com"
+        >
+        <div class="field-error" *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched">
+          Valid email is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="phoneNumber">Phone Number</label>
+        <input
+          type="tel"
+          id="phoneNumber"
+          formControlName="phoneNumber"
+          class="form-control"
+          placeholder="+44 20 1234 5678"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="dateOfBirth">Date of Birth</label>
+        <input
+          type="date"
+          id="dateOfBirth"
+          formControlName="dateOfBirth"
+          class="form-control"
+          [max]="maxDate"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="nationality">Nationality</label>
+        <input
+          type="text"
+          id="nationality"
+          formControlName="nationality"
+          class="form-control"
+          placeholder="e.g., British"
+        >
+      </div>
+
+      <!-- Address Fields -->
+      <div class="form-group full-width">
+        <label for="presentAddress">Present Address</label>
+        <textarea
+          id="presentAddress"
+          formControlName="presentAddress"
+          class="form-control"
+          rows="3"
+          placeholder="Current residential address"
+        ></textarea>
+      </div>
+
+      <div class="form-group full-width">
+        <label for="previousAddress">Previous Address</label>
+        <textarea
+          id="previousAddress"
+          formControlName="previousAddress"
+          class="form-control"
+          rows="3"
+          placeholder="Previous residential address"
+        ></textarea>
+      </div>
+    </div>
+
+<!-- Step 2: Work Information -->
+<div class="wizard-step" *ngIf="currentStep === 2">
+  <div class="step-header">
+    <h3>💼 Work Information</h3>
+    <p>Enter employment details</p>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="personType">Person Type *</label>
+      <select id="personType" formControlName="personType" class="form-control">
+        <option value="Employee">Employee</option>
+        <option value="Contractor">Contractor</option>
+        <option value="Intern">Intern</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="dateOfJoining">Date of Joining *</label>
+      <input
+        type="date"
+        id="dateOfJoining"
+        formControlName="dateOfJoining"
+        class="form-control"
+        [max]="maxDate"
+      >
+      <div class="field-error" *ngIf="userForm.get('dateOfJoining')?.invalid && userForm.get('dateOfJoining')?.touched">
+        <span *ngIf="userForm.get('dateOfJoining')?.errors?.['required']">Date of joining is required</span>
+        <span
+          *ngIf="userForm.get('dateOfJoining')?.errors?.['futureDate']">Date of joining cannot be in the future</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="reference">Employee ID/Reference</label>
+      <input
+        type="text"
+        id="reference"
+        formControlName="reference"
+        class="form-control"
+        placeholder="e.g., EMP001"
+      >
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="employmentStatus">Employment Status *</label>
+      <select id="employmentStatus" formControlName="employmentStatus" class="form-control">
+        <option value="FULL_TIME">Full Time</option>
+        <option value="PART_TIME">Part Time</option>
+        <option value="CONTRACT">Contract</option>
+        <option value="TEMPORARY">Temporary</option>
+      </select>
+      <small class="form-hint">💡 Select whether the employee is full-time or part-time</small>
+    </div>
+
+    <div class="form-group">
+      <label for="contractType">Contract Type *</label>
+      <select id="contractType" formControlName="contractType" class="form-control">
+        <option value="PERMANENT">Permanent</option>
+        <option value="TEMPORARY">Temporary</option>
+        <option value="FIXED_TERM">Fixed Term</option>
+      </select>
+      <small class="form-hint">💡 Type of employment contract</small>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="nationalInsuranceNumber">National Insurance Number</label>
+      <input
+        type="text"
+        id="nationalInsuranceNumber"
+        formControlName="nationalInsuranceNumber"
+        class="form-control"
+        placeholder="e.g., AB123456C"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="shareCode">Share Code</label>
+      <input
+        type="text"
+        id="shareCode"
+        formControlName="shareCode"
+        class="form-control"
+        placeholder="e.g., ABC123"
+      >
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="wageRate">Wage Rate</label>
+      <input
+        type="text"
+        id="wageRate"
+        formControlName="wageRate"
+        class="form-control"
+        placeholder="e.g., £15.50/hour or £30,000/year"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="contractHours">Contract Hours</label>
+      <input
+        type="text"
+        id="contractHours"
+        formControlName="contractHours"
+        class="form-control"
+        placeholder="e.g., 40 hours/week or Full-time"
+      >
+    </div>
+  </div>
+
+  <div class="form-section-header">
+    <h4>Bank Account Details</h4>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="bankAccountNumber">Account Number</label>
+      <input
+        type="text"
+        id="bankAccountNumber"
+        formControlName="bankAccountNumber"
+        class="form-control"
+        placeholder="Account number"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="bankSortCode">Sort Code</label>
+      <input
+        type="text"
+        id="bankSortCode"
+        formControlName="bankSortCode"
+        class="form-control"
+        placeholder="e.g., 12-34-56"
+      >
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="bankAccountHolderName">Account Holder Name</label>
+      <input
+        type="text"
+        id="bankAccountHolderName"
+        formControlName="bankAccountHolderName"
+        class="form-control"
+        placeholder="Account holder name"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="bankName">Bank Name</label>
+      <input
+        type="text"
+        id="bankName"
+        formControlName="bankName"
+        class="form-control"
+        placeholder="Bank name"
+      >
+    </div>
+  </div>
+
+</div>
+
+<!-- Step 3: Role & Department -->
+<div class="wizard-step" *ngIf="currentStep === 3">
+  <div class="step-header">
+    <h3>🏢 Role & Department</h3>
+    <p>Assign role, department, and position</p>
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label for="role">User Role *</label>
+      <select
+        id="role"
+        formControlName="role"
+        class="form-control"
+        (change)="onRoleChange()">
+        <option value="USER">USER (Regular Employee)</option>
+        <option value="ADMIN" *ngIf="isSuperAdmin">ADMIN (Department Manager)</option>
+      </select>
+      <small class="form-hint" *ngIf="isSuperAdmin">
+        💡 ADMINs can manage their department staff. Each department can only have ONE admin.
+      </small>
+    </div>
+
+    <div class="form-group">
+      <label for="departmentId">Department <span class="required">*</span></label>
+      <select
+        id="departmentId"
+        formControlName="departmentId"
+        class="form-control"
+        [class.invalid]="userForm.get('departmentId')?.invalid && userForm.get('departmentId')?.touched"
+        (change)="onDepartmentChange($event)">
+        <option [value]="null">Select Department</option>
+        <option
+          *ngFor="let dept of departments"
+          [value]="dept.id"
+          [disabled]="isDepartmentDisabled(dept)">
+          {{ getDepartmentDisplayName(dept) }}
+        </option>
+      </select>
+      <div class="error" *ngIf="userForm.get('departmentId')?.invalid && userForm.get('departmentId')?.touched">
+        Department is required.
+      </div>
+      <small class="form-hint" *ngIf="isSuperAdmin && userForm.get('role')?.value === 'ADMIN'">
+        ⚠️ Departments with existing admins cannot be selected
+      </small>
+    </div>
+
+    <div class="form-group position-input-group full-width">
+      <label for="jobTitle">Position/Job Title *</label>
+      <div class="position-input-wrapper">
+        <input
+          type="text"
+          id="jobTitle"
+          formControlName="jobTitle"
+          class="form-control"
+          placeholder="Type or select a position (e.g., Front Office Manager, Room Attendant)"
+          [class.field-error-border]="userForm.get('jobTitle')?.invalid && userForm.get('jobTitle')?.touched"
+          [attr.aria-invalid]="userForm.get('jobTitle')?.invalid && userForm.get('jobTitle')?.touched"
+          [attr.aria-describedby]="userForm.get('jobTitle')?.invalid && userForm.get('jobTitle')?.touched ? 'jobTitle-error' : null"
+          (input)="onJobTitleInput($event)"
+          (focus)="showPositionDropdown = true"
+          (blur)="onJobTitleBlur()"
+          autocomplete="off"
+          required
+        >
+        <div class="position-dropdown" *ngIf="showPositionDropdown && filteredPositions.length > 0">
+          <div
+            *ngFor="let position of filteredPositions"
+            class="position-option"
+            (mousedown)="selectPosition(position)"
+            [attr.aria-label]="position.name">
+            <div class="position-name">{{ position.name }}</div>
+            <div class="position-category">{{ position.category }}</div>
+            <div class="position-description" *ngIf="position.description">{{ position.description }}</div>
           </div>
         </div>
+        <div class="position-dropdown" *ngIf="showPositionDropdown && filteredPositions.length === 0">
+          <div class="position-option no-results">No positions found. You can type a custom position.</div>
+        </div>
+      </div>
+      <small class="field-error" *ngIf="userForm.get('jobTitle')?.invalid && userForm.get('jobTitle')?.touched" id="jobTitle-error" role="alert">
+        Job title is required
+      </small>
+      <small class="form-hint">💡 Start typing to see suggestions or enter a custom position</small>
+    </div>
 
+    <div class="form-group full-width">
+      <label for="allottedOrganization">Allotted Organization</label>
+      <input
+        type="text"
+        id="allottedOrganization"
+        formControlName="allottedOrganization"
+        class="form-control"
+        placeholder="Enter organization name if employee is outsourced"
+      >
+      <small class="form-hint">💡 For employees outsourced to other companies</small>
+    </div>
+  </div>
+</div>
+
+<!-- Step 4: Next of Kin -->
+<div class="wizard-step" *ngIf="currentStep === 4">
+  <div class="step-header">
+    <h3>👨‍👩‍👧‍👦 Next of Kin</h3>
+    <p>Add next of kin contact information (Optional)</p>
+  </div>
+  <div class="section-header">
+    <h4>Next of Kin Contacts</h4>
+    <button type="button" class="btn btn-link" (click)="addNextOfKin()">
+      + Add Next of Kin
+    </button>
+  </div>
+
+  <div formArrayName="nextOfKinList">
+    <div
+      class="next-of-kin-record"
+      *ngFor="let kinGroup of nextOfKinList.controls; let i = index"
+      [formGroupName]="i"
+    >
+      <div class="record-header">
+        <h4>Next of Kin {{ i + 1 }}</h4>
+        <button type="button" class="btn-remove" (click)="removeNextOfKin(i)"
+                *ngIf="nextOfKinList.length > 1">
+          Remove
+        </button>
+      </div>
+      <div class="form-row">
         <div class="form-group">
-          <label for="email">Email Address *</label>
-          <input
-            type="email"
-            id="email"
-            formControlName="email"
-            class="form-control"
-            placeholder="user@company.com"
-          >
-          <div class="field-error" *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched">
-            Valid email is required
-          </div>
+          <label [for]="'nextOfKinName-' + i">Name</label>
+          <input type="text" [id]="'nextOfKinName-' + i" class="form-control" formControlName="name"
+                 placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label [for]="'nextOfKinContact-' + i">Contact Number</label>
+          <input type="text" [id]="'nextOfKinContact-' + i" class="form-control" formControlName="contact"
+                 placeholder="+44 7000 000000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label [for]="'nextOfKinRelationship-' + i">Relationship</label>
+          <input type="text" [id]="'nextOfKinRelationship-' + i" class="form-control" formControlName="relationship"
+                 placeholder="e.g., Spouse, Parent, Sibling">
+        </div>
+        <div class="form-group full-width">
+          <label [for]="'nextOfKinAddress-' + i">Address</label>
+          <textarea [id]="'nextOfKinAddress-' + i" rows="3" class="form-control" formControlName="address"
+                    placeholder="Full address"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 5: Previous Employment -->
+<div class="wizard-step" *ngIf="currentStep === 5">
+  <div class="step-header">
+    <h3>📋 Previous Employment</h3>
+    <p>Add previous employment history (Optional)</p>
+  </div>
+  <div class="section-header">
+    <h4>Employment Records</h4>
+    <button type="button" class="btn btn-link" (click)="addEmploymentRecord()">
+      + Add Employment
+    </button>
+  </div>
+
+  <div formArrayName="employmentRecords">
+    <div
+      class="employment-record"
+      *ngFor="let recordGroup of employmentRecords.controls; let i = index"
+      [formGroupName]="i"
+    >
+      <div class="record-header">
+        <h4>Employment {{ i + 1 }}</h4>
+        <button type="button" class="btn-remove" (click)="removeEmploymentRecord(i)"
+                *ngIf="employmentRecords.length > 1">
+          Remove
+        </button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="employmentJobTitle-{{ i }}">Job Title</label>
+          <input type="text" [id]="'employmentJobTitle-' + i" class="form-control" formControlName="jobTitle"
+                 placeholder="e.g., HR Manager">
+        </div>
+        <div class="form-group">
+          <label for="employmentPeriod-{{ i }}">Employment Period</label>
+          <input type="text" [id]="'employmentPeriod-' + i" class="form-control" formControlName="employmentPeriod"
+                 placeholder="Jan 2020 - Mar 2023">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="employerName-{{ i }}">Employer Name</label>
+          <input type="text" [id]="'employerName-' + i" class="form-control" formControlName="employerName"
+                 placeholder="Company name">
+        </div>
+        <div class="form-group full-width">
+          <label for="employerAddress-{{ i }}">Employer Address</label>
+          <textarea [id]="'employerAddress-' + i" class="form-control" rows="2" formControlName="employerAddress"
+                    placeholder="Company address"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="contactPersonTitle-{{ i }}">Contact Person Title</label>
+          <select [id]="'contactPersonTitle-' + i" class="form-control" formControlName="contactPersonTitle">
+            <option value="">Select Title</option>
+            <option value="Mr">Mr</option>
+            <option value="Mrs">Mrs</option>
+            <option value="Miss">Miss</option>
+            <option value="Ms">Ms</option>
+            <option value="Dr">Dr</option>
+            <option value="Prof">Prof</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="contactPersonName-{{ i }}">Contact Person Name</label>
+          <input type="text" [id]="'contactPersonName-' + i" class="form-control" formControlName="contactPersonName"
+                 placeholder="Contact person full name">
+        </div>
+        <div class="form-group">
+          <label for="contactPersonEmail-{{ i }}">Contact Person Email</label>
+          <input type="email" [id]="'contactPersonEmail-' + i" class="form-control" formControlName="contactPersonEmail"
+                 placeholder="contact@company.com">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 6: Medical Information -->
+<div class="wizard-step" *ngIf="currentStep === 6">
+  <div class="step-header">
+    <h3>🩺 Medical Information</h3>
+    <p>Medical condition and blood group (Optional)</p>
+  </div>
+  <div class="form-grid">
+    <div class="form-group full-width checkbox-group">
+      <label class="checkbox-label">
+        <input type="checkbox" formControlName="hasMedicalCondition">
+        Employee has a medical condition
+      </label>
+    </div>
+    <div class="form-group full-width" *ngIf="userForm.get('hasMedicalCondition')?.value">
+      <label for="medicalConditionDetails">Condition Description <span class="required">*</span></label>
+      <textarea
+        id="medicalConditionDetails"
+        class="form-control"
+        rows="3"
+        formControlName="medicalConditionDetails"
+        placeholder="Provide relevant details to support emergency response"
+      ></textarea>
+      <div class="field-error"
+           *ngIf="userForm.get('medicalConditionDetails')?.invalid && userForm.get('medicalConditionDetails')?.touched">
+        Please add at least a short description.
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="bloodGroup">Blood Group</label>
+      <input
+        type="text"
+        id="bloodGroup"
+        formControlName="bloodGroup"
+        class="form-control"
+        placeholder="e.g., O+, A-, B+"
+      >
+    </div>
+  </div>
+
+  <!-- Emergency Contact Section -->
+  <div class="form-section-divider">
+    <h4>🚨 Emergency Contact Information</h4>
+    <p>Contact person in case of emergency (Optional)</p>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label for="emergencyContactName">Emergency Contact Name</label>
+      <input
+        type="text"
+        id="emergencyContactName"
+        formControlName="emergencyContactName"
+        class="form-control"
+        placeholder="Full name"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="emergencyContactPhone">Emergency Contact Phone</label>
+      <input
+        type="tel"
+        id="emergencyContactPhone"
+        formControlName="emergencyContactPhone"
+        class="form-control"
+        placeholder="+44 20 1234 5678"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="emergencyContactRelationship">Relationship</label>
+      <input
+        type="text"
+        id="emergencyContactRelationship"
+        formControlName="emergencyContactRelationship"
+        class="form-control"
+        placeholder="e.g., Spouse, Parent, Sibling, Friend"
+      >
+    </div>
+  </div>
+</div>
+
+<!-- Step 7: Documents -->
+<div class="wizard-step" *ngIf="currentStep === 7">
+  <div class="step-header">
+    <h3>📄 Documents</h3>
+    <p>Upload employee documents (Optional)</p>
+  </div>
+
+  <div class="document-upload-section">
+    <div class="document-upload-grid">
+      <div class="document-upload-item" *ngFor="let docType of documentTypes">
+        <label class="document-label" [attr.for]="'doc-' + docType">{{ docType.replace('_', ' ') }}</label>
+        <input type="file" 
+               (change)="onDocumentSelected($event, docType)"
+               accept="image/*,.pdf"
+               class="document-input"
+               [attr.aria-label]="'Upload ' + docType.replace('_', ' ') + ' document'"
+               [attr.id]="'doc-' + docType">
+      </div>
+    </div>
+
+    <div class="uploaded-documents" *ngIf="selectedDocuments.length > 0">
+      <h4>Selected Documents:</h4>
+      <div class="document-list">
+        <div *ngFor="let doc of selectedDocuments; let i = index" class="document-item">
+          <span class="doc-name">{{ doc.name }}</span>
+          <span class="doc-type">({{ documentTypeMap[doc.name] }})</span>
+          <button type="button" class="btn-remove-doc" (click)="removeDocument(i)" [attr.aria-label]="'Remove ' + doc.name">✕</button>
         </div>
       </div>
     </div>
 
-    <!-- Work Information Section -->
-    <div class="form-section">
-      <h3>💼 Work Information</h3>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="jobTitle">Job Title *</label>
-          <input
-            type="text"
-            id="jobTitle"
-            formControlName="jobTitle"
-            class="form-control"
-            placeholder="e.g., Software Developer, Manager"
-          >
-          <div class="field-error" *ngIf="userForm.get('jobTitle')?.invalid && userForm.get('jobTitle')?.touched">
-            Job title is required
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="personType">Person Type *</label>
-          <select id="personType" formControlName="personType" class="form-control">
-            <option value="Employee">Employee</option>
-            <option value="Contractor">Contractor</option>
-            <option value="Intern">Intern</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="dateOfJoining">Date of Joining *</label>
-          <input
-            type="date"
-            id="dateOfJoining"
-            formControlName="dateOfJoining"
-            class="form-control"
-            [max]="maxDate"
-          >
-          <div class="field-error" *ngIf="userForm.get('dateOfJoining')?.invalid && userForm.get('dateOfJoining')?.touched">
-            <span *ngIf="userForm.get('dateOfJoining')?.errors?.['required']">Date of joining is required</span>
-            <span *ngIf="userForm.get('dateOfJoining')?.errors?.['futureDate']">Date of joining cannot be in the future</span>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="reference">Employee ID/Reference</label>
-          <input
-            type="text"
-            id="reference"
-            formControlName="reference"
-            class="form-control"
-            placeholder="e.g., EMP001"
-          >
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="employmentStatus">Employment Status *</label>
-          <select id="employmentStatus" formControlName="employmentStatus" class="form-control">
-            <option value="FULL_TIME">Full Time</option>
-            <option value="PART_TIME">Part Time</option>
-            <option value="CONTRACT">Contract</option>
-            <option value="TEMPORARY">Temporary</option>
-          </select>
-          <small class="form-hint">💡 Select whether the employee is full-time or part-time</small>
-        </div>
-
-        <div class="form-group">
-          <label for="contractType">Contract Type *</label>
-          <select id="contractType" formControlName="contractType" class="form-control">
-            <option value="PERMANENT">Permanent</option>
-            <option value="TEMPORARY">Temporary</option>
-            <option value="FIXED_TERM">Fixed Term</option>
-          </select>
-          <small class="form-hint">💡 Type of employment contract</small>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="workingTiming">Working Hours</label>
-          <input
-            type="text"
-            id="workingTiming"
-            formControlName="workingTiming"
-            class="form-control"
-            placeholder="9:00 AM - 5:00 PM"
-          >
-        </div>
-
-        <div class="form-group">
-          <label for="holidayAllowance">Annual Leave (Days) *</label>
-          <input
-            type="number"
-            id="holidayAllowance"
-            formControlName="holidayAllowance"
-            class="form-control"
-            min="0"
-          >
-        </div>
-      </div>
+    <div class="note" *ngIf="selectedDocuments.length === 0">
+      <strong>Note:</strong> Documents can be uploaded now or added later from the Documents section.
     </div>
+  </div>
+</div>
 
-    <!-- Role & Department Section -->
-    <div class="form-section">
-      <h3>🔐 Role & Department</h3>
+<!-- Wizard Navigation Buttons -->
+<div class="wizard-actions">
+  <button type="button" class="btn btn-secondary" (click)="previousStep()" *ngIf="currentStep > 1">
+    ← Previous
+  </button>
+  <div class="wizard-actions-right">
+    <button type="button" class="btn btn-link" (click)="skipStep()" *ngIf="canSkipStep()">
+      Skip Step →
+    </button>
+    <button type="button" class="btn btn-secondary" (click)="router.navigate(['/employees'])" [disabled]="loading">
+      Cancel
+    </button>
+    <button type="submit" class="btn btn-primary" [disabled]="loading || userForm.invalid"
+            *ngIf="currentStep === totalSteps">
+      <span *ngIf="!loading">✅ Create User</span>
+      <span *ngIf="loading">Creating...</span>
+    </button>
+    <button type="button" class="btn btn-primary" (click)="nextStep()" *ngIf="currentStep < totalSteps">
+      Next →
+    </button>
+  </div>
+</div>
 
-      <div class="form-row">
-        <!-- Role Selection - SUPER_ADMIN can choose, ADMIN cannot -->
-        <div class="form-group">
-          <label for="role">User Role *</label>
-          <select
-            id="role"
-            formControlName="role"
-            class="form-control"
-            (change)="onRoleChange()">
-            <option value="USER">USER (Regular Employee)</option>
-            <option value="ADMIN">ADMIN (Department Manager)</option>
-          </select>
-          <small class="form-hint" *ngIf="isSuperAdmin">
-            💡 ADMINs can manage their department staff. Each department can only have ONE admin.
-          </small>
-          <small class="form-hint" *ngIf="!isSuperAdmin">
-            ⚠️ Department admins can only create regular users
-          </small>
-        </div>
-
-        <!-- Department Selection - SUPER_ADMIN can choose, ADMIN auto-assigned -->
-        <div class="form-group">
-          <label for="departmentId">Department *</label>
-          <select
-            id="departmentId"
-            formControlName="departmentId"
-            class="form-control"
-            (change)="onDepartmentChange($event)">
-            <option [value]="null" *ngIf="isSuperAdmin">Select Department</option>
-            <option
-              *ngFor="let dept of departments"
-              [value]="dept.id"
-              [disabled]="isDepartmentDisabled(dept)">
-              {{ getDepartmentDisplayName(dept) }}
-            </option>
-          </select>
-          <small class="form-hint" *ngIf="isSuperAdmin && userForm.get('role')?.value === 'ADMIN'">
-            ⚠️ Departments with existing admins cannot be selected
-          </small>
-          <small class="form-hint" *ngIf="isSuperAdmin && userForm.get('role')?.value !== 'ADMIN'">
-            💡 Select an existing department or create a custom one
-          </small>
-          <small class="form-hint" *ngIf="!isSuperAdmin">
-            ⚠️ User will be added to your department automatically
-          </small>
-          <div class="field-error" *ngIf="userForm.get('departmentId')?.invalid && userForm.get('departmentId')?.touched">
-            Department is required
-          </div>
-        </div>
-      </div>
-
-      <!-- Custom Department Name Field -->
-      <div class="form-row" *ngIf="showCustomDepartment">
-        <div class="form-group" style="grid-column: 1 / -1;">
-          <label for="customDepartmentName">Custom Department Name *</label>
-          <input
-            type="text"
-            id="customDepartmentName"
-            formControlName="customDepartmentName"
-            class="form-control"
-            placeholder="Enter custom department name"
-          >
-          <small class="form-hint">
-            💡 This will create a new department in the system
-          </small>
-          <div class="field-error" *ngIf="userForm.get('customDepartmentName')?.invalid && userForm.get('customDepartmentName')?.touched">
-            Custom department name is required
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Form Actions -->
-    <div class="form-actions">
-      <button type="button" class="btn btn-secondary" (click)="router.navigate(['/employees'])" [disabled]="loading">
-        Cancel
-      </button>
-      <button type="submit" class="btn btn-primary" [disabled]="loading || userForm.invalid">
-        <span *ngIf="!loading">✅ Create User</span>
-        <span *ngIf="loading">Creating...</span>
-      </button>
-    </div>
-
-    <div class="form-note">
-      <strong>Note:</strong> A temporary password will be generated and sent via email.
-      The credentials will be displayed here for manual sharing if email fails.
-    </div>
-  </form>
+<div class="form-note">
+  <strong>Note:</strong> A temporary password will be generated and sent via email.
+  The credentials will be displayed here for manual sharing if email fails.
+</div>
+</form>
 </div>
 

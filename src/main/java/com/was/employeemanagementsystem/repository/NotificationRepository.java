@@ -16,5 +16,11 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     Long countByUserIdAndIsRead(Long userId, Boolean isRead);
 
     List<Notification> findTop10ByUserIdOrderByCreatedAtDesc(Long userId);
+
+    // Delete notifications by user ID
+    void deleteByUserId(Long userId);
+
+    // Find notifications by reference (for document/leave related notifications)
+    List<Notification> findByReferenceTypeAndReferenceId(String referenceType, Long referenceId);
 }
 

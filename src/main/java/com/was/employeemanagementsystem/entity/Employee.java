@@ -23,6 +23,9 @@ public class Employee {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "title")
+    private String title; // Mr, Mrs, Miss, Ms, Dr, Prof, etc.
+
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
@@ -33,9 +36,6 @@ public class Employee {
     private String workEmail;
 
     // Personal Information
-    @Column(name = "personal_email")
-    private String personalEmail;
-
     @Column(name = "phone_number")
     private String phoneNumber;
 
@@ -44,9 +44,6 @@ public class Employee {
 
     @Column(name = "nationality")
     private String nationality;
-
-    @Column(name = "address")
-    private String address;
 
     @Column(name = "present_address")
     private String presentAddress;
@@ -60,17 +57,34 @@ public class Employee {
     @Column(name = "medical_condition_details", columnDefinition = "TEXT")
     private String medicalConditionDetails;
 
+    // Legacy next of kin fields (kept for backward compatibility, deprecated)
     @Column(name = "next_of_kin_name")
+    @Deprecated
     private String nextOfKinName;
 
     @Column(name = "next_of_kin_contact")
+    @Deprecated
     private String nextOfKinContact;
 
     @Column(name = "next_of_kin_address")
+    @Deprecated
     private String nextOfKinAddress;
 
+    @Column(name = "blood_group")
+    private String bloodGroup;
+
+    // Emergency Contact Information
+    @Column(name = "emergency_contact_name")
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone")
+    private String emergencyContactPhone;
+
+    @Column(name = "emergency_contact_relationship")
+    private String emergencyContactRelationship;
+
     // Job Information
-    @Column(name = "job_title", nullable = false)
+    @Column(name = "job_title")
     private String jobTitle;
 
     @Column(name = "reference")
@@ -90,6 +104,34 @@ public class Employee {
 
     @Column(name = "holiday_allowance")
     private Integer holidayAllowance;
+
+    @Column(name = "allotted_organization")
+    private String allottedOrganization;
+
+    // Financial and Employment Details
+    @Column(name = "national_insurance_number")
+    private String nationalInsuranceNumber;
+
+    @Column(name = "share_code")
+    private String shareCode;
+
+    @Column(name = "bank_account_number")
+    private String bankAccountNumber;
+
+    @Column(name = "bank_sort_code")
+    private String bankSortCode;
+
+    @Column(name = "bank_account_holder_name")
+    private String bankAccountHolderName;
+
+    @Column(name = "bank_name")
+    private String bankName;
+
+    @Column(name = "wage_rate")
+    private String wageRate; // e.g., "£15.50/hour" or "£30,000/year"
+
+    @Column(name = "contract_hours")
+    private String contractHours; // e.g., "40 hours/week" or "Full-time"
 
     @Column(name = "user_id")
     private Long userId;
@@ -114,5 +156,9 @@ public class Employee {
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     private List<EmploymentRecord> employmentRecords = new ArrayList<>();
+
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
+    private List<NextOfKin> nextOfKinList = new ArrayList<>();
 }
 

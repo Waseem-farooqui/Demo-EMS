@@ -37,10 +37,75 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   manualIssuingCountry = '';
   manualIssueDate = '';
   manualExpiryDate = '';
+  manualVisaType = '';
 
   saving = false;
   saveSuccess = false;
   saveError: string | null = null;
+
+  private readonly metadataOptionalTypes = new Set([
+    'CONTRACT',
+    'RESUME',
+    'SHARE_CODE',
+    'PROOF_OF_ADDRESS',
+    'REGISTRATION_FORM',
+    'CERTIFICATE',
+    'PROFESSIONAL_CERTIFICATE',
+    'TERM_LETTER',
+    'NATIONAL_INSURANCE',
+    'BANK_STATEMENT'
+  ]);
+
+  private readonly identityDocumentTypes = new Set(['PASSPORT', 'VISA']);
+  private readonly supportingDocumentTypes = new Set([
+    'RESUME',
+    'SHARE_CODE',
+    'PROOF_OF_ADDRESS',
+    'REGISTRATION_FORM',
+    'CERTIFICATE',
+    'PROFESSIONAL_CERTIFICATE',
+    'TERM_LETTER',
+    'NATIONAL_INSURANCE',
+    'BANK_STATEMENT',
+    'OTHERS'
+  ]);
+
+  private readonly documentTypeLabelMap: Record<string, string> = {
+    PASSPORT: 'Passport',
+    VISA: 'Visa',
+    CONTRACT: 'Employment Contract',
+    RESUME: 'Resume',
+    SHARE_CODE: 'Share Code',
+    PROOF_OF_ADDRESS: 'Proof of Address',
+    REGISTRATION_FORM: 'Registration Form',
+    CERTIFICATE: 'Certificate',
+    PROFESSIONAL_CERTIFICATE: 'Professional Certificate',
+    TERM_LETTER: 'Term Letter',
+    NATIONAL_INSURANCE: 'National Insurance',
+    BANK_STATEMENT: 'Bank Statement',
+    OTHERS: 'Others'
+  };
+
+  // UK Visa Types
+  visaTypeOptions: string[] = [
+    'Skilled Worker Visa',
+    'Student Visa',
+    'Family Visa',
+    'Youth Mobility Scheme Visa',
+    'Health and Care Worker Visa',
+    'Global Talent Visa',
+    'Innovator Founder Visa',
+    'Start-up Visa',
+    'Seasonal Worker Visa',
+    'Creative Worker Visa',
+    'Charity Worker Visa',
+    'Religious Worker Visa',
+    'International Agreement Visa',
+    'UK Ancestry Visa',
+    'High Potential Individual (HPI) Visa',
+    'Graduate Visa',
+    'Other'
+  ];
 
   constructor(
     private route: ActivatedRoute,
@@ -74,6 +139,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
         this.manualIssuingCountry = data.issuingCountry || '';
         this.manualIssueDate = data.issueDate || '';
         this.manualExpiryDate = data.expiryDate || '';
+        this.manualVisaType = data.visaType || '';
 
         // Load document image
         this.loadDocumentImage(id);
@@ -144,7 +210,13 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   }
 
   hasMinimalData(): boolean {
-    return !!(this.document?.documentNumber &&
+    if (!this.document) {
+      return false;
+    }
+    if (this.isMetadataOptional(this.document.documentType)) {
+      return true;
+    }
+    return !!(this.document.documentNumber &&
               this.document.issuingCountry &&
               this.document.expiryDate);
   }
@@ -152,8 +224,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   isDataIncomplete(): boolean {
     if (!this.document) return false;
 
-    // CONTRACT and RESUME documents don't need validation
-    if (this.document.documentType === 'CONTRACT' || this.document.documentType === 'RESUME') {
+    if (this.isMetadataOptional(this.document.documentType)) {
       return false;
     }
 
@@ -169,8 +240,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   getMissingFields(): string[] {
     if (!this.document) return [];
 
-    // CONTRACT and RESUME documents don't need validation
-    if (this.document.documentType === 'CONTRACT' || this.document.documentType === 'RESUME') {
+    if (this.isMetadataOptional(this.document.documentType)) {
       return [];
     }
 
@@ -187,6 +257,15 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     this.editMode = true;
     this.saveSuccess = false;
     this.saveError = null;
+    
+    // Initialize manual fields with current document values
+    if (this.document) {
+      this.manualDocumentNumber = this.document.documentNumber || '';
+      this.manualIssuingCountry = this.document.issuingCountry || '';
+      this.manualIssueDate = this.document.issueDate || '';
+      this.manualExpiryDate = this.document.expiryDate || '';
+      this.manualVisaType = this.document.visaType || '';
+    }
   }
 
   cancelEdit(): void {
@@ -199,6 +278,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
       this.manualIssuingCountry = this.document.issuingCountry || '';
       this.manualIssueDate = this.document.issueDate || '';
       this.manualExpiryDate = this.document.expiryDate || '';
+      this.manualVisaType = this.document.visaType || '';
     }
   }
 
@@ -215,12 +295,17 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     this.saveError = null;
     this.saveSuccess = false;
 
-    const updateData = {
+    const updateData: any = {
       documentNumber: this.manualDocumentNumber,
       issuingCountry: this.manualIssuingCountry,
       issueDate: this.manualIssueDate || null,
       expiryDate: this.manualExpiryDate
     };
+
+    // Include visa type for VISA documents
+    if (this.document.documentType === 'VISA') {
+      updateData.visaType = this.manualVisaType || null;
+    }
 
     this.documentService.updateDocument(this.document.id!, updateData).subscribe({
       next: (updated) => {
@@ -269,6 +354,56 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
       month: 'short',
       year: 'numeric'
     });
+  }
+
+  shouldShowExpiryBadge(doc?: Document | null): boolean {
+    if (!doc) {
+      return false;
+    }
+    return this.tracksExpiry(doc.documentType);
+  }
+
+  shouldShowImportantDates(doc?: Document | null): boolean {
+    if (!doc) {
+      return false;
+    }
+    return this.tracksExpiry(doc.documentType) && (!!doc.issueDate || !!doc.expiryDate);
+  }
+
+  shouldShowIdentityFields(doc?: Document | null): boolean {
+    if (!doc) {
+      return false;
+    }
+    return this.identityDocumentTypes.has((doc.documentType || '').toUpperCase());
+  }
+
+  isSupportingDocument(type?: string | null): boolean {
+    if (!type) {
+      return false;
+    }
+    return this.supportingDocumentTypes.has(type.toUpperCase());
+  }
+
+  getDocumentTypeLabel(type?: string | null): string {
+    if (!type) {
+      return 'Document';
+    }
+    const upper = type.toUpperCase();
+    return this.documentTypeLabelMap[upper] ?? upper.replace(/_/g, ' ');
+  }
+
+  private isMetadataOptional(type?: string | null): boolean {
+    if (!type) {
+      return false;
+    }
+    return this.metadataOptionalTypes.has(type.toUpperCase());
+  }
+
+  private tracksExpiry(type?: string | null): boolean {
+    if (!type) {
+      return false;
+    }
+    return !this.metadataOptionalTypes.has(type.toUpperCase());
   }
 
   getExpiryStatus(daysUntilExpiry?: number): string {

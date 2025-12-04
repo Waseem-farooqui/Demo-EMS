@@ -21,5 +21,6 @@ export interface JwtResponse {
   firstLogin: boolean;
   profileCompleted: boolean;
   temporaryPassword: boolean;
+  smtpConfigured?: boolean; // Whether SMTP is configured for SUPER_ADMIN
 }
 

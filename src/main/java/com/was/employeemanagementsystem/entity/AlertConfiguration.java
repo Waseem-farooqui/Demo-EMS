@@ -9,7 +9,6 @@ import javax.persistence.*;
 @Entity
 @Table(name = "alert_configurations",
        uniqueConstraints = {
-           @UniqueConstraint(columnNames = {"document_type", "alert_priority"}),
            @UniqueConstraint(columnNames = {"organization_id", "document_type", "alert_priority"})
        })
 @Data

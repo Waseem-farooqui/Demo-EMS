@@ -10,6 +10,7 @@ import com.was.employeemanagementsystem.repository.UserRepository;
 import com.was.employeemanagementsystem.repository.VerificationTokenRepository;
 import com.was.employeemanagementsystem.security.JwtUtils;
 import com.was.employeemanagementsystem.service.EmailService;
+import com.was.employeemanagementsystem.service.SmtpConfigurationService;
 import lombok.extern.slf4j.Slf4j;
 import lombok.extern.slf4j.XSlf4j;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,7 @@ public class AuthController {
     private final JwtUtils jwtUtils;
     private final EmailService emailService;
     private final VerificationTokenRepository verificationTokenRepository;
+    private final SmtpConfigurationService smtpConfigurationService;
 
     public AuthController(AuthenticationManager authenticationManager,
                          UserRepository userRepository,
@@ -48,7 +50,8 @@ public class AuthController {
                          PasswordEncoder passwordEncoder,
                          JwtUtils jwtUtils,
                          EmailService emailService,
-                         VerificationTokenRepository verificationTokenRepository) {
+                         VerificationTokenRepository verificationTokenRepository,
+                         SmtpConfigurationService smtpConfigurationService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
@@ -56,6 +59,7 @@ public class AuthController {
         this.jwtUtils = jwtUtils;
         this.emailService = emailService;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.smtpConfigurationService = smtpConfigurationService;
     }
 
     @PostMapping("/login")
@@ -138,6 +142,17 @@ public class AuthController {
                 }
             }
 
+            // Check if SMTP is configured for SUPER_ADMIN
+            boolean smtpConfigured = true;
+            if (roles.contains("SUPER_ADMIN") && user.getOrganizationId() != null) {
+                try {
+                    smtpConfigured = smtpConfigurationService.isSmtpConfigured();
+                } catch (Exception e) {
+                    log.warn("Error checking SMTP configuration: {}", e.getMessage());
+                    smtpConfigured = false;
+                }
+            }
+
             return ResponseEntity.ok(new JwtResponse(jwt,
                     user.getId(),
                     user.getUsername(),
@@ -146,7 +161,8 @@ public class AuthController {
                     user.getOrganizationUuid(),
                     user.isFirstLogin(),
                     user.isProfileCompleted(),
-                    user.isTemporaryPassword()));
+                    user.isTemporaryPassword(),
+                    smtpConfigured));
 
         } catch (org.springframework.security.authentication.DisabledException e) {
             // Catch DisabledException from Spring Security authentication
@@ -333,11 +349,27 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         try {
+            log.info("📧 Forgot password request received for email: {}", request.getEmail());
+            
             User user = userRepository.findByEmail(request.getEmail()).orElse(null);
 
             // Always return success message for security (don't reveal if email exists)
             if (user == null) {
+                log.info("ℹ️ Email not found in database (returning generic success message for security)");
                 return ResponseEntity.ok(new MessageResponse("If the email exists, a password reset link has been sent."));
+            }
+
+            log.info("✓ User found: {}", user.getEmail());
+
+            // Invalidate any existing unused reset tokens for this user
+            List<VerificationToken> existingTokens = verificationTokenRepository.findByUserAndUsedFalse(user);
+            for (VerificationToken existingToken : existingTokens) {
+                // Only invalidate password reset tokens (not email verification tokens)
+                // Since we don't have tokenType field, we'll invalidate all unused tokens
+                // This prevents multiple active reset tokens
+                existingToken.setUsed(true);
+                verificationTokenRepository.save(existingToken);
+                log.info("✓ Invalidated existing unused token for user: {}", user.getEmail());
             }
 
             // Generate password reset token
@@ -346,13 +378,16 @@ public class AuthController {
             verificationToken.setToken(resetToken);
             verificationToken.setUser(user);
             verificationToken.setExpiryDate(java.time.LocalDateTime.now().plusHours(24));
+            verificationToken.setUsed(false);
             verificationTokenRepository.save(verificationToken);
+            log.info("✓ Password reset token created for user: {} (expires in 24 hours)", user.getEmail());
 
             // Send password reset email (don't fail the operation if email fails)
             try {
                 emailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), resetToken);
+                log.info("✓ Password reset email sent successfully to: {}", user.getEmail());
             } catch (Exception emailEx) {
-                log.error("Failed to send password reset email to {} (token still created): {}",
+                log.error("❌ Failed to send password reset email to {} (token still created): {}",
                     user.getEmail(), emailEx.getMessage());
                 // Token is still saved, user can contact admin with token
             }
@@ -360,6 +395,8 @@ public class AuthController {
             return ResponseEntity.ok(new MessageResponse("If the email exists, a password reset link has been sent."));
 
         } catch (Exception e) {
+            log.error("❌ Error processing forgot password request: {}", e.getMessage(), e);
+            // Always return success message for security
             return ResponseEntity.ok(new MessageResponse("If the email exists, a password reset link has been sent."));
         }
     }
@@ -370,42 +407,64 @@ public class AuthController {
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         try {
+            log.info("🔄 Password reset request received for token: {}", request.getToken().substring(0, Math.min(8, request.getToken().length())) + "...");
+            
             // Validate token
             VerificationToken verificationToken = verificationTokenRepository.findByToken(request.getToken())
-                    .orElseThrow(() -> new RuntimeException("Invalid or expired reset token"));
+                    .orElseThrow(() -> {
+                        log.warn("❌ Invalid reset token provided");
+                        return new RuntimeException("Invalid or expired reset token");
+                    });
 
+            // Check if token has already been used
+            if (verificationToken.isUsed()) {
+                log.warn("⚠️ Reset token has already been used: {}", verificationToken.getToken().substring(0, Math.min(8, verificationToken.getToken().length())) + "...");
+                return ResponseEntity.badRequest()
+                        .body(new MessageResponse("This reset link has already been used. Please request a new password reset."));
+            }
+
+            // Check if token has expired
             if (verificationToken.getExpiryDate().isBefore(java.time.LocalDateTime.now())) {
+                log.warn("⚠️ Reset token has expired: {}", verificationToken.getToken().substring(0, Math.min(8, verificationToken.getToken().length())) + "...");
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("Reset token has expired. Please request a new one."));
             }
 
             // Validate passwords match
             if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                log.warn("⚠️ Password mismatch in reset request");
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("Passwords do not match"));
             }
 
             // Validate password strength
             if (request.getNewPassword().length() < 6) {
+                log.warn("⚠️ Password too short in reset request");
                 return ResponseEntity.badRequest()
                         .body(new MessageResponse("Password must be at least 6 characters long"));
             }
 
             // Update password
             User user = verificationToken.getUser();
+            log.info("✓ Updating password for user: {}", user.getEmail());
             user.setPassword(passwordEncoder.encode(request.getNewPassword()));
             user.setTemporaryPassword(false);
             userRepository.save(user);
 
-            // Delete used token
+            // Mark token as used and delete it
+            verificationToken.setUsed(true);
+            verificationTokenRepository.save(verificationToken);
             verificationTokenRepository.delete(verificationToken);
+            log.info("✓ Password reset completed successfully for user: {}", user.getEmail());
 
             return ResponseEntity.ok(new MessageResponse("Password reset successfully. You can now login with your new password."));
 
         } catch (RuntimeException e) {
+            log.error("❌ Error in password reset: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(new MessageResponse(e.getMessage()));
         } catch (Exception e) {
+            log.error("❌ Unexpected error resetting password: {}", e.getMessage(), e);
             return ResponseEntity.badRequest()
                     .body(new MessageResponse("Error resetting password. Please try again."));
         }

@@ -44,6 +44,15 @@ export class LeaveService {
     });
   }
 
+  /**
+   * Get holiday form for a leave (USER can view own, ADMIN/SUPER_ADMIN can view any)
+   */
+  getHolidayForm(leaveId: number): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/${leaveId}/holiday-form`, {
+      responseType: 'blob'
+    });
+  }
+
   getAllLeaves(): Observable<Leave[]> {
     return this.http.get<Leave[]>(this.apiUrl);
   }

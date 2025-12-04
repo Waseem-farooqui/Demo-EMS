@@ -1,17 +1,19 @@
-import {Component, OnInit} from '@angular/core';
-import {Router, RouterLink, RouterLinkActive, RouterOutlet} from '@angular/router';
+import {Component, OnInit, HostListener} from '@angular/core';
+import {Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd} from '@angular/router';
 import {CommonModule} from '@angular/common';
 import {AuthService} from './services/auth.service';
 import {ToastComponent} from './components/toast/toast.component';
 import {NotificationDropdownComponent} from './components/notification-dropdown/notification-dropdown.component';
 import {PwaInstallComponent} from './components/pwa-install/pwa-install.component';
+import {GlobalSearchComponent} from './components/global-search/global-search.component';
 import {HttpClient} from '@angular/common/http';
 import {environment} from '../environments/environment';
+import {filter} from 'rxjs/operators';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule, RouterLink, RouterLinkActive, ToastComponent, NotificationDropdownComponent, PwaInstallComponent],
+  imports: [RouterOutlet, CommonModule, RouterLink, RouterLinkActive, ToastComponent, NotificationDropdownComponent, PwaInstallComponent, GlobalSearchComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
@@ -23,8 +25,10 @@ export class AppComponent implements OnInit {
   isRoot = false;
   userName = '';
   isMobileMenuOpen = false;
+  isSidebarCollapsed = false;
   organizationName = '';
   organizationLogoUrl = '';
+  showNavigation = true;
 
   constructor(
     private authService: AuthService,
@@ -33,6 +37,22 @@ export class AppComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    // Check current route and hide navigation for password change
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd)
+    ).subscribe((event: any) => {
+      this.showNavigation = !event.url.includes('/change-password');
+    });
+    
+    // Check initial route
+    this.showNavigation = !this.router.url.includes('/change-password');
+    
+    // Load sidebar state from localStorage
+    const savedState = localStorage.getItem('sidebarCollapsed');
+    if (savedState !== null) {
+      this.isSidebarCollapsed = savedState === 'true';
+    }
+    
     this.checkAuthStatus();
     // Subscribe to auth state changes
     this.authService.isAuthenticated().subscribe((isAuth: boolean) => {
@@ -81,10 +101,39 @@ export class AppComponent implements OnInit {
 
   toggleMobileMenu(): void {
     this.isMobileMenuOpen = !this.isMobileMenuOpen;
+    // On mobile, also toggle sidebar visibility
+    if (window.innerWidth <= 1024) {
+      if (this.isMobileMenuOpen) {
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      } else {
+        document.body.style.overflow = '';
+      }
+    }
   }
 
   closeMobileMenu(): void {
     this.isMobileMenuOpen = false;
+    document.body.style.overflow = '';
+  }
+
+  toggleSidebar(): void {
+    // On desktop, toggle collapse
+    if (window.innerWidth > 1024) {
+      this.isSidebarCollapsed = !this.isSidebarCollapsed;
+      // Save preference to localStorage
+      localStorage.setItem('sidebarCollapsed', String(this.isSidebarCollapsed));
+    } else {
+      // On mobile, toggle menu
+      this.toggleMobileMenu();
+    }
+  }
+
+  @HostListener('window:resize', ['$event'])
+  onResize(event: any): void {
+    // Close mobile menu on resize to desktop
+    if (event.target.innerWidth > 1024 && this.isMobileMenuOpen) {
+      this.closeMobileMenu();
+    }
   }
 
   logout(): void {

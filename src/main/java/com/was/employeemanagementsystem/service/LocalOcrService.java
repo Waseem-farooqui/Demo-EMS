@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.Semaphore;
 
 /**
  * Local OCR Service using Tesseract
@@ -26,7 +27,7 @@ import java.nio.file.Path;
 @Slf4j
 public class LocalOcrService {
 
-    @Value("${ocr.tesseract.datapath:#{null}}")
+    @Value("${ocr.tesseract.datapath:${user.home}/AppData/Local/Programs/Tesseract-OCR/tessdata}")
     private String tesseractDataPath;
 
     @Value("${ocr.tesseract.language:eng}")
@@ -36,6 +37,9 @@ public class LocalOcrService {
     private boolean localOcrEnabled;
 
     private Tesseract tesseract;
+    
+    // Semaphore to ensure only one OCR operation at a time (Tesseract is not thread-safe)
+    private final Semaphore ocrSemaphore = new Semaphore(1, true);
 
     @PostConstruct
     public void init() {
@@ -47,13 +51,18 @@ public class LocalOcrService {
         try {
             tesseract = new Tesseract();
 
-            // Try to auto-detect Tesseract installation
-            if (tesseractDataPath == null || tesseractDataPath.isEmpty()) {
+            // Try to auto-detect Tesseract installation if path is missing or invalid
+            boolean invalidPath = tesseractDataPath == null
+                    || tesseractDataPath.isEmpty()
+                    || !Files.exists(Path.of(tesseractDataPath));
+
+            if (invalidPath) {
                 tesseractDataPath = autoDetectTesseractPath();
             }
 
             if (tesseractDataPath != null) {
                 tesseract.setDatapath(tesseractDataPath);
+                System.setProperty("TESSDATA_PREFIX", tesseractDataPath);
                 log.info("✓ Tesseract data path set to: {}", tesseractDataPath);
             } else {
                 log.warn("⚠ Tesseract data path not configured - will use system default");
@@ -113,9 +122,18 @@ public class LocalOcrService {
 
         log.info("🔍 Extracting text from image using Tesseract: {}", file.getOriginalFilename());
 
+        // Acquire semaphore to ensure thread-safe access
         try {
+            ocrSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("OCR operation interrupted", e);
+        }
+
+        BufferedImage image = null;
+        try (InputStream imageStream = file.getInputStream()) {
             // Read image
-            BufferedImage image = ImageIO.read(file.getInputStream());
+            image = ImageIO.read(imageStream);
             if (image == null) {
                 throw new IOException("Failed to read image file");
             }
@@ -129,6 +147,19 @@ public class LocalOcrService {
         } catch (TesseractException e) {
             log.error("✗ Tesseract OCR failed: {}", e.getMessage());
             throw new IOException("OCR processing failed: " + e.getMessage(), e);
+        } catch (Throwable t) {
+            log.error("✗ Unexpected OCR error on image: {}", t.getMessage(), t);
+            throw new IOException("Unexpected OCR error: " + t.getMessage(), t);
+        } finally {
+            // Clean up image resources
+            if (image != null) {
+                image.flush();
+                image = null;
+            }
+            // Release semaphore
+            ocrSemaphore.release();
+            // Suggest GC to clean up native resources
+            System.gc();
         }
     }
 
@@ -141,10 +172,20 @@ public class LocalOcrService {
         }
 
         log.info("📄 Extracting text from PDF using Tesseract: {}", file.getOriginalFilename());
-        StringBuilder allText = new StringBuilder();
+        
+        // Acquire semaphore to ensure thread-safe access
+        try {
+            ocrSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("OCR operation interrupted", e);
+        }
 
-        try (InputStream inputStream = file.getInputStream();
-             PDDocument document = PDDocument.load(inputStream)) {
+        StringBuilder allText = new StringBuilder();
+        PDDocument document = null;
+        
+        try (InputStream inputStream = file.getInputStream()) {
+            document = PDDocument.load(inputStream);
 
             int pageCount = document.getNumberOfPages();
             log.info("📄 PDF has {} page(s)", pageCount);
@@ -155,9 +196,10 @@ public class LocalOcrService {
             for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
                 log.info("🔍 Processing PDF page {} of {}", pageIndex + 1, pageCount);
 
+                BufferedImage image = null;
                 try {
-                    // Render page at 300 DPI for good quality
-                    BufferedImage image = pdfRenderer.renderImageWithDPI(pageIndex, 300, ImageType.RGB);
+                    // Render page at 250 DPI (reduced from 300 to reduce memory pressure)
+                    image = pdfRenderer.renderImageWithDPI(pageIndex, 250, ImageType.RGB);
 
                     // Perform OCR on the page
                     String pageText = tesseract.doOCR(image);
@@ -172,6 +214,15 @@ public class LocalOcrService {
                 } catch (TesseractException e) {
                     log.error("✗ OCR failed for page {}: {}", pageIndex + 1, e.getMessage());
                     // Continue with next page
+                } catch (Throwable t) {
+                    log.error("✗ Critical OCR error for page {}: {}", pageIndex + 1, t.getMessage(), t);
+                    throw new IOException("Unexpected OCR error on page " + (pageIndex + 1) + ": " + t.getMessage(), t);
+                } finally {
+                    // Clean up image resources after each page
+                    if (image != null) {
+                        image.flush();
+                        image = null;
+                    }
                 }
             }
 
@@ -182,6 +233,22 @@ public class LocalOcrService {
         } catch (Exception e) {
             log.error("✗ PDF processing failed: {}", e.getMessage());
             throw new IOException("Failed to process PDF: " + e.getMessage(), e);
+        } catch (Throwable t) {
+            log.error("✗ Critical OCR failure while processing PDF: {}", t.getMessage(), t);
+            throw new IOException("Unexpected OCR error: " + t.getMessage(), t);
+        } finally {
+            // Clean up PDF document
+            if (document != null) {
+                try {
+                    document.close();
+                } catch (IOException e) {
+                    log.warn("Failed to close PDF document: {}", e.getMessage());
+                }
+            }
+            // Release semaphore
+            ocrSemaphore.release();
+            // Suggest GC to clean up native resources
+            System.gc();
         }
     }
 
@@ -196,8 +263,19 @@ public class LocalOcrService {
 
         log.info("📄 Extracting text from FIRST PAGE ONLY of PDF: {}", file.getOriginalFilename());
 
-        try (InputStream inputStream = file.getInputStream();
-             PDDocument document = PDDocument.load(inputStream)) {
+        // Acquire semaphore to ensure thread-safe access
+        try {
+            ocrSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("OCR operation interrupted", e);
+        }
+
+        PDDocument document = null;
+        BufferedImage image = null;
+        
+        try (InputStream inputStream = file.getInputStream()) {
+            document = PDDocument.load(inputStream);
 
             int pageCount = document.getNumberOfPages();
             log.info("📄 PDF has {} page(s), processing only first page", pageCount);
@@ -213,8 +291,8 @@ public class LocalOcrService {
             log.info("🔍 Processing first page only");
 
             try {
-                // Render first page at 300 DPI for good quality
-                BufferedImage image = pdfRenderer.renderImageWithDPI(0, 300, ImageType.RGB);
+                // Render first page at 250 DPI (reduced from 300 to reduce memory pressure)
+                image = pdfRenderer.renderImageWithDPI(0, 250, ImageType.RGB);
 
                 // Perform OCR on the first page
                 String pageText = tesseract.doOCR(image);
@@ -230,11 +308,34 @@ public class LocalOcrService {
             } catch (TesseractException e) {
                 log.error("✗ OCR failed for first page: {}", e.getMessage());
                 throw new IOException("OCR processing failed: " + e.getMessage(), e);
+            } catch (Throwable t) {
+                log.error("✗ Critical OCR error on first page: {}", t.getMessage(), t);
+                throw new IOException("Unexpected OCR error: " + t.getMessage(), t);
             }
 
         } catch (Exception e) {
             log.error("✗ PDF first page processing failed: {}", e.getMessage());
             throw new IOException("Failed to process PDF first page: " + e.getMessage(), e);
+        } catch (Throwable t) {
+            log.error("✗ Critical OCR failure on first page: {}", t.getMessage(), t);
+            throw new IOException("Unexpected OCR error: " + t.getMessage(), t);
+        } finally {
+            // Clean up resources
+            if (image != null) {
+                image.flush();
+                image = null;
+            }
+            if (document != null) {
+                try {
+                    document.close();
+                } catch (IOException e) {
+                    log.warn("Failed to close PDF document: {}", e.getMessage());
+                }
+            }
+            // Release semaphore
+            ocrSemaphore.release();
+            // Suggest GC to clean up native resources
+            System.gc();
         }
     }
 
@@ -246,12 +347,26 @@ public class LocalOcrService {
             throw new IllegalStateException("Local OCR is not available");
         }
 
+        // Acquire semaphore to ensure thread-safe access
+        try {
+            ocrSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("OCR operation interrupted", e);
+        }
+
         try {
             String text = tesseract.doOCR(image);
             return text != null ? text : "";
         } catch (TesseractException e) {
             log.error("✗ Tesseract OCR failed: {}", e.getMessage());
             throw new IOException("OCR processing failed: " + e.getMessage(), e);
+        } catch (Throwable t) {
+            log.error("✗ Unexpected OCR error: {}", t.getMessage(), t);
+            throw new IOException("Unexpected OCR error: " + t.getMessage(), t);
+        } finally {
+            // Release semaphore
+            ocrSemaphore.release();
         }
     }
 

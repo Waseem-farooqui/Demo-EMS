@@ -1,6 +1,7 @@
 package com.was.employeemanagementsystem.controller;
 
 import com.was.employeemanagementsystem.constants.AppConstants;
+import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.dto.RotaChangeLogDTO;
 import com.was.employeemanagementsystem.dto.RotaDTO;
 import com.was.employeemanagementsystem.dto.RotaScheduleDTO;
@@ -167,6 +168,24 @@ public class RotaController {
             return ResponseEntity.ok(rotas);
         } catch (Exception e) {
             log.error("❌ Error fetching ROTAs", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Failed to fetch ROTAs: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get all ROTAs with pagination
+     */
+    @GetMapping("/paginated")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<?> getAllRotasPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            PageResponse<RotaDTO> rotas = rotaService.getAllRotasPaginated(page, size);
+            return ResponseEntity.ok(rotas);
+        } catch (Exception e) {
+            log.error("❌ Error fetching paginated ROTAs", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Failed to fetch ROTAs: " + e.getMessage()));
         }

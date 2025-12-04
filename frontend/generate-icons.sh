@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to generate PWA icons from logo.png
+# Script to generate PWA icons from icon-144x144.png
 # Requires ImageMagick (convert command)
 
 SOURCE_IMAGE="src/assets/logo.png"

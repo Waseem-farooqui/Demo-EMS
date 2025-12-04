@@ -64,6 +64,17 @@ public class Leave {
     @Column(name = "certificate_content_type")
     private String certificateContentType;
 
+    // Holiday Form for USER leave applications
+    @Lob
+    @Column(name = "holiday_form", columnDefinition = "LONGBLOB")
+    private byte[] holidayForm;
+
+    @Column(name = "holiday_form_file_name")
+    private String holidayFormFileName;
+
+    @Column(name = "holiday_form_content_type")
+    private String holidayFormContentType;
+
     // Financial year for leave balance tracking (e.g., "2024-2025")
     @Column(name = "financial_year")
     private String financialYear;

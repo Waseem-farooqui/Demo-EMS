@@ -21,6 +21,7 @@ import {ResetPasswordComponent} from './components/reset-password/reset-password
 import {RotaListComponent} from './components/rota-list/rota-list.component';
 import {RotaUploadComponent} from './components/rota-upload/rota-upload.component';
 import {AlertConfigurationComponent} from './components/alert-configuration/alert-configuration.component';
+import {SmtpConfigurationComponent} from './components/smtp-configuration/smtp-configuration.component';
 import {AuthGuard} from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -51,6 +52,7 @@ export const routes: Routes = [
   { path: 'documents', component: DocumentListComponent, canActivate: [AuthGuard] },
   { path: 'rota/upload', component: RotaUploadComponent, canActivate: [AuthGuard] },
   { path: 'rota', component: RotaListComponent, canActivate: [AuthGuard] },
-  { path: 'alert-configuration', component: AlertConfigurationComponent, canActivate: [AuthGuard] }
+  { path: 'alert-configuration', component: AlertConfigurationComponent, canActivate: [AuthGuard] },
+  { path: 'smtp-configuration', component: SmtpConfigurationComponent, canActivate: [AuthGuard] }
 ];
 

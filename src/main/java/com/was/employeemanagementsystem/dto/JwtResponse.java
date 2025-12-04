@@ -20,9 +20,10 @@ public class JwtResponse {
     private boolean firstLogin;
     private boolean profileCompleted;
     private boolean temporaryPassword;
+    private boolean smtpConfigured; // Whether SMTP is configured for SUPER_ADMIN
 
     public JwtResponse(String token, Long id, String username, String email, Set<String> roles,
-                      String organizationUuid, boolean firstLogin, boolean profileCompleted, boolean temporaryPassword) {
+                      String organizationUuid, boolean firstLogin, boolean profileCompleted, boolean temporaryPassword, boolean smtpConfigured) {
         this.token = token;
         this.id = id;
         this.username = username;
@@ -32,6 +33,7 @@ public class JwtResponse {
         this.firstLogin = firstLogin;
         this.profileCompleted = profileCompleted;
         this.temporaryPassword = temporaryPassword;
+        this.smtpConfigured = smtpConfigured;
     }
 }
 

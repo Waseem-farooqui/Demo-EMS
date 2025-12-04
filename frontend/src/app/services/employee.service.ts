@@ -1,7 +1,8 @@
 import {Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {Employee} from '../models/employee.model';
+import {PageResponse} from '../models/page-response.model';
 import {environment} from '../../environments/environment';
 
 @Injectable({
@@ -14,6 +15,13 @@ export class EmployeeService {
 
   getAllEmployees(): Observable<Employee[]> {
     return this.http.get<Employee[]>(this.apiUrl);
+  }
+
+  getAllEmployeesPaginated(page: number = 0, size: number = 10): Observable<PageResponse<Employee>> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('size', size.toString());
+    return this.http.get<PageResponse<Employee>>(`${this.apiUrl}/paginated`, { params });
   }
 
   getEmployeeById(id: number): Observable<Employee> {
@@ -29,7 +37,11 @@ export class EmployeeService {
   }
 
   updateEmployee(id: number, employee: Employee): Observable<Employee> {
-    return this.http.put<Employee>(`${this.apiUrl}/${id}`, employee);
+    console.log('EmployeeService.updateEmployee called with:', { id, employee });
+    const url = `${this.apiUrl}/${id}`;
+    console.log('PUT request URL:', url);
+    console.log('Request payload:', JSON.stringify(employee, null, 2));
+    return this.http.put<Employee>(url, employee);
   }
 
   deleteEmployee(id: number): Observable<void> {

@@ -13,6 +13,7 @@ import com.was.employeemanagementsystem.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -62,6 +63,7 @@ public class DocumentExpiryScheduler {
         performExpiryCheck(false); // Not manual - respect frequency rules
     }
 
+    @Transactional
     private void performExpiryCheck(boolean isManualTest) {
         log.info("📋 === Starting Document Expiry Check {} ===", isManualTest ? "(MANUAL TEST - BYPASSING FREQUENCY CHECKS)" : "");
         List<AlertConfiguration> configurations = alertConfigurationRepository.findAll();
@@ -79,7 +81,8 @@ public class DocumentExpiryScheduler {
 
             LocalDate currentDate = LocalDate.now();
 
-            List<Document> documents = documentRepository.findByDocumentType(config.getDocumentType());
+            // Use eager fetch to avoid LazyInitializationException
+            List<Document> documents = documentRepository.findByDocumentTypeWithEmployee(config.getDocumentType());
             log.info("📄 Found {} documents of type {}", documents.size(), config.getDocumentType());
 
             for (Document document : documents) {
@@ -309,13 +312,16 @@ public class DocumentExpiryScheduler {
                 emailRecipients = emailRecipients.stream().distinct().collect(Collectors.toList());
                 
                 if (!emailRecipients.isEmpty()) {
+                    // Get organization ID from employee
+                    Long organizationId = employee.getOrganizationId();
                     emailService.sendDocumentExpiryAlertToMultiple(
                         emailRecipients.toArray(new String[0]),
                         employeeName,
                         documentType,
                         documentNumber,
                         expiryDate,
-                        daysUntilExpiry
+                        daysUntilExpiry,
+                        organizationId // Pass organization ID for SMTP configuration
                     );
                     log.info("📧 Sent email alert to {} recipient(s) for {} - Employee: {}, Days until expiry: {}",
                         emailRecipients.size(), documentType, employeeName, daysUntilExpiry);

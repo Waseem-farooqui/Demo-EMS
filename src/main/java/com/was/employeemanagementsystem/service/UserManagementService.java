@@ -2,8 +2,12 @@ package com.was.employeemanagementsystem.service;
 
 import com.was.employeemanagementsystem.dto.CreateUserRequest;
 import com.was.employeemanagementsystem.dto.CreateUserResponse;
+import com.was.employeemanagementsystem.dto.EmploymentRecordDTO;
+import com.was.employeemanagementsystem.dto.NextOfKinDTO;
 import com.was.employeemanagementsystem.entity.Department;
 import com.was.employeemanagementsystem.entity.Employee;
+import com.was.employeemanagementsystem.entity.EmploymentRecord;
+import com.was.employeemanagementsystem.entity.NextOfKin;
 import com.was.employeemanagementsystem.entity.User;
 import com.was.employeemanagementsystem.exception.DuplicateResourceException;
 import com.was.employeemanagementsystem.exception.ResourceNotFoundException;
@@ -23,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -64,20 +70,21 @@ public class UserManagementService {
         Department department;
 
         if (securityUtils.isSuperAdmin()) {
-            // SUPER_ADMIN can create ADMIN users and must select department
+            // SUPER_ADMIN can create ADMIN users and can optionally select department
             assignedRole = request.getRole() != null && request.getRole().equalsIgnoreCase("ADMIN")
                           ? "ADMIN" : "USER";
 
-            if (request.getDepartmentId() == null) {
-                throw new ValidationException("Department is required");
+            // Department is optional - if not provided, set to null
+            if (request.getDepartmentId() != null) {
+                department = departmentRepository.findById(request.getDepartmentId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Department not found with ID: " + request.getDepartmentId()));
+            } else {
+                department = null;
             }
 
-            department = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Department not found with ID: " + request.getDepartmentId()));
-
-            // Check if department already has an ADMIN (only when creating ADMIN role)
+            // Check if department already has an ADMIN (only when creating ADMIN role and department is provided)
             // Only check within SAME organization for multi-tenancy
-            if (assignedRole.equals("ADMIN")) {
+            if (assignedRole.equals("ADMIN") && department != null) {
                 User currentUser = securityUtils.getCurrentUser();
                 Long currentOrgId = currentUser.getOrganizationId();
 
@@ -99,22 +106,30 @@ public class UserManagementService {
                 }
             }
 
-            log.info("✓ SUPER_ADMIN creating {} in department: {}", assignedRole, department.getName());
+            log.info("✓ SUPER_ADMIN creating {} in department: {}", assignedRole, department != null ? department.getName() : "None");
 
         } else {
-            // ADMIN can only create USER and auto-assign to their department
+            // ADMIN can only create USER and auto-assign to their department (if not specified)
             assignedRole = "USER";
 
-            User currentUser = securityUtils.getCurrentUser();
-            Employee adminEmployee = employeeRepository.findByUserId(currentUser.getId())
-                    .orElseThrow(() -> new ValidationException("Admin employee profile not found"));
+            // If department is provided in request, use it; otherwise use admin's department
+            if (request.getDepartmentId() != null) {
+                department = departmentRepository.findById(request.getDepartmentId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Department not found with ID: " + request.getDepartmentId()));
+                log.info("✓ ADMIN creating USER in specified department: {}", department.getName());
+            } else {
+                User currentUser = securityUtils.getCurrentUser();
+                Employee adminEmployee = employeeRepository.findByUserId(currentUser.getId())
+                        .orElseThrow(() -> new ValidationException("Admin employee profile not found"));
 
-            department = adminEmployee.getDepartment();
-            if (department == null) {
-                throw new ValidationException("Admin must be assigned to a department first");
+                department = adminEmployee.getDepartment();
+                // Department can be null - it's optional
+                if (department != null) {
+                    log.info("✓ ADMIN creating USER in their department: {}", department.getName());
+                } else {
+                    log.info("✓ ADMIN creating USER without department assignment");
+                }
             }
-
-            log.info("✓ ADMIN creating USER in their department: {}", department.getName());
         }
 
         // Generate username and temporary password
@@ -130,9 +145,11 @@ public class UserManagementService {
 
         // Create Employee
         Employee employee = new Employee();
+        employee.setTitle(request.getTitle());
         employee.setFullName(request.getFullName());
         employee.setWorkEmail(request.getEmail());
-        employee.setJobTitle(request.getJobTitle());
+        employee.setJobTitle(request.getJobTitle() != null && !request.getJobTitle().trim().isEmpty() 
+                            ? request.getJobTitle() : null); // Optional job title
         employee.setPersonType(request.getPersonType() != null ? request.getPersonType() : "Employee");
         employee.setReference(request.getReference());
         employee.setDepartment(department);
@@ -142,6 +159,41 @@ public class UserManagementService {
         employee.setContractType(request.getContractType() != null ? request.getContractType() : "PERMANENT");
         employee.setWorkingTiming(request.getWorkingTiming() != null ? request.getWorkingTiming() : "9:00 AM - 5:00 PM");
         employee.setHolidayAllowance(request.getHolidayAllowance() != null ? request.getHolidayAllowance() : 20);
+        employee.setPhoneNumber(request.getPhoneNumber());
+        employee.setNationality(request.getNationality());
+        
+        // Financial and Employment Details
+        employee.setNationalInsuranceNumber(request.getNationalInsuranceNumber());
+        employee.setShareCode(request.getShareCode());
+        employee.setBankAccountNumber(request.getBankAccountNumber());
+        employee.setBankSortCode(request.getBankSortCode());
+        employee.setBankAccountHolderName(request.getBankAccountHolderName());
+        employee.setBankName(request.getBankName());
+        employee.setWageRate(request.getWageRate());
+        employee.setContractHours(request.getContractHours());
+        employee.setPresentAddress(request.getPresentAddress());
+        employee.setPreviousAddress(request.getPreviousAddress());
+
+        if (request.getDateOfBirth() != null && !request.getDateOfBirth().isEmpty()) {
+            employee.setDateOfBirth(LocalDate.parse(request.getDateOfBirth(), DateTimeFormatter.ISO_DATE));
+        }
+
+        boolean hasMedicalCondition = Boolean.TRUE.equals(request.getHasMedicalCondition());
+        employee.setHasMedicalCondition(hasMedicalCondition);
+        employee.setMedicalConditionDetails(hasMedicalCondition ? request.getMedicalConditionDetails() : null);
+        // Legacy next of kin fields (kept for backward compatibility)
+        employee.setNextOfKinName(request.getNextOfKinName());
+        employee.setNextOfKinContact(request.getNextOfKinContact());
+        employee.setNextOfKinAddress(request.getNextOfKinAddress());
+        
+        // Handle multiple next of kin entries
+        applyNextOfKin(employee, request.getNextOfKinList());
+        
+        employee.setBloodGroup(request.getBloodGroup());
+        employee.setAllottedOrganization(request.getAllottedOrganization());
+        employee.setEmergencyContactName(request.getEmergencyContactName());
+        employee.setEmergencyContactPhone(request.getEmergencyContactPhone());
+        employee.setEmergencyContactRelationship(request.getEmergencyContactRelationship());
 
         // Parse date of joining
         if (request.getDateOfJoining() != null && !request.getDateOfJoining().isEmpty()) {
@@ -149,6 +201,9 @@ public class UserManagementService {
         } else {
             employee.setDateOfJoining(LocalDate.now());
         }
+
+        applyEmploymentRecords(employee, request.getEmploymentRecords());
+        applyNextOfKin(employee, request.getNextOfKinList());
 
         Employee savedEmployee = employeeRepository.save(employee);
         log.info("✓ Employee profile created - ID: {}", savedEmployee.getId());
@@ -185,20 +240,26 @@ public class UserManagementService {
             // Don't fail user creation if leave balance initialization fails
         }
 
-        // Send email with credentials
+        // Send email with credentials only for ADMIN and SUPER_ADMIN roles
+        // USER role credentials are only displayed to admin, not emailed
         boolean emailSent = false;
-        try {
-            emailService.sendAccountCreationEmail(
-                request.getEmail(),
-                request.getFullName(),
-                username,
-                temporaryPassword
-            );
-            emailSent = true;
-            log.info("✓ Credentials email sent to: {}", request.getEmail());
-        } catch (Exception e) {
-            log.warn("⚠ Failed to send email to {}: {}", request.getEmail(), e.getMessage());
-            // Continue - admin will see credentials in response
+        if (!assignedRole.equals("USER")) {
+            try {
+                emailService.sendAccountCreationEmail(
+                    request.getEmail(),
+                    request.getFullName(),
+                    username,
+                    temporaryPassword,
+                    currentUser.getOrganizationId() // Pass organization ID for SMTP configuration
+                );
+                emailSent = true;
+                log.info("✓ Credentials email sent to: {} (Role: {})", request.getEmail(), assignedRole);
+            } catch (Exception e) {
+                log.warn("⚠ Failed to send email to {}: {}", request.getEmail(), e.getMessage());
+                // Continue - admin will see credentials in response
+            }
+        } else {
+            log.info("⏭️  Skipping email for USER role - credentials will be displayed to admin only");
         }
 
         // Build response with credentials
@@ -210,16 +271,94 @@ public class UserManagementService {
         response.setUsername(username);
         response.setTemporaryPassword(temporaryPassword);
         response.setRole(assignedRole);
-        response.setDepartmentName(department.getName());
+        response.setDepartmentName(department != null ? department.getName() : null);
         response.setEmailSent(emailSent);
-        response.setMessage(emailSent
-            ? "User created successfully! Credentials sent via email."
-            : "User created successfully! Email failed - please share credentials manually.");
+        if (assignedRole.equals("USER")) {
+            response.setMessage("User created successfully! Credentials are displayed below (not emailed to user).");
+        } else {
+            response.setMessage(emailSent
+                ? "User created successfully! Credentials sent via email."
+                : "User created successfully! Email failed - please share credentials manually.");
+        }
 
         log.info("✅ User creation complete - {} / {} in {}",
-                 username, assignedRole, department.getName());
+                 username, assignedRole, department != null ? department.getName() : "No Department");
 
         return response;
+    }
+
+    private void applyEmploymentRecords(Employee employee, List<EmploymentRecordDTO> recordDTOs) {
+        if (employee.getEmploymentRecords() == null) {
+            employee.setEmploymentRecords(new ArrayList<>());
+        } else {
+            employee.getEmploymentRecords().clear();
+        }
+
+        if (recordDTOs == null || recordDTOs.isEmpty()) {
+            return;
+        }
+
+                recordDTOs.stream()
+                .filter(dto -> !isEmploymentRecordEmpty(dto))
+                .forEach(dto -> {
+                    EmploymentRecord record = new EmploymentRecord();
+                    record.setJobTitle(dto.getJobTitle());
+                    record.setEmploymentPeriod(dto.getEmploymentPeriod());
+                    record.setEmployerName(dto.getEmployerName());
+                    record.setEmployerAddress(dto.getEmployerAddress());
+                    record.setContactPersonTitle(dto.getContactPersonTitle());
+                    record.setContactPersonName(dto.getContactPersonName());
+                    record.setContactPersonEmail(dto.getContactPersonEmail());
+                    record.setEmployee(employee);
+                    employee.getEmploymentRecords().add(record);
+                });
+    }
+
+    private boolean isEmploymentRecordEmpty(EmploymentRecordDTO dto) {
+        if (dto == null) {
+            return true;
+        }
+        return (dto.getJobTitle() == null || dto.getJobTitle().trim().isEmpty())
+                && (dto.getEmploymentPeriod() == null || dto.getEmploymentPeriod().trim().isEmpty())
+                && (dto.getEmployerName() == null || dto.getEmployerName().trim().isEmpty())
+                && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty())
+                && (dto.getContactPersonTitle() == null || dto.getContactPersonTitle().trim().isEmpty())
+                && (dto.getContactPersonEmail() == null || dto.getContactPersonEmail().trim().isEmpty());
+    }
+
+    private void applyNextOfKin(Employee employee, List<NextOfKinDTO> nextOfKinDTOs) {
+        if (employee.getNextOfKinList() == null) {
+            employee.setNextOfKinList(new ArrayList<>());
+        } else {
+            employee.getNextOfKinList().clear();
+        }
+
+        if (nextOfKinDTOs == null || nextOfKinDTOs.isEmpty()) {
+            return;
+        }
+
+        nextOfKinDTOs.stream()
+                .filter(dto -> !isNextOfKinEmpty(dto))
+                .forEach(dto -> {
+                    NextOfKin nextOfKin = new NextOfKin();
+                    nextOfKin.setName(dto.getName());
+                    nextOfKin.setContact(dto.getContact());
+                    nextOfKin.setAddress(dto.getAddress());
+                    nextOfKin.setRelationship(dto.getRelationship());
+                    nextOfKin.setEmployee(employee);
+                    employee.getNextOfKinList().add(nextOfKin);
+                });
+    }
+
+    private boolean isNextOfKinEmpty(NextOfKinDTO dto) {
+        if (dto == null) {
+            return true;
+        }
+
+        return (dto.getName() == null || dto.getName().trim().isEmpty())
+                && (dto.getContact() == null || dto.getContact().trim().isEmpty())
+                && (dto.getAddress() == null || dto.getAddress().trim().isEmpty())
+                && (dto.getRelationship() == null || dto.getRelationship().trim().isEmpty());
     }
 
     private void validateRequest(CreateUserRequest request) {

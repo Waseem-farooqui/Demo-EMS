@@ -49,22 +49,65 @@ public class AttendanceService {
             throw new RuntimeException("Access denied. You can only manage your own attendance.");
         }
 
-        // Check if already checked in today
-        Optional<Attendance> activeCheckIn = attendanceRepository.findByEmployeeAndIsActiveTrue(employee);
-        if (activeCheckIn.isPresent()) {
-            throw new RuntimeException("Already checked in. Please check out first.");
-        }
-
         LocalDateTime now = LocalDateTime.now();
         LocalDate today = now.toLocalDate();
 
-        Attendance attendance = new Attendance();
-        attendance.setEmployee(employee);
-        attendance.setCheckInTime(now);
-        attendance.setWorkDate(today);
-        attendance.setWorkLocation(workLocation);
-        attendance.setNotes(notes);
-        attendance.setIsActive(true);
+        // First, deactivate any old active check-ins from previous days
+        Optional<Attendance> oldActiveCheckIn = attendanceRepository.findByEmployeeAndIsActiveTrue(employee);
+        if (oldActiveCheckIn.isPresent()) {
+            Attendance oldAttendance = oldActiveCheckIn.get();
+            // If the old check-in is from a different day, deactivate it
+            if (!oldAttendance.getWorkDate().equals(today)) {
+                log.warn("Found active check-in from previous day ({}) for employee {}. Deactivating it.",
+                        oldAttendance.getWorkDate(), employee.getFullName());
+                oldAttendance.setIsActive(false);
+                // If no checkout time, set it to end of that day
+                if (oldAttendance.getCheckOutTime() == null) {
+                    oldAttendance.setCheckOutTime(oldAttendance.getWorkDate().atTime(23, 59, 59));
+                    // Calculate hours worked
+                    Duration duration = Duration.between(oldAttendance.getCheckInTime(), oldAttendance.getCheckOutTime());
+                    double hours = duration.toMinutes() / 60.0;
+                    oldAttendance.setHoursWorked(Math.round(hours * 100.0) / 100.0);
+                }
+                attendanceRepository.save(oldAttendance);
+            } else {
+                // Already checked in today
+                throw new RuntimeException("Already checked in today. Please check out first.");
+            }
+        }
+
+        // Check if there's already an attendance record for today
+        Optional<Attendance> existingTodayAttendance = attendanceRepository.findByEmployeeAndWorkDate(employee, today);
+        
+        Attendance attendance;
+        if (existingTodayAttendance.isPresent()) {
+            // Update existing record for today
+            attendance = existingTodayAttendance.get();
+            log.info("Found existing attendance record for today. Updating check-in time.");
+            
+            // If already checked out today, don't allow another check-in
+            if (attendance.getCheckOutTime() != null) {
+                throw new RuntimeException("Already checked in and out today. Cannot check in again on the same day.");
+            }
+            
+            // Update check-in time and other details
+            attendance.setCheckInTime(now);
+            attendance.setWorkLocation(workLocation);
+            attendance.setIsActive(true);
+            if (notes != null && !notes.trim().isEmpty()) {
+                String existingNotes = attendance.getNotes() != null ? attendance.getNotes() : "";
+                attendance.setNotes(existingNotes + (existingNotes.isEmpty() ? "" : " | ") + "Re-check-in: " + notes);
+            }
+        } else {
+            // Create new attendance record
+            attendance = new Attendance();
+            attendance.setEmployee(employee);
+            attendance.setCheckInTime(now);
+            attendance.setWorkDate(today);
+            attendance.setWorkLocation(workLocation);
+            attendance.setNotes(notes);
+            attendance.setIsActive(true);
+        }
 
         attendance = attendanceRepository.save(attendance);
         log.info("✓ Check-in successful for employee: {} at {}", employee.getFullName(), now);
@@ -86,9 +129,28 @@ public class AttendanceService {
             throw new RuntimeException("Access denied. You can only manage your own attendance.");
         }
 
-        // Find active check-in
-        Attendance attendance = attendanceRepository.findByEmployeeAndIsActiveTrue(employee)
-                .orElseThrow(() -> new RuntimeException("No active check-in found. Please check in first."));
+        LocalDate today = LocalDate.now();
+        
+        // First try to find active check-in for today
+        Optional<Attendance> activeCheckIn = attendanceRepository.findByEmployeeAndIsActiveTrue(employee);
+        
+        Attendance attendance;
+        if (activeCheckIn.isPresent() && activeCheckIn.get().getWorkDate().equals(today)) {
+            // Use the active check-in for today
+            attendance = activeCheckIn.get();
+        } else {
+            // If no active check-in, try to find today's attendance record
+            Optional<Attendance> todayAttendance = attendanceRepository.findByEmployeeAndWorkDate(employee, today);
+            if (todayAttendance.isPresent()) {
+                attendance = todayAttendance.get();
+                // If already checked out, throw error
+                if (attendance.getCheckOutTime() != null) {
+                    throw new RuntimeException("Already checked out today. Cannot check out again.");
+                }
+            } else {
+                throw new RuntimeException("No active check-in found for today. Please check in first.");
+            }
+        }
 
         LocalDateTime now = LocalDateTime.now();
         attendance.setCheckOutTime(now);
@@ -123,8 +185,16 @@ public class AttendanceService {
             throw new RuntimeException("Access denied.");
         }
 
+        LocalDate today = LocalDate.now();
+        // Only return active check-in if it's for today
         Optional<Attendance> activeCheckIn = attendanceRepository.findByEmployeeAndIsActiveTrue(employee);
-        return activeCheckIn.map(this::convertToDTO).orElse(null);
+        if (activeCheckIn.isPresent() && activeCheckIn.get().getWorkDate().equals(today)) {
+            return convertToDTO(activeCheckIn.get());
+        }
+        
+        // Also check if there's a record for today (even if not active)
+        Optional<Attendance> todayAttendance = attendanceRepository.findByEmployeeAndWorkDate(employee, today);
+        return todayAttendance.map(this::convertToDTO).orElse(null);
     }
 
     /**
@@ -209,9 +279,9 @@ public class AttendanceService {
                 .filter(a -> a.getCheckOutTime() != null)
                 .count());
 
-        // Determine current status
+        // Determine current status - only consider today's active check-in
         Optional<Attendance> activeCheckIn = attendanceRepository.findByEmployeeAndIsActiveTrue(employee);
-        if (activeCheckIn.isPresent()) {
+        if (activeCheckIn.isPresent() && activeCheckIn.get().getWorkDate().equals(today)) {
             summary.setCurrentStatus("CHECKED_IN");
         } else {
             // Check if on leave today

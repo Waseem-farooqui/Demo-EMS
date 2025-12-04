@@ -1,4 +1,11 @@
 <div class="dashboard-container">
+  <!-- SMTP Setup Modal -->
+  <app-smtp-setup-modal
+    *ngIf="showSmtpModal"
+    (closed)="onSmtpModalClosed()"
+    (configured)="onSmtpConfigured()">
+  </app-smtp-setup-modal>
+
   <!-- Loading State -->
   <div *ngIf="loading" class="loading-screen">
     <div class="spinner"></div>

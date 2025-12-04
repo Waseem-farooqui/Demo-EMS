@@ -208,8 +208,8 @@ docker stop ems-backend-blue ems-frontend-blue 2>/dev/null || true
 
 print_success "All containers stopped"
 
-# Remove containers
-print_step "Step 5/20: Removing Containers"
+# Remove containers and volumes (for fresh deployment)
+print_step "Step 5/20: Removing Containers and Volumes"
 
 print_info "Removing containers..."
 docker-compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
@@ -217,7 +217,12 @@ docker rm -f ems-backend ems-frontend ems-mysql 2>/dev/null || true
 docker rm -f ems-backend-blue ems-frontend-blue 2>/dev/null || true
 docker ps -a | grep -E "ems-|demo-ems" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
-print_success "Containers removed"
+print_info "Removing volumes for fresh deployment..."
+docker volume rm employeemanagementsystem_mysql_data 2>/dev/null || true
+docker volume rm employeemanagementsystem_uploads_data 2>/dev/null || true
+docker volume ls | grep -E "ems-|demo-ems|employeemanagementsystem" | awk '{print $2}' | xargs -r docker volume rm 2>/dev/null || true
+
+print_success "Containers and volumes removed (fresh deployment ready)"
 
 # Remove images
 print_step "Step 6/20: Removing Old Images"
@@ -438,32 +443,6 @@ CREATE TABLE IF NOT EXISTS user_roles (
     PRIMARY KEY (user_id, role),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-CREATE TABLE IF NOT EXISTS employees (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    full_name VARCHAR(255) NOT NULL,
-    person_type VARCHAR(50) NOT NULL,
-    work_email VARCHAR(255) NOT NULL,
-    personal_email VARCHAR(255),
-    phone_number VARCHAR(50),
-    date_of_birth DATE,
-    nationality VARCHAR(100),
-    address VARCHAR(500),
-    job_title VARCHAR(255) NOT NULL,
-    reference VARCHAR(255),
-    date_of_joining DATE NOT NULL,
-    employment_status VARCHAR(50),
-    contract_type VARCHAR(50),
-    working_timing VARCHAR(100),
-    holiday_allowance INT,
-    user_id BIGINT,
-    organization_id BIGINT,
-    organization_uuid VARCHAR(36),
-    UNIQUE KEY uk_work_email_org (work_email, organization_id),
-    INDEX idx_org_id (organization_id),
-    INDEX idx_user_id (user_id),
-    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS departments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -478,8 +457,56 @@ CREATE TABLE IF NOT EXISTS departments (
     UNIQUE KEY uk_name_org (name, organization_id),
     INDEX idx_org_id (organization_id),
     INDEX idx_manager_id (manager_id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    -- Note: Foreign key for manager_id will be added after employees table is created
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS employees (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(50),
+    full_name VARCHAR(255) NOT NULL,
+    person_type VARCHAR(50) NOT NULL,
+    work_email VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(50),
+    date_of_birth DATE,
+    nationality VARCHAR(100),
+    present_address TEXT,
+    previous_address TEXT,
+    has_medical_condition BOOLEAN DEFAULT FALSE,
+    medical_condition_details TEXT,
+    next_of_kin_name VARCHAR(255),
+    next_of_kin_contact VARCHAR(50),
+    next_of_kin_address TEXT,
+    blood_group VARCHAR(10),
+    emergency_contact_name VARCHAR(255),
+    emergency_contact_phone VARCHAR(50),
+    emergency_contact_relationship VARCHAR(100),
+    job_title VARCHAR(255),
+    reference VARCHAR(255),
+    date_of_joining DATE NOT NULL,
+    employment_status VARCHAR(50),
+    contract_type VARCHAR(50),
+    working_timing VARCHAR(100),
+    holiday_allowance INT,
+    allotted_organization VARCHAR(255),
+    national_insurance_number VARCHAR(50),
+    share_code VARCHAR(50),
+    bank_account_number VARCHAR(50),
+    bank_sort_code VARCHAR(20),
+    bank_account_holder_name VARCHAR(255),
+    bank_name VARCHAR(255),
+    wage_rate VARCHAR(50),
+    contract_hours VARCHAR(50),
+    user_id BIGINT,
+    department_id BIGINT,
+    organization_id BIGINT,
+    organization_uuid VARCHAR(36),
+    UNIQUE KEY uk_work_email_org (work_email, organization_id),
+    INDEX idx_org_id (organization_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_department_id (department_id),
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    FOREIGN KEY (manager_id) REFERENCES employees(id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS documents (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -496,6 +523,7 @@ CREATE TABLE IF NOT EXISTS documents (
     full_name VARCHAR(255),
     date_of_birth DATE,
     nationality VARCHAR(100),
+    visa_type VARCHAR(100),
     company_name VARCHAR(255),
     date_of_check DATE,
     reference_number VARCHAR(255),
@@ -663,6 +691,40 @@ SQL
         
         if [ "$FINAL_TABLES" -ge 10 ]; then
             print_success "Database tables created successfully ($FINAL_TABLES tables)"
+            
+            # Add foreign key constraint for departments.manager_id after employees table exists
+            print_info "Adding foreign key constraint for departments.manager_id..."
+            docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'ADDFK' 2>/dev/null || true
+USE employee_management_system;
+
+-- Check if foreign key constraint already exists
+SET @constraint_exists = (
+    SELECT COUNT(*) 
+    FROM information_schema.TABLE_CONSTRAINTS 
+    WHERE CONSTRAINT_SCHEMA = 'employee_management_system'
+    AND TABLE_NAME = 'departments'
+    AND CONSTRAINT_NAME = 'fk_departments_manager'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+
+-- Add foreign key constraint if it doesn't exist
+SET @sql = IF(@constraint_exists = 0,
+    'ALTER TABLE departments ADD CONSTRAINT fk_departments_manager FOREIGN KEY (manager_id) REFERENCES employees(id) ON DELETE SET NULL',
+    'SELECT "Foreign key constraint already exists" AS message'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SELECT 'Foreign key constraint added for departments.manager_id' AS status;
+ADDFK
+            
+            if [ $? -eq 0 ]; then
+                print_success "Foreign key constraint for departments.manager_id added"
+            else
+                print_warning "Could not add foreign key constraint (may already exist or tables not ready)"
+            fi
         else
             print_warning "Some tables may still be missing (found $FINAL_TABLES tables)"
             print_info "JPA will attempt to create missing tables on backend startup"
@@ -961,22 +1023,26 @@ FROM flyway_schema_history
 WHERE success = 0 
 ORDER BY installed_rank;
 
--- Delete failed V16 migration if it exists (migration was removed, handled at runtime now)
-DELETE FROM flyway_schema_history 
-WHERE version = '16' AND success = 0;
+-- For fresh deployment: Only repair if there are actual failed migrations
+-- Check if V16 migration exists and is failed before deleting
+SET @v16_exists = (SELECT COUNT(*) FROM flyway_schema_history WHERE version = '16' AND success = 0);
+SET @sql = IF(@v16_exists > 0,
+    'DELETE FROM flyway_schema_history WHERE version = ''16'' AND success = 0',
+    'SELECT ''No V16 migration to delete'' AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
--- Update other failed migrations to success=1 (repair)
--- This allows Flyway to proceed with new migrations
-UPDATE flyway_schema_history 
-SET success = 1 
-WHERE success = 0;
-
--- Also update checksum to NULL for failed migrations so Flyway recalculates
--- This is safe because we've made migrations idempotent
-UPDATE flyway_schema_history 
-SET checksum = NULL 
-WHERE success = 1 AND checksum IS NOT NULL 
-AND version IN (SELECT version FROM (SELECT version FROM flyway_schema_history WHERE success = 0) AS temp);
+-- Update failed migrations to success=1 only if they exist
+SET @failed_count = (SELECT COUNT(*) FROM flyway_schema_history WHERE success = 0);
+SET @sql = IF(@failed_count > 0,
+    'UPDATE flyway_schema_history SET success = 1 WHERE success = 0',
+    'SELECT ''No failed migrations to repair'' AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Verify repair
 SELECT 'Repaired migrations:' AS status;
@@ -1043,46 +1109,10 @@ else
     print_warning "fix-all-tables-schema.sql not found, skipping comprehensive schema fixes"
 fi
 
-# Remove unused columns (preview_image, extracted_text, file_size, file_data, extracted_text from rotas)
-print_info "Removing unused columns from documents and rotas tables..."
-docker-compose -f "$COMPOSE_FILE" exec -T mysql mysql -u root -p"${DB_ROOT_PASSWORD}" <<'UNUSEDCOLS' 2>/dev/null || true
-USE employee_management_system;
-
--- Remove from documents table (using conditional checks)
-SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'documents' AND column_name = 'preview_image');
-SET @sql = IF(@column_exists > 0, 'ALTER TABLE documents DROP COLUMN preview_image', 'SELECT "preview_image does not exist" AS message');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'documents' AND column_name = 'extracted_text');
-SET @sql = IF(@column_exists > 0, 'ALTER TABLE documents DROP COLUMN extracted_text', 'SELECT "extracted_text does not exist" AS message');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'documents' AND column_name = 'file_size');
-SET @sql = IF(@column_exists > 0, 'ALTER TABLE documents DROP COLUMN file_size', 'SELECT "file_size does not exist" AS message');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Remove from rotas table
-SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'file_data');
-SET @sql = IF(@column_exists > 0, 'ALTER TABLE rotas DROP COLUMN file_data', 'SELECT "file_data does not exist" AS message');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = 'employee_management_system' AND table_name = 'rotas' AND column_name = 'extracted_text');
-SET @sql = IF(@column_exists > 0, 'ALTER TABLE rotas DROP COLUMN extracted_text', 'SELECT "extracted_text does not exist" AS message');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SELECT 'Unused columns removed' AS status;
-UNUSEDCOLS
-print_success "Unused columns removed"
+# For fresh deployment: Skip unused column removal (they don't exist in fresh install)
+# These checks are kept for backward compatibility but won't execute on fresh install
+print_info "Skipping unused column removal for fresh deployment..."
+print_success "Schema cleanup skipped (fresh deployment)"
 
 # Fix attendance table structure (remove incorrect columns: date and status)
 print_info "Checking attendance table structure..."

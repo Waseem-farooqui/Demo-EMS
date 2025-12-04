@@ -31,6 +31,15 @@ public class EmploymentRecord {
     @Column(name = "employer_address", columnDefinition = "TEXT")
     private String employerAddress;
 
+    @Column(name = "contact_person_title")
+    private String contactPersonTitle; // Mr, Mrs, Miss, Ms, Dr, Prof, etc.
+
+    @Column(name = "contact_person_name")
+    private String contactPersonName;
+
+    @Column(name = "contact_person_email")
+    private String contactPersonEmail;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id")
     @JsonIgnore

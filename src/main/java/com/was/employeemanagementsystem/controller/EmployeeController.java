@@ -2,6 +2,7 @@ package com.was.employeemanagementsystem.controller;
 
 import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.EmployeeDTO;
+import com.was.employeemanagementsystem.dto.PageResponse;
 import com.was.employeemanagementsystem.service.EmployeeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -59,6 +60,19 @@ public class EmployeeController {
     }
 
     /**
+     * Get all employees with pagination - Only USER, ADMIN, SUPER_ADMIN
+     * ROOT cannot access employee data
+     */
+    @GetMapping("/paginated")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<PageResponse<EmployeeDTO>> getAllEmployeesPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        final PageResponse<EmployeeDTO> employees = employeeService.getAllEmployeesPaginated(page, size);
+        return ResponseEntity.ok(employees);
+    }
+
+    /**
      * Get employee by ID - Only USER, ADMIN, SUPER_ADMIN
      * ROOT cannot access employee data
      */
@@ -76,9 +90,18 @@ public class EmployeeController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<EmployeeDTO> updateEmployee(@PathVariable Long id, @RequestBody EmployeeDTO employeeDTO) {
-        log.info("Updating employee ID: {}", id);
-        final EmployeeDTO updatedEmployee = employeeService.updateEmployee(id, employeeDTO);
-        return ResponseEntity.ok(updatedEmployee);
+        log.info("📥 PUT /employees/{} - Update employee request received", id);
+        log.info("📋 Request body - Name: {}, Email: {}, DepartmentId: {}", 
+                employeeDTO.getFullName(), employeeDTO.getWorkEmail(), employeeDTO.getDepartmentId());
+        
+        try {
+            final EmployeeDTO updatedEmployee = employeeService.updateEmployee(id, employeeDTO);
+            log.info("✅ Employee updated successfully - ID: {}, Name: {}", id, updatedEmployee.getFullName());
+            return ResponseEntity.ok(updatedEmployee);
+        } catch (Exception e) {
+            log.error("❌ Error updating employee ID {}: {}", id, e.getMessage(), e);
+            throw e; // Re-throw to let GlobalExceptionHandler handle it
+        }
     }
 
     /**

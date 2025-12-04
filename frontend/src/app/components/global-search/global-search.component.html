@@ -1,0 +1,178 @@
+<div class="global-search-wrapper">
+  <!-- Top Search Bar (Always Visible) -->
+  <div class="top-search-container" [class.active]="isOpen">
+    <div class="search-input-container">
+      <span class="search-icon-large">🔍</span>
+      <input
+        #searchInput
+        type="text"
+        class="top-search-input"
+        placeholder="Search employees, documents, rota, leaves... (Ctrl+K)"
+        [(ngModel)]="searchQuery"
+        (input)="onSearchInput($event)"
+        (focus)="openSearch()"
+        (keydown.escape)="closeSearch()"
+        autocomplete="off">
+      <button class="clear-search-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onSearchInput($event)" title="Clear">
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- Search Results Overlay -->
+  <div class="search-overlay" [class.active]="isOpen && searchQuery.trim().length >= 2" (click)="closeSearch()">
+    <div class="search-container" (click)="$event.stopPropagation()">
+
+      <!-- Loading Indicator -->
+      <div class="search-loading" *ngIf="isLoading">
+        <div class="spinner"></div>
+        <span>Searching...</span>
+      </div>
+
+      <!-- Search Results -->
+      <div class="search-results" *ngIf="!isLoading && searchQuery.trim().length >= 2" #resultsContainer>
+        <!-- Tabs -->
+        <div class="search-tabs" *ngIf="hasResults">
+          <button 
+            class="tab-btn" 
+            [class.active]="activeTab === 'all'"
+            (click)="setActiveTab('all')">
+            All ({{ getTotalResults() }})
+          </button>
+          <button 
+            class="tab-btn" 
+            [class.active]="activeTab === 'employees'"
+            (click)="setActiveTab('employees')"
+            *ngIf="searchResults.employees.length > 0">
+            👥 Employees ({{ searchResults.employees.length }})
+          </button>
+          <button 
+            class="tab-btn" 
+            [class.active]="activeTab === 'documents'"
+            (click)="setActiveTab('documents')"
+            *ngIf="searchResults.documents.length > 0">
+            📄 Documents ({{ searchResults.documents.length }})
+          </button>
+          <button 
+            class="tab-btn" 
+            [class.active]="activeTab === 'leaves'"
+            (click)="setActiveTab('leaves')"
+            *ngIf="searchResults.leaves.length > 0">
+            🏖️ Leaves ({{ searchResults.leaves.length }})
+          </button>
+          <button 
+            class="tab-btn" 
+            [class.active]="activeTab === 'rotas'"
+            (click)="setActiveTab('rotas')"
+            *ngIf="searchResults.rotas.length > 0">
+            📋 Rota ({{ searchResults.rotas.length }})
+          </button>
+        </div>
+
+        <!-- No Results -->
+        <div class="no-results" *ngIf="!hasResults && searchQuery.trim().length >= 2">
+          <div class="no-results-icon">🔍</div>
+          <p class="no-results-text">No results found for "{{ searchQuery }}"</p>
+          <p class="no-results-hint">Try different keywords or check spelling</p>
+        </div>
+
+        <!-- Results Content -->
+        <div class="results-content" *ngIf="hasResults">
+          <!-- Employees -->
+          <div class="result-section" *ngIf="(activeTab === 'all' || activeTab === 'employees') && getFilteredResults().employees.length > 0">
+            <div class="section-header">
+              <span class="section-icon">👥</span>
+              <span class="section-title">Employees</span>
+              <span class="section-count">({{ getFilteredResults().employees.length }})</span>
+            </div>
+            <div class="result-list">
+              <div 
+                class="result-item employee-item"
+                *ngFor="let employee of getFilteredResults().employees"
+                (click)="navigateToEmployee(employee.id!)">
+                <div class="result-icon">👤</div>
+                <div class="result-info">
+                  <div class="result-title">{{ employee.fullName }}</div>
+                  <div class="result-subtitle">{{ employee.jobTitle }} • {{ employee.workEmail }}</div>
+                </div>
+                <div class="result-arrow">→</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Documents -->
+          <div class="result-section" *ngIf="(activeTab === 'all' || activeTab === 'documents') && getFilteredResults().documents.length > 0">
+            <div class="section-header">
+              <span class="section-icon">📄</span>
+              <span class="section-title">Documents</span>
+              <span class="section-count">({{ getFilteredResults().documents.length }})</span>
+            </div>
+            <div class="result-list">
+              <div 
+                class="result-item document-item"
+                *ngFor="let document of getFilteredResults().documents"
+                (click)="navigateToDocument(document.id!)">
+                <div class="result-icon">📄</div>
+                <div class="result-info">
+                  <div class="result-title">{{ document.documentType }}</div>
+                  <div class="result-subtitle">{{ document.employeeName }} • {{ document.fileName }}</div>
+                </div>
+                <div class="result-arrow">→</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Leaves -->
+          <div class="result-section" *ngIf="(activeTab === 'all' || activeTab === 'leaves') && getFilteredResults().leaves.length > 0">
+            <div class="section-header">
+              <span class="section-icon">🏖️</span>
+              <span class="section-title">Leaves</span>
+              <span class="section-count">({{ getFilteredResults().leaves.length }})</span>
+            </div>
+            <div class="result-list">
+              <div 
+                class="result-item leave-item"
+                *ngFor="let leave of getFilteredResults().leaves"
+                (click)="navigateToLeave(leave.id!)">
+                <div class="result-icon">🏖️</div>
+                <div class="result-info">
+                  <div class="result-title">{{ leave.employeeName }} - {{ leave.leaveType }}</div>
+                  <div class="result-subtitle">{{ leave.startDate | date:'MMM dd' }} - {{ leave.endDate | date:'MMM dd, yyyy' }} • {{ leave.status }}</div>
+                </div>
+                <div class="result-arrow">→</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rotas -->
+          <div class="result-section" *ngIf="(activeTab === 'all' || activeTab === 'rotas') && getFilteredResults().rotas.length > 0">
+            <div class="section-header">
+              <span class="section-icon">📋</span>
+              <span class="section-title">Rota</span>
+              <span class="section-count">({{ getFilteredResults().rotas.length }})</span>
+            </div>
+            <div class="result-list">
+              <div 
+                class="result-item rota-item"
+                *ngFor="let rota of getFilteredResults().rotas"
+                (click)="navigateToRota(rota.id)">
+                <div class="result-icon">📋</div>
+                <div class="result-info">
+                  <div class="result-title">{{ rota.department }}</div>
+                  <div class="result-subtitle">{{ rota.fileName }} • {{ rota.startDate | date:'MMM dd' }} - {{ rota.endDate | date:'MMM dd, yyyy' }}</div>
+                </div>
+                <div class="result-arrow">→</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Minimum Query Length Hint -->
+        <div class="search-hint" *ngIf="searchQuery.trim().length > 0 && searchQuery.trim().length < 2">
+          <p>Type at least 2 characters to search</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

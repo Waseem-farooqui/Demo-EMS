@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
+
 @Slf4j
 @RestController
 @RequestMapping(AppConstants.API_USERS_PATH)
@@ -27,7 +29,7 @@ public class UserManagementController {
      */
     @PostMapping("/create")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    public ResponseEntity<CreateUserResponse> createUser(@RequestBody CreateUserRequest request) {
+    public ResponseEntity<CreateUserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         log.info("🔐 User creation request received for: {}", request.getEmail());
         final CreateUserResponse response = userManagementService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
