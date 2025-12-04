@@ -50,6 +50,12 @@ RUN rm -rf /usr/share/nginx/html/*
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Create SSL directory (certificates will be mounted as volume)
+RUN mkdir -p /etc/nginx/ssl && \
+    mkdir -p /var/www/certbot && \
+    chmod 755 /etc/nginx/ssl && \
+    chmod 755 /var/www/certbot
+
 # Copy built app from build stage (Angular 17+ uses dist/frontend/browser)
 COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
 
@@ -62,12 +68,13 @@ RUN ls -la /usr/share/nginx/html/ && \
     echo "index.html exists:" && \
     test -f /usr/share/nginx/html/index.html && echo "YES" || echo "NO"
 
-# Expose port 80
-EXPOSE 80
+# Expose ports 80 (HTTP) and 443 (HTTPS)
+EXPOSE 80 443
 
-# Health check
+# Health check (check HTTPS if available, fallback to HTTP)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+  CMD wget --quiet --tries=1 --spider https://localhost/ 2>/dev/null || \
+      wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

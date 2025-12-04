@@ -4,9 +4,34 @@
 FROM maven:3.8-openjdk-11-slim AS build
 WORKDIR /app
 
-# Copy pom.xml and download dependencies
+# Install network tools for troubleshooting
+RUN apt-get update && \
+    apt-get install -y dnsutils iputils-ping curl && \
+    rm -rf /var/lib/apt/lists/* || true
+
+# Test DNS resolution before Maven build
+RUN echo "Testing DNS resolution..." && \
+    (nslookup repo.maven.apache.org || echo "DNS test completed") && \
+    (ping -c 2 repo.maven.apache.org || echo "Ping test completed") || true
+
+# Copy pom.xml and download dependencies with retry logic and timeout settings
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn dependency:go-offline -B \
+    -Dmaven.wagon.http.retryHandler.count=5 \
+    -Dmaven.wagon.http.retryHandler.interval=10000 \
+    -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
+    || (echo "First attempt failed, waiting 10 seconds and retrying..." && \
+        sleep 10 && \
+        mvn dependency:go-offline -B \
+        -Dmaven.wagon.http.retryHandler.count=5 \
+        -Dmaven.wagon.http.retryHandler.interval=10000 \
+        -Dmaven.wagon.httpconnectionManager.ttlSeconds=120) || \
+    (echo "Second attempt failed, waiting 20 seconds and retrying with verbose logging..." && \
+        sleep 20 && \
+        mvn dependency:go-offline -B -X \
+        -Dmaven.wagon.http.retryHandler.count=5 \
+        -Dmaven.wagon.http.retryHandler.interval=10000 \
+        -Dmaven.wagon.httpconnectionManager.ttlSeconds=120)
 
 # Copy source code and build
 COPY src ./src

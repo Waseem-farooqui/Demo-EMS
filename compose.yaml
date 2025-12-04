@@ -40,6 +40,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      network: host  # Use host network for better DNS resolution during build
     container_name: ems-backend
     restart: unless-stopped
     # Resource limits for document processing workloads
@@ -137,9 +140,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        API_URL: ${API_URL:-http://localhost:8080/api}
-        API_BASE_URL: ${API_BASE_URL:-http://localhost:8080}
-        FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+        API_URL: ${API_URL:-https://localhost:8080/api}
+        API_BASE_URL: ${API_BASE_URL:-https://localhost:8080}
+        FRONTEND_URL: ${FRONTEND_URL:-https://localhost}
     container_name: ems-frontend
     restart: unless-stopped
     # Minimal resources for frontend (static files)
@@ -153,12 +156,18 @@ services:
           memory: 256M
     ports:
       - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_HTTPS_PORT:-443}:443"
+    volumes:
+      # Mount SSL certificates
+      - ${SSL_DIR:-./ssl}:/etc/nginx/ssl:ro
+      # Mount certbot webroot for Let's Encrypt challenges
+      - certbot_webroot:/var/www/certbot:ro
     networks:
       - ems-network
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "https://localhost/"] || ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -168,6 +177,8 @@ volumes:
   mysql_data:
     driver: local
   uploads_data:
+    driver: local
+  certbot_webroot:
     driver: local
 
 networks:
