@@ -141,18 +141,21 @@ else
     print_success "JPA_DDL_AUTO set to 'create'"
 fi
 
-# Also disable Flyway temporarily (optional, but recommended when using JPA create)
-print_info "Checking Flyway configuration..."
+# Disable Flyway when using JPA_DDL_AUTO=create (required to avoid conflicts)
+print_info "Disabling Flyway (required when using JPA_DDL_AUTO=create)..."
 if grep -q "^SPRING_FLYWAY_ENABLED=" "$ENV_FILE"; then
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/^SPRING_FLYWAY_ENABLED=.*/SPRING_FLYWAY_ENABLED=false/" "$ENV_FILE"
     else
         sed -i "s/^SPRING_FLYWAY_ENABLED=.*/SPRING_FLYWAY_ENABLED=false/" "$ENV_FILE"
     fi
-    print_info "Flyway disabled (will be re-enabled after database is created)"
+    print_success "Flyway disabled"
 else
-    # Add Flyway disable (optional)
-    print_info "Note: Consider disabling Flyway when using JPA_DDL_AUTO=create"
+    # Add Flyway disable
+    echo "" >> "$ENV_FILE"
+    echo "# Flyway Configuration - Disabled when using JPA_DDL_AUTO=create" >> "$ENV_FILE"
+    echo "SPRING_FLYWAY_ENABLED=false" >> "$ENV_FILE"
+    print_success "Flyway disabled (added to .env)"
 fi
 
 # Step 5: Create Fresh Volumes

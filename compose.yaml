@@ -117,7 +117,11 @@ services:
       # Spring Profile
       SPRING_PROFILES_ACTIVE: prod
       
+      # Flyway Configuration - Can be disabled when using JPA_DDL_AUTO=create
+      SPRING_FLYWAY_ENABLED: ${SPRING_FLYWAY_ENABLED:-true}
+      
       # JPA Configuration - Use 'validate' with Flyway (Flyway handles migrations)
+      # Set to 'create' for fresh database (requires SPRING_FLYWAY_ENABLED=false)
       # Set to 'update' only if you want JPA to create tables (not recommended with Flyway)
       JPA_DDL_AUTO: ${JPA_DDL_AUTO:-validate}
       # Enable SQL logging for debugging (set to false in production)

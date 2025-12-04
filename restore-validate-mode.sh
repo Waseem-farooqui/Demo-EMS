@@ -77,7 +77,13 @@ if grep -q "^SPRING_FLYWAY_ENABLED=" "$ENV_FILE"; then
     else
         sed -i "s/^SPRING_FLYWAY_ENABLED=.*/SPRING_FLYWAY_ENABLED=true/" "$ENV_FILE"
     fi
-    print_info "Flyway re-enabled"
+    print_success "Flyway re-enabled"
+else
+    # Add Flyway enable if not present
+    echo "" >> "$ENV_FILE"
+    echo "# Flyway Configuration - Re-enabled after database creation" >> "$ENV_FILE"
+    echo "SPRING_FLYWAY_ENABLED=true" >> "$ENV_FILE"
+    print_success "Flyway enabled (added to .env)"
 fi
 
 # Determine compose command
