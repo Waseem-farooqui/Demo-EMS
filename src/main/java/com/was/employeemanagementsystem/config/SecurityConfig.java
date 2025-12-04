@@ -31,16 +31,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationEntryPoint unauthorizedHandler;
     private final JwtUtils jwtUtils;
-    private final SecurityRequestFilter securityRequestFilter;
 
     public SecurityConfig(UserDetailsServiceImpl userDetailsService,
                          JwtAuthenticationEntryPoint unauthorizedHandler,
-                         JwtUtils jwtUtils,
-                         SecurityRequestFilter securityRequestFilter) {
+                         JwtUtils jwtUtils) {
         this.userDetailsService = userDetailsService;
         this.unauthorizedHandler = unauthorizedHandler;
         this.jwtUtils = jwtUtils;
-        this.securityRequestFilter = securityRequestFilter;
     }
 
     /**
