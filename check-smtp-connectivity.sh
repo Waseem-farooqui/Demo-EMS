@@ -1,7 +1,7 @@
 #!/bin/bash
 ###############################################################################
-# SMTP Connectivity and Firewall Check Script
-# Checks firewall rules and tests SMTP connectivity for Hostinger
+# SMTP Connectivity and Authentication Check Script
+# Reads .env file, checks firewall, connectivity, and tests password authentication
 ###############################################################################
 
 set -e
@@ -36,10 +36,73 @@ print_step() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
-print_step "SMTP Connectivity and Firewall Check"
+# Find .env file
+ENV_FILE=""
+if [ -f ".env" ]; then
+    ENV_FILE=".env"
+    print_success "Found .env file"
+elif [ -f "prod.env" ]; then
+    ENV_FILE="prod.env"
+    print_warning "Using prod.env (create .env from prod.env for production)"
+else
+    print_error "No .env or prod.env file found!"
+    exit 1
+fi
+
+print_step "Reading Email Configuration from $ENV_FILE"
+
+# Read email configuration from .env file
+MAIL_HOST=$(grep "^MAIL_HOST=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+MAIL_PORT=$(grep "^MAIL_PORT=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+MAIL_USERNAME=$(grep "^MAIL_USERNAME=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+MAIL_PASSWORD=$(grep "^MAIL_PASSWORD=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+MAIL_SMTP_AUTH=$(grep "^MAIL_SMTP_AUTH=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "true")
+MAIL_SMTP_STARTTLS_ENABLE=$(grep "^MAIL_SMTP_STARTTLS_ENABLE=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+MAIL_SMTP_STARTTLS_REQUIRED=$(grep "^MAIL_SMTP_STARTTLS_REQUIRED=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+MAIL_SMTP_SSL_ENABLE=$(grep "^MAIL_SMTP_SSL_ENABLE=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+MAIL_SMTP_SSL_TRUST=$(grep "^MAIL_SMTP_SSL_TRUST=" "$ENV_FILE" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "")
+
+# Display configuration (hide password)
+echo ""
+echo "Email Configuration from $ENV_FILE:"
+echo "  MAIL_HOST: ${MAIL_HOST:-not set}"
+echo "  MAIL_PORT: ${MAIL_PORT:-not set}"
+echo "  MAIL_USERNAME: ${MAIL_USERNAME:-not set}"
+echo "  MAIL_PASSWORD: ${MAIL_PASSWORD:+***SET***}${MAIL_PASSWORD:-not set}"
+echo "  MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH}"
+echo "  MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS_ENABLE:-not set}"
+echo "  MAIL_SMTP_STARTTLS_REQUIRED: ${MAIL_SMTP_STARTTLS_REQUIRED:-not set}"
+echo "  MAIL_SMTP_SSL_ENABLE: ${MAIL_SMTP_SSL_ENABLE:-not set}"
+echo "  MAIL_SMTP_SSL_TRUST: ${MAIL_SMTP_SSL_TRUST:-not set}"
+echo ""
+
+# Validate configuration
+if [ -z "$MAIL_HOST" ]; then
+    print_error "MAIL_HOST is not set in $ENV_FILE"
+    exit 1
+fi
+
+if [ -z "$MAIL_PORT" ]; then
+    print_error "MAIL_PORT is not set in $ENV_FILE"
+    exit 1
+fi
+
+if [ -z "$MAIL_USERNAME" ]; then
+    print_error "MAIL_USERNAME is not set in $ENV_FILE"
+    exit 1
+fi
+
+if [ -z "$MAIL_PASSWORD" ] || [ "$MAIL_PASSWORD" = "CHANGE_THIS"* ]; then
+    print_error "MAIL_PASSWORD is not set or still has placeholder value!"
+    print_info "Update MAIL_PASSWORD in $ENV_FILE with your actual email password"
+    exit 1
+fi
+
+print_success "Email configuration loaded from $ENV_FILE"
 
 # Check 1: Firewall Status
-print_info "Checking firewall status..."
+print_step "Checking Firewall Status"
+
 if command -v ufw &> /dev/null; then
     FIREWALL_STATUS=$(ufw status | head -1)
     echo "$FIREWALL_STATUS"
@@ -57,11 +120,11 @@ if command -v ufw &> /dev/null; then
         fi
         
         # Check if SMTP ports are explicitly allowed
-        if ufw status | grep -q "465\|587"; then
-            print_info "SMTP ports found in firewall rules:"
-            ufw status | grep -E "465|587"
+        if ufw status | grep -q "${MAIL_PORT}"; then
+            print_info "SMTP port ${MAIL_PORT} found in firewall rules:"
+            ufw status | grep "${MAIL_PORT}"
         else
-            print_warning "SMTP ports (465/587) not explicitly allowed"
+            print_warning "SMTP port ${MAIL_PORT} not explicitly allowed"
             print_info "This is OK if 'default allow outgoing' is set"
         fi
     else
@@ -71,48 +134,41 @@ elif command -v firewall-cmd &> /dev/null; then
     print_info "Using firewalld (firewall-cmd)"
     if firewall-cmd --state 2>/dev/null | grep -q "running"; then
         print_info "Firewalld is running"
-        # Check zones
-        firewall-cmd --list-all-zones | grep -A 10 "public\|default"
     fi
 else
     print_warning "No firewall tool found (ufw or firewalld)"
 fi
 
-# Check 2: Test SMTP Connectivity
-print_step "Testing SMTP Connectivity"
+# Check 2: DNS Resolution
+print_step "Testing DNS Resolution"
 
-# Test port 587 (TLS/STARTTLS)
-print_info "Testing connection to smtp.hostinger.com:587..."
-if command -v nc &> /dev/null || command -v telnet &> /dev/null; then
-    if timeout 5 bash -c "echo > /dev/tcp/smtp.hostinger.com/587" 2>/dev/null; then
-        print_success "Port 587 is reachable"
+print_info "Resolving $MAIL_HOST..."
+if host "$MAIL_HOST" &> /dev/null || nslookup "$MAIL_HOST" &> /dev/null; then
+    SMTP_IP=$(host "$MAIL_HOST" 2>/dev/null | grep "has address" | awk '{print $4}' | head -1 || \
+              nslookup "$MAIL_HOST" 2>/dev/null | grep -A 1 "Name:" | tail -1 | awk '{print $2}' || echo "")
+    if [ -n "$SMTP_IP" ]; then
+        print_success "DNS resolved: $MAIL_HOST -> $SMTP_IP"
     else
-        print_error "Cannot connect to smtp.hostinger.com:587"
-        print_info "This could indicate:"
-        print_info "  - Firewall blocking outbound connection"
-        print_info "  - Network issue"
-        print_info "  - Hostinger SMTP server issue"
+        print_warning "DNS resolved but couldn't extract IP"
     fi
 else
-    print_warning "nc or telnet not available, skipping connectivity test"
-    print_info "Install with: sudo apt-get install netcat-openbsd"
+    print_error "Cannot resolve $MAIL_HOST"
+    exit 1
 fi
 
-# Test port 465 (SSL)
-print_info "Testing connection to smtp.hostinger.com:465..."
-if timeout 5 bash -c "echo > /dev/tcp/smtp.hostinger.com/465" 2>/dev/null; then
-    print_success "Port 465 is reachable"
-else
-    print_error "Cannot connect to smtp.hostinger.com:465"
-fi
+# Check 3: Test SMTP Connectivity
+print_step "Testing SMTP Connectivity"
 
-# Check 3: DNS Resolution
-print_info "Testing DNS resolution for smtp.hostinger.com..."
-if host smtp.hostinger.com &> /dev/null || nslookup smtp.hostinger.com &> /dev/null; then
-    SMTP_IP=$(host smtp.hostinger.com | grep "has address" | awk '{print $4}' | head -1)
-    print_success "DNS resolved: smtp.hostinger.com -> $SMTP_IP"
+print_info "Testing connection to $MAIL_HOST:${MAIL_PORT}..."
+if timeout 5 bash -c "echo > /dev/tcp/$MAIL_HOST/${MAIL_PORT}" 2>/dev/null; then
+    print_success "Port ${MAIL_PORT} is reachable"
 else
-    print_error "Cannot resolve smtp.hostinger.com"
+    print_error "Cannot connect to $MAIL_HOST:${MAIL_PORT}"
+    print_info "This could indicate:"
+    print_info "  - Firewall blocking outbound connection"
+    print_info "  - Network issue"
+    print_info "  - SMTP server issue"
+    exit 1
 fi
 
 # Check 4: Docker Network
@@ -127,11 +183,35 @@ if command -v docker &> /dev/null; then
         print_info "Found backend container: $BACKEND_CONTAINER"
         
         # Test connectivity from container
-        if docker exec "$BACKEND_CONTAINER" timeout 5 bash -c "echo > /dev/tcp/smtp.hostinger.com/587" 2>/dev/null; then
-            print_success "Backend container can reach smtp.hostinger.com:587"
+        if docker exec "$BACKEND_CONTAINER" timeout 5 bash -c "echo > /dev/tcp/$MAIL_HOST/${MAIL_PORT}" 2>/dev/null; then
+            print_success "Backend container can reach $MAIL_HOST:${MAIL_PORT}"
         else
-            print_error "Backend container cannot reach smtp.hostinger.com:587"
+            print_error "Backend container cannot reach $MAIL_HOST:${MAIL_PORT}"
             print_info "This could indicate Docker network restrictions"
+        fi
+        
+        # Check environment variables in container
+        print_info "Checking environment variables in $BACKEND_CONTAINER..."
+        echo ""
+        echo "Email Configuration in Container:"
+        docker exec "$BACKEND_CONTAINER" env | grep -E "MAIL_|EMAIL_" | sed 's/PASSWORD=.*/PASSWORD=***HIDDEN***/' || print_warning "No MAIL_ variables found"
+        echo ""
+        
+        # Compare .env with container
+        CONTAINER_MAIL_HOST=$(docker exec "$BACKEND_CONTAINER" env | grep "^MAIL_HOST=" | cut -d '=' -f2 || echo "")
+        CONTAINER_MAIL_PORT=$(docker exec "$BACKEND_CONTAINER" env | grep "^MAIL_PORT=" | cut -d '=' -f2 || echo "")
+        CONTAINER_MAIL_USERNAME=$(docker exec "$BACKEND_CONTAINER" env | grep "^MAIL_USERNAME=" | cut -d '=' -f2 || echo "")
+        
+        if [ -n "$CONTAINER_MAIL_HOST" ]; then
+            if [ "$CONTAINER_MAIL_HOST" != "$MAIL_HOST" ]; then
+                print_warning "MAIL_HOST mismatch: .env=$MAIL_HOST, container=$CONTAINER_MAIL_HOST"
+            fi
+            if [ "$CONTAINER_MAIL_PORT" != "$MAIL_PORT" ]; then
+                print_warning "MAIL_PORT mismatch: .env=$MAIL_PORT, container=$CONTAINER_MAIL_PORT"
+            fi
+            if [ "$CONTAINER_MAIL_USERNAME" != "$MAIL_USERNAME" ]; then
+                print_warning "MAIL_USERNAME mismatch: .env=$MAIL_USERNAME, container=$CONTAINER_MAIL_USERNAME"
+            fi
         fi
     else
         print_warning "Backend container not running"
@@ -140,41 +220,164 @@ else
     print_warning "Docker not found"
 fi
 
-# Check 5: Environment Variables
-print_step "Checking Email Configuration in Backend Container"
+# Check 5: Test SMTP Authentication
+print_step "Testing SMTP Authentication"
 
-if command -v docker &> /dev/null; then
-    if docker ps --format '{{.Names}}' | grep -q "backend\|ems-backend"; then
-        BACKEND_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E "backend|ems-backend" | head -1)
-        print_info "Checking environment variables in $BACKEND_CONTAINER..."
-        
+print_info "Testing authentication with $MAIL_USERNAME on $MAIL_HOST:${MAIL_PORT}..."
+
+# Check if swaks (Swiss Army Knife for SMTP) is available
+if command -v swaks &> /dev/null; then
+    print_info "Using swaks to test SMTP authentication..."
+    
+    if [ "$MAIL_PORT" = "465" ]; then
+        # Port 465 uses SSL
+        SWAKS_CMD="swaks --server $MAIL_HOST --port $MAIL_PORT --from $MAIL_USERNAME --to $MAIL_USERNAME --auth LOGIN --auth-user $MAIL_USERNAME --auth-password '$MAIL_PASSWORD' --tls"
+    else
+        # Port 587 uses STARTTLS
+        SWAKS_CMD="swaks --server $MAIL_HOST --port $MAIL_PORT --from $MAIL_USERNAME --to $MAIL_USERNAME --auth LOGIN --auth-user $MAIL_USERNAME --auth-password '$MAIL_PASSWORD' --tls"
+    fi
+    
+    if eval "$SWAKS_CMD" 2>&1 | grep -q "250\|200\|Authentication succeeded"; then
+        print_success "SMTP authentication successful!"
+    else
+        AUTH_RESULT=$(eval "$SWAKS_CMD" 2>&1 | tail -5)
+        print_error "SMTP authentication failed!"
         echo ""
-        echo "Email Configuration:"
-        docker exec "$BACKEND_CONTAINER" env | grep -E "MAIL_|EMAIL_" | sed 's/PASSWORD=.*/PASSWORD=***HIDDEN***/' || print_warning "No MAIL_ variables found"
+        echo "Authentication test output:"
+        echo "$AUTH_RESULT"
+        echo ""
+        print_info "This indicates:"
+        print_info "  - Password is incorrect"
+        print_info "  - Username format is wrong"
+        print_info "  - Account might be locked or restricted"
+    fi
+elif command -v python3 &> /dev/null; then
+    print_info "Using Python to test SMTP authentication..."
+    
+    # Create temporary Python script to test authentication
+    cat > /tmp/test_smtp_auth.py << EOF
+import smtplib
+import sys
+from email.mime.text import MIMEText
+
+host = "$MAIL_HOST"
+port = int("$MAIL_PORT")
+username = "$MAIL_USERNAME"
+password = "$MAIL_PASSWORD"
+use_ssl = "$MAIL_SMTP_SSL_ENABLE" == "true"
+use_starttls = "$MAIL_SMTP_STARTTLS_ENABLE" == "true"
+
+try:
+    if use_ssl or port == 465:
+        # SSL connection
+        server = smtplib.SMTP_SSL(host, port, timeout=10)
+    else:
+        # Regular connection with STARTTLS
+        server = smtplib.SMTP(host, port, timeout=10)
+        if use_starttls:
+            server.starttls()
+    
+    server.login(username, password)
+    print("SUCCESS: Authentication successful!")
+    server.quit()
+    sys.exit(0)
+except smtplib.SMTPAuthenticationError as e:
+    print(f"FAILED: Authentication failed - {e}")
+    sys.exit(1)
+except Exception as e:
+    print(f"ERROR: {e}")
+    sys.exit(1)
+EOF
+    
+    AUTH_RESULT=$(python3 /tmp/test_smtp_auth.py 2>&1)
+    rm -f /tmp/test_smtp_auth.py
+    
+    if echo "$AUTH_RESULT" | grep -q "SUCCESS"; then
+        print_success "SMTP authentication successful!"
+    else
+        print_error "SMTP authentication failed!"
+        echo ""
+        echo "Authentication test output:"
+        echo "$AUTH_RESULT"
+        echo ""
+        print_info "Common causes:"
+        print_info "  - Password is incorrect"
+        print_info "  - Username should be full email address: $MAIL_USERNAME"
+        print_info "  - Account might require IP whitelisting"
+    fi
+else
+    print_warning "swaks and python3 not available, skipping authentication test"
+    print_info "Install swaks: sudo apt-get install swaks"
+    print_info "Or install python3: sudo apt-get install python3"
+fi
+
+# Configuration Validation
+print_step "Validating SMTP Configuration"
+
+CONFIG_VALID=true
+
+# Check port 587 configuration
+if [ "$MAIL_PORT" = "587" ]; then
+    if [ "$MAIL_SMTP_STARTTLS_ENABLE" != "true" ]; then
+        print_error "For port 587, MAIL_SMTP_STARTTLS_ENABLE should be 'true'"
+        CONFIG_VALID=false
+    fi
+    if [ "$MAIL_SMTP_STARTTLS_REQUIRED" != "true" ]; then
+        print_error "For port 587, MAIL_SMTP_STARTTLS_REQUIRED should be 'true'"
+        CONFIG_VALID=false
+    fi
+    if [ "$MAIL_SMTP_SSL_ENABLE" = "true" ]; then
+        print_error "For port 587, MAIL_SMTP_SSL_ENABLE should be 'false'"
+        CONFIG_VALID=false
     fi
 fi
 
-# Recommendations
-print_step "Recommendations"
+# Check port 465 configuration
+if [ "$MAIL_PORT" = "465" ]; then
+    if [ "$MAIL_SMTP_SSL_ENABLE" != "true" ]; then
+        print_error "For port 465, MAIL_SMTP_SSL_ENABLE should be 'true'"
+        CONFIG_VALID=false
+    fi
+    if [ "$MAIL_SMTP_STARTTLS_ENABLE" = "true" ]; then
+        print_error "For port 465, MAIL_SMTP_STARTTLS_ENABLE should be 'false'"
+        CONFIG_VALID=false
+    fi
+fi
+
+if [ "$CONFIG_VALID" = true ]; then
+    print_success "SMTP configuration is valid for port ${MAIL_PORT}"
+else
+    print_warning "SMTP configuration has issues - check the errors above"
+fi
+
+# Summary
+print_step "Summary and Recommendations"
 
 echo ""
-print_info "If SMTP connectivity tests fail:"
+if [ "$MAIL_PORT" = "587" ]; then
+    print_info "Current configuration: Port 587 (TLS/STARTTLS)"
+    print_info "Required settings:"
+    echo "  MAIL_SMTP_STARTTLS_ENABLE=true"
+    echo "  MAIL_SMTP_STARTTLS_REQUIRED=true"
+    echo "  MAIL_SMTP_SSL_ENABLE=false"
+elif [ "$MAIL_PORT" = "465" ]; then
+    print_info "Current configuration: Port 465 (SSL)"
+    print_info "Required settings:"
+    echo "  MAIL_SMTP_SSL_ENABLE=true"
+    echo "  MAIL_SMTP_STARTTLS_ENABLE=false"
+    echo "  MAIL_SMTP_SSL_SOCKET_FACTORY_PORT=465"
+fi
+
+echo ""
+print_info "If authentication failed:"
+echo "  1. Verify password in Hostinger webmail: https://webmail.hostinger.com"
+echo "  2. Reset password in Hostinger hPanel if needed"
+echo "  3. Update .env file with correct password"
+echo "  4. Restart backend: docker compose restart backend"
+echo ""
+print_info "If connectivity failed:"
 echo "  1. Check firewall: sudo ufw status verbose"
-echo "  2. Allow outgoing SMTP: sudo ufw default allow outgoing (if not already set)"
-echo "  3. Test from server: telnet smtp.hostinger.com 587"
-echo ""
-print_info "If connectivity works but authentication fails:"
-echo "  1. Verify password in .env file matches Hostinger email password"
-echo "  2. Test webmail login: https://webmail.hostinger.com"
-echo "  3. Check if email account requires IP whitelisting in Hostinger"
-echo "  4. Try resetting email password in Hostinger hPanel"
-echo ""
-print_info "For port 587 (TLS/STARTTLS), ensure .env has:"
-echo "  MAIL_PORT=587"
-echo "  MAIL_SMTP_STARTTLS_ENABLE=true"
-echo "  MAIL_SMTP_STARTTLS_REQUIRED=true"
-echo "  MAIL_SMTP_SSL_ENABLE=false"
-echo "  MAIL_SMTP_SSL_TRUST=smtp.hostinger.com"
+echo "  2. Allow outgoing: sudo ufw default allow outgoing"
+echo "  3. Test manually: telnet $MAIL_HOST $MAIL_PORT"
 
 print_success "Diagnostics completed!"
-
