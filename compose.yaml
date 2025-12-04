@@ -81,6 +81,9 @@ services:
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
 
       # Email Configuration
+      # For Hostinger: Use smtp.hostinger.com with port 465 (SSL) or 587 (TLS)
+      # Port 465 (SSL): Set MAIL_PORT=465, MAIL_SMTP_SSL_ENABLE=true, MAIL_SMTP_STARTTLS_ENABLE=false
+      # Port 587 (TLS): Set MAIL_PORT=587, MAIL_SMTP_SSL_ENABLE=false, MAIL_SMTP_STARTTLS_ENABLE=true
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME}
@@ -88,7 +91,9 @@ services:
       MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
       MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS_ENABLE:-true}
       MAIL_SMTP_STARTTLS_REQUIRED: ${MAIL_SMTP_STARTTLS_REQUIRED:-true}
+      MAIL_SMTP_SSL_ENABLE: ${MAIL_SMTP_SSL_ENABLE:-false}
       MAIL_SMTP_SSL_TRUST: ${MAIL_SMTP_SSL_TRUST:-smtp.gmail.com}
+      MAIL_SMTP_SSL_SOCKET_FACTORY_PORT: ${MAIL_SMTP_SSL_SOCKET_FACTORY_PORT:-}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Employee Management System}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-${MAIL_USERNAME}}
 
@@ -167,7 +172,7 @@ services:
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "https://localhost/"] || ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider https://localhost/ || wget --quiet --tries=1 --spider http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3
