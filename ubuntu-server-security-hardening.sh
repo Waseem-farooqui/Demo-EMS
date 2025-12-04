@@ -171,20 +171,59 @@ print_success "Automatic security updates configured"
 # Step 6: Harden SSH Configuration
 print_step "Step 6/15: Hardening SSH Configuration"
 
+# Check if SSH is installed
+if ! command -v sshd &> /dev/null && [ ! -f /etc/ssh/sshd_config ]; then
+    print_warning "SSH server (openssh-server) not found"
+    print_info "Installing openssh-server..."
+    apt-get install -y -qq openssh-server
+    print_success "SSH server installed"
+fi
+
 SSH_CONFIG="/etc/ssh/sshd_config"
-cp "$SSH_CONFIG" "${SSH_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
 
-# Apply SSH security settings
-sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' "$SSH_CONFIG"
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' "$SSH_CONFIG"
-sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' "$SSH_CONFIG"
-sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords no/' "$SSH_CONFIG"
-sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' "$SSH_CONFIG"
-sed -i 's/#ClientAliveInterval 0/ClientAliveInterval 300/' "$SSH_CONFIG"
-sed -i 's/#ClientAliveCountMax 3/ClientAliveCountMax 2/' "$SSH_CONFIG"
+# Check if SSH config exists
+if [ ! -f "$SSH_CONFIG" ]; then
+    print_error "SSH configuration file not found at $SSH_CONFIG"
+    print_info "SSH may not be installed. Skipping SSH hardening."
+else
+    # Backup SSH config
+    cp "$SSH_CONFIG" "${SSH_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
+    print_info "SSH config backed up"
 
-# Add additional security settings
-cat >> "$SSH_CONFIG" << 'EOF'
+    # Apply SSH security settings (only if not already set)
+    if ! grep -q "^PermitRootLogin" "$SSH_CONFIG"; then
+        sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' "$SSH_CONFIG"
+        sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' "$SSH_CONFIG"
+    fi
+    
+    if ! grep -q "^PasswordAuthentication" "$SSH_CONFIG"; then
+        sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' "$SSH_CONFIG"
+        sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' "$SSH_CONFIG"
+    fi
+    
+    if ! grep -q "^PubkeyAuthentication" "$SSH_CONFIG"; then
+        sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' "$SSH_CONFIG"
+    fi
+    
+    if ! grep -q "^PermitEmptyPasswords" "$SSH_CONFIG"; then
+        sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords no/' "$SSH_CONFIG"
+    fi
+    
+    if ! grep -q "^MaxAuthTries" "$SSH_CONFIG"; then
+        sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' "$SSH_CONFIG"
+    fi
+    
+    if ! grep -q "^ClientAliveInterval" "$SSH_CONFIG"; then
+        sed -i 's/#ClientAliveInterval 0/ClientAliveInterval 300/' "$SSH_CONFIG"
+    fi
+    
+    if ! grep -q "^ClientAliveCountMax" "$SSH_CONFIG"; then
+        sed -i 's/#ClientAliveCountMax 3/ClientAliveCountMax 2/' "$SSH_CONFIG"
+    fi
+
+    # Add additional security settings if not present
+    if ! grep -q "^Protocol 2" "$SSH_CONFIG"; then
+        cat >> "$SSH_CONFIG" << 'EOF'
 
 # Additional Security Settings
 Protocol 2
@@ -194,15 +233,49 @@ PermitTunnel no
 MaxSessions 2
 MaxStartups 3:50:10
 EOF
+    fi
 
-# Test SSH config before restarting
-if sshd -t; then
-    systemctl restart sshd
-    print_success "SSH configuration hardened"
-else
-    print_error "SSH configuration test failed, restoring backup"
-    cp "${SSH_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)" "$SSH_CONFIG"
-    exit 1
+    # Test SSH config before restarting
+    if sshd -t 2>/dev/null; then
+        # Detect SSH service name
+        SSH_SERVICE=""
+        if systemctl list-units --type=service | grep -q "sshd.service"; then
+            SSH_SERVICE="sshd"
+        elif systemctl list-units --type=service | grep -q "ssh.service"; then
+            SSH_SERVICE="ssh"
+        elif systemctl list-units --type=service | grep -q "openssh-server.service"; then
+            SSH_SERVICE="openssh-server"
+        else
+            # Try to find SSH service
+            SSH_SERVICE=$(systemctl list-units --type=service --all | grep -i ssh | head -1 | awk '{print $1}' | sed 's/.service//' || echo "")
+        fi
+
+        if [ -n "$SSH_SERVICE" ]; then
+            print_info "Restarting SSH service: $SSH_SERVICE"
+            if systemctl restart "$SSH_SERVICE"; then
+                print_success "SSH configuration hardened and service restarted"
+            else
+                print_warning "SSH config updated but could not restart service"
+                print_info "You may need to restart SSH manually: sudo systemctl restart $SSH_SERVICE"
+            fi
+        else
+            print_warning "Could not detect SSH service name"
+            print_info "SSH configuration updated. Please restart SSH manually:"
+            print_info "  sudo systemctl restart sshd"
+            print_info "  OR"
+            print_info "  sudo systemctl restart ssh"
+            print_info "  OR"
+            print_info "  sudo service ssh restart"
+        fi
+    else
+        print_error "SSH configuration test failed, restoring backup"
+        BACKUP_FILE=$(ls -t "${SSH_CONFIG}.backup."* 2>/dev/null | head -1)
+        if [ -n "$BACKUP_FILE" ]; then
+            cp "$BACKUP_FILE" "$SSH_CONFIG"
+            print_info "Backup restored from: $BACKUP_FILE"
+        fi
+        print_warning "SSH configuration not changed due to test failure"
+    fi
 fi
 
 # Step 7: Configure System Limits
