@@ -6,7 +6,7 @@ FROM node:18-alpine AS build
 WORKDIR /app
 
 # Install network tools for troubleshooting
-RUN apk add --no-cache curl dnsutils
+RUN apk add --no-cache curl bind-tools
 
 # Configure DNS for better connectivity
 RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf && \
