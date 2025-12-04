@@ -7,10 +7,11 @@ import com.was.employeemanagementsystem.entity.Department;
 import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.Organization;
 import com.was.employeemanagementsystem.entity.User;
-import com.was.employeemanagementsystem.repository.DepartmentRepository;
-import com.was.employeemanagementsystem.repository.EmployeeRepository;
-import com.was.employeemanagementsystem.repository.OrganizationRepository;
-import com.was.employeemanagementsystem.repository.UserRepository;
+import com.was.employeemanagementsystem.repository.*;
+import com.was.employeemanagementsystem.entity.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import com.was.employeemanagementsystem.security.SecurityUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,6 +40,17 @@ public class OrganizationService {
     private final SecurityUtils securityUtils;
     private final EmailService emailService;
     private final AlertConfigurationService alertConfigurationService;
+    private final DocumentRepository documentRepository;
+    private final LeaveRepository leaveRepository;
+    private final LeaveBalanceRepository leaveBalanceRepository;
+    private final AttendanceRepository attendanceRepository;
+    private final RotaRepository rotaRepository;
+    private final RotaScheduleRepository rotaScheduleRepository;
+    private final RotaChangeLogRepository rotaChangeLogRepository;
+    private final NotificationRepository notificationRepository;
+    private final AlertConfigurationRepository alertConfigurationRepository;
+    private final SmtpConfigurationRepository smtpConfigurationRepository;
+    private final String uploadDir = "uploads/documents/";
 
 
     public OrganizationService(OrganizationRepository organizationRepository,
@@ -48,7 +60,17 @@ public class OrganizationService {
                               PasswordEncoder passwordEncoder,
                               SecurityUtils securityUtils,
                               EmailService emailService,
-                              AlertConfigurationService alertConfigurationService) {
+                              AlertConfigurationService alertConfigurationService,
+                              DocumentRepository documentRepository,
+                              LeaveRepository leaveRepository,
+                              LeaveBalanceRepository leaveBalanceRepository,
+                              AttendanceRepository attendanceRepository,
+                              RotaRepository rotaRepository,
+                              RotaScheduleRepository rotaScheduleRepository,
+                              RotaChangeLogRepository rotaChangeLogRepository,
+                              NotificationRepository notificationRepository,
+                              AlertConfigurationRepository alertConfigurationRepository,
+                              SmtpConfigurationRepository smtpConfigurationRepository) {
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
@@ -57,6 +79,16 @@ public class OrganizationService {
         this.securityUtils = securityUtils;
         this.emailService = emailService;
         this.alertConfigurationService = alertConfigurationService;
+        this.documentRepository = documentRepository;
+        this.leaveRepository = leaveRepository;
+        this.leaveBalanceRepository = leaveBalanceRepository;
+        this.attendanceRepository = attendanceRepository;
+        this.rotaRepository = rotaRepository;
+        this.rotaScheduleRepository = rotaScheduleRepository;
+        this.rotaChangeLogRepository = rotaChangeLogRepository;
+        this.notificationRepository = notificationRepository;
+        this.alertConfigurationRepository = alertConfigurationRepository;
+        this.smtpConfigurationRepository = smtpConfigurationRepository;
     }
 
     /**
@@ -515,6 +547,165 @@ public class OrganizationService {
                 organization.getName(), id, enabledCount);
 
         return convertToDTO(saved);
+    }
+
+    /**
+     * Delete organization and ALL related data (ROOT only)
+     * This permanently deletes:
+     * - All documents and their uploaded files
+     * - All employees
+     * - All users
+     * - All departments
+     * - All leaves and leave balances
+     * - All attendance records
+     * - All rotas, rota schedules, and rota change logs
+     * - All notifications
+     * - All alert configurations
+     * - All SMTP configurations
+     * - The organization itself
+     */
+    public void deleteOrganization(Long id) {
+        User currentUser = securityUtils.getCurrentUser();
+        if (currentUser == null || !currentUser.getRoles().contains("ROOT")) {
+            throw new RuntimeException("Access denied. Only ROOT can delete organizations.");
+        }
+
+        Organization organization = organizationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Organization not found with id: " + id));
+
+        String orgName = organization.getName();
+        log.warn("🗑️ Starting deletion of organization: {} (ID: {})", orgName, id);
+
+        // Get all employees for this organization
+        List<Employee> employees = employeeRepository.findByOrganizationId(id);
+        log.info("   Found {} employees to delete", employees.size());
+
+        // Delete all documents and their files
+        int deletedDocuments = 0;
+        int deletedFiles = 0;
+        for (Employee employee : employees) {
+            List<com.was.employeemanagementsystem.entity.Document> documents = documentRepository.findByEmployeeId(employee.getId());
+            for (com.was.employeemanagementsystem.entity.Document doc : documents) {
+                // Delete physical file if it exists
+                if (doc.getFilePath() != null) {
+                    try {
+                        Path filePath = Paths.get(doc.getFilePath());
+                        if (Files.exists(filePath)) {
+                            // Check if this file is used by other documents before deleting
+                            long referenceCount = documentRepository.countByFilePath(doc.getFilePath());
+                            if (referenceCount <= 1) {
+                                Files.delete(filePath);
+                                deletedFiles++;
+                                log.debug("   Deleted file: {}", doc.getFilePath());
+                            } else {
+                                log.debug("   File {} is shared by {} documents, skipping deletion", doc.getFilePath(), referenceCount);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("   Failed to delete file {}: {}", doc.getFilePath(), e.getMessage());
+                    }
+                }
+                documentRepository.delete(doc);
+                deletedDocuments++;
+            }
+        }
+        log.info("   Deleted {} documents and {} physical files", deletedDocuments, deletedFiles);
+
+        // Delete all leaves
+        int deletedLeaves = 0;
+        for (Employee employee : employees) {
+            List<Leave> leaves = leaveRepository.findByEmployeeId(employee.getId());
+            leaveRepository.deleteAll(leaves);
+            deletedLeaves += leaves.size();
+        }
+        log.info("   Deleted {} leave records", deletedLeaves);
+
+        // Delete all leave balances
+        int deletedLeaveBalances = 0;
+        for (Employee employee : employees) {
+            List<LeaveBalance> leaveBalances = leaveBalanceRepository.findByEmployeeId(employee.getId());
+            leaveBalanceRepository.deleteAll(leaveBalances);
+            deletedLeaveBalances += leaveBalances.size();
+        }
+        log.info("   Deleted {} leave balance records", deletedLeaveBalances);
+
+        // Delete all attendance records
+        int deletedAttendance = 0;
+        for (Employee employee : employees) {
+            List<Attendance> attendanceRecords = attendanceRepository.findByEmployeeOrderByWorkDateDesc(employee);
+            attendanceRepository.deleteAll(attendanceRecords);
+            deletedAttendance += attendanceRecords.size();
+        }
+        log.info("   Deleted {} attendance records", deletedAttendance);
+
+        // Delete all departments first (before rotas, as rotas reference departments)
+        List<Department> departments = departmentRepository.findAll().stream()
+                .filter(dept -> dept.getOrganizationId() != null && dept.getOrganizationId().equals(id))
+                .collect(Collectors.toList());
+
+        // Delete all rotas and related data
+        // Get all rotas by department names
+
+        int deletedRotas = 0;
+        int deletedRotaSchedules = 0;
+        int deletedRotaChangeLogs = 0;
+        for (Department dept : departments) {
+            // Find rotas by department name (as stored in Rota entity)
+            List<Rota> rotas = rotaRepository.findByDepartmentOrderByUploadedDateDesc(dept.getName());
+            for (Rota rota : rotas) {
+                // Delete rota schedules
+                List<RotaSchedule> schedules = rotaScheduleRepository.findByRotaId(rota.getId());
+                // Delete rota change logs for this rota
+                List<RotaChangeLog> changeLogs = rotaChangeLogRepository.findByRotaIdOrderByChangedAtDesc(rota.getId());
+                rotaChangeLogRepository.deleteAll(changeLogs);
+                deletedRotaChangeLogs += changeLogs.size();
+                rotaScheduleRepository.deleteAll(schedules);
+                deletedRotaSchedules += schedules.size();
+                rotaRepository.delete(rota);
+                deletedRotas++;
+            }
+        }
+        log.info("   Deleted {} rotas, {} rota schedules, {} rota change logs", 
+                deletedRotas, deletedRotaSchedules, deletedRotaChangeLogs);
+
+        // Delete all employees (this will cascade to related entities via foreign keys)
+        employeeRepository.deleteAll(employees);
+        log.info("   Deleted {} employees", employees.size());
+
+        // Delete all users and their notifications
+        List<User> users = userRepository.findByOrganizationId(id);
+        int deletedUsers = 0;
+        int deletedNotifications = 0;
+        for (User user : users) {
+            // Delete user's notifications
+            List<Notification> notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+            notificationRepository.deleteAll(notifications);
+            deletedNotifications += notifications.size();
+            userRepository.delete(user);
+            deletedUsers++;
+        }
+        log.info("   Deleted {} users and {} notifications", deletedUsers, deletedNotifications);
+
+        // Delete all departments
+        departmentRepository.deleteAll(departments);
+        log.info("   Deleted {} departments", departments.size());
+
+        // Delete alert configurations
+        List<AlertConfiguration> alertConfigs = alertConfigurationRepository.findByOrganizationId(id);
+        alertConfigurationRepository.deleteAll(alertConfigs);
+        log.info("   Deleted {} alert configurations", alertConfigs.size());
+
+        // Delete SMTP configurations
+        smtpConfigurationRepository.findByOrganizationId(id).ifPresent(smtpConfig -> {
+            smtpConfigurationRepository.delete(smtpConfig);
+            log.info("   Deleted SMTP configuration");
+        });
+
+        // Finally, delete the organization itself
+        organizationRepository.delete(organization);
+        log.warn("✅ Organization DELETED: {} (ID: {})", orgName, id);
+        log.info("   Summary: {} employees, {} documents, {} leaves, {} attendance, {} rotas, {} users, {} departments",
+                employees.size(), deletedDocuments, deletedLeaves, deletedAttendance, deletedRotas, deletedUsers, departments.size());
     }
 
     /**

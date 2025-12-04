@@ -127,6 +127,12 @@
                     title="Activate Organization - Restore access">
                     ✅ Activate
                   </button>
+                  <button
+                    (click)="deleteOrganization(org.organizationId, org.organizationName)"
+                    class="btn btn-sm btn-danger"
+                    title="Delete Organization - Permanently delete organization and all data">
+                    🗑️ Delete
+                  </button>
                 </div>
               </td>
             </tr>

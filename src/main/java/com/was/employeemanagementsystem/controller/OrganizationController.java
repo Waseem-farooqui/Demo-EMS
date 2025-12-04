@@ -240,6 +240,38 @@ public class OrganizationController {
         }
     }
 
+    /**
+     * Delete organization (ROOT only)
+     * This will permanently delete the organization and ALL related data:
+     * - All documents and uploaded files
+     * - All employees
+     * - All users
+     * - All departments
+     * - All leaves, attendance, rotas, notifications, etc.
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ROOT')")
+    public ResponseEntity<?> deleteOrganization(@PathVariable Long id) {
+        try {
+            log.warn("🗑️ Organization deletion request received for ID: {}", id);
+            organizationService.deleteOrganization(id);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Organization and all related data deleted successfully.");
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("❌ Failed to delete organization: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("❌ Error deleting organization", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Failed to delete organization: " + e.getMessage()));
+        }
+    }
+
     private Map<String, Object> createErrorResponse(String message) {
         Map<String, Object> error = new HashMap<>();
         error.put("success", false);

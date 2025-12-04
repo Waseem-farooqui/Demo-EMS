@@ -121,5 +121,50 @@ export class RootDashboardComponent implements OnInit {
       }
     });
   }
+
+  deleteOrganization(orgId: number, orgName: string): void {
+    const confirmMessage = `⚠️⚠️⚠️ WARNING: PERMANENT DELETION ⚠️⚠️⚠️\n\n` +
+      `Are you absolutely sure you want to DELETE "${orgName}"?\n\n` +
+      `This action will PERMANENTLY DELETE:\n` +
+      `• The organization itself\n` +
+      `• ALL employees and their data\n` +
+      `• ALL users and accounts\n` +
+      `• ALL departments\n` +
+      `• ALL documents and uploaded files\n` +
+      `• ALL leaves, attendance, rotas\n` +
+      `• ALL notifications and configurations\n\n` +
+      `THIS ACTION CANNOT BE UNDONE!\n\n` +
+      `Type "${orgName}" to confirm deletion:`;
+
+    const userInput = prompt(confirmMessage);
+    
+    if (userInput !== orgName) {
+      if (userInput !== null) {
+        alert('❌ Organization name does not match. Deletion cancelled.');
+      }
+      return;
+    }
+
+    // Final confirmation
+    if (!confirm(`🚨 FINAL CONFIRMATION 🚨\n\nYou are about to PERMANENTLY DELETE "${orgName}" and ALL its data.\n\nThis cannot be undone!\n\nProceed with deletion?`)) {
+      return;
+    }
+
+    this.loading = true;
+    this.error = null;
+
+    this.http.delete<any>(`${this.organizationApiUrl}/${orgId}`).subscribe({
+      next: (response) => {
+        alert(`✅ Organization "${orgName}" and all related data have been permanently deleted.`);
+        this.loadDashboard(); // Reload to show updated list
+      },
+      error: (err) => {
+        console.error('❌ Error deleting organization:', err);
+        this.error = err.error?.message || 'Failed to delete organization';
+        this.loading = false;
+        alert(`❌ Failed to delete organization: ${this.error}`);
+      }
+    });
+  }
 }
 
