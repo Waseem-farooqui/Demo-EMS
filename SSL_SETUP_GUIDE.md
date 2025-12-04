@@ -49,7 +49,13 @@ The deployment script will automatically:
 2. Generate Let's Encrypt certificates:
 ```bash
 chmod +x setup-letsencrypt.sh
-DOMAIN=yourdomain.com EMAIL=your@email.com ./setup-letsencrypt.sh
+sudo DOMAIN=vertexdigitalsystem.com EMAIL=your@email.com ./setup-letsencrypt.sh
+```
+
+Or run interactively:
+```bash
+sudo ./setup-letsencrypt.sh
+# Follow the prompts to enter domain and email
 ```
 
 3. Update `.env` file:
