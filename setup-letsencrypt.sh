@@ -27,6 +27,12 @@ echo -e "${CYAN}╚════════════════════�
 echo ""
 
 # Function to print colored messages
+print_step() {
+    echo ""
+    echo -e "${BLUE}▶ $1${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
 print_info() {
     echo -e "${BLUE}ℹ${NC} $1"
 }
