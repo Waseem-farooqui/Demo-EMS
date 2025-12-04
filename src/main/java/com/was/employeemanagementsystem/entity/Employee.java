@@ -45,10 +45,10 @@ public class Employee {
     @Column(name = "nationality")
     private String nationality;
 
-    @Column(name = "present_address")
+    @Column(name = "present_address", columnDefinition = "TEXT")
     private String presentAddress;
 
-    @Column(name = "previous_address")
+    @Column(name = "previous_address", columnDefinition = "TEXT")
     private String previousAddress;
 
     @Column(name = "has_medical_condition")
@@ -66,7 +66,7 @@ public class Employee {
     @Deprecated
     private String nextOfKinContact;
 
-    @Column(name = "next_of_kin_address")
+    @Column(name = "next_of_kin_address", columnDefinition = "TEXT")
     @Deprecated
     private String nextOfKinAddress;
 
