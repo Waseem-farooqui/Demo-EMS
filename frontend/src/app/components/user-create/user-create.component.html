@@ -555,14 +555,33 @@
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label [for]="'nextOfKinTitle-' + i">Title</label>
+          <select [id]="'nextOfKinTitle-' + i" class="form-control" formControlName="title">
+            <option value="">Select Title</option>
+            <option value="Mr">Mr</option>
+            <option value="Mrs">Mrs</option>
+            <option value="Miss">Miss</option>
+            <option value="Ms">Ms</option>
+            <option value="Dr">Dr</option>
+            <option value="Prof">Prof</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label [for]="'nextOfKinName-' + i">Name</label>
           <input type="text" [id]="'nextOfKinName-' + i" class="form-control" formControlName="name"
                  placeholder="Full name">
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label [for]="'nextOfKinContact-' + i">Contact Number</label>
           <input type="text" [id]="'nextOfKinContact-' + i" class="form-control" formControlName="contact"
                  placeholder="+44 7000 000000">
+        </div>
+        <div class="form-group">
+          <label [for]="'nextOfKinRelationship-' + i">Relationship</label>
+          <input type="text" [id]="'nextOfKinRelationship-' + i" class="form-control" formControlName="relationship"
+                 placeholder="e.g., Spouse, Parent, Sibling">
         </div>
       </div>
       <div class="form-row">

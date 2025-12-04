@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class NextOfKinDTO {
     private Long id;
+    private String title; // Mr, Mrs, Miss, Ms, Dr, Prof, etc.
     private String name;
     private String contact;
     private String address;
