@@ -19,6 +19,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SSL_DIR="${SSL_DIR:-$SCRIPT_DIR/ssl}"
 DOMAIN="${DOMAIN:-localhost}"
+SERVER_IP="${SERVER_IP:-}"  # Production server IP (optional, for IP-based access)
 DAYS_VALID="${DAYS_VALID:-365}"
 
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"

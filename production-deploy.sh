@@ -28,6 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="${BACKUP_DIR:-/backups/ems}"
 SSL_DIR="${SSL_DIR:-$SCRIPT_DIR/ssl}"
 DOMAIN="${DOMAIN:-vertexdigitalsystem.com}"
+SERVER_IP="${SERVER_IP:-}"  # Production server IP (starts with 62.x.x.x)
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Banner
@@ -1657,9 +1658,15 @@ docker-compose -f "$COMPOSE_FILE" ps
 
 print_info ""
 print_info "Application URLs:"
-print_info "  Frontend: http://localhost:${FRONTEND_PORT:-80}"
-print_info "  Backend API: http://localhost:${BACKEND_PORT:-8080}/api"
-print_info "  Health Check: http://localhost:${BACKEND_PORT:-8080}/api/actuator/health"
+print_info "  Frontend (Domain): https://vertexdigitalsystem.com"
+if [ -n "$SERVER_IP" ]; then
+    print_info "  Frontend (IP): https://$SERVER_IP (or http://$SERVER_IP)"
+fi
+print_info "  Backend API (Domain): https://vertexdigitalsystem.com/api"
+if [ -n "$SERVER_IP" ]; then
+    print_info "  Backend API (IP): https://$SERVER_IP/api"
+fi
+print_info "  Health Check: https://vertexdigitalsystem.com/api/actuator/health"
 
 # Summary
 print_step "Step 21/21: Deployment Summary"

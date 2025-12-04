@@ -20,6 +20,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml}"
 BACKUP_DIR="${BACKUP_DIR:-/backups/ems}"
 SSL_DIR="${SSL_DIR:-$SCRIPT_DIR/ssl}"
 DOMAIN="${DOMAIN:-vertexdigitalsystem.com}"
+SERVER_IP="${SERVER_IP:-}"  # Production server IP
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Load environment variables
@@ -271,8 +272,15 @@ docker-compose -f "$COMPOSE_FILE" ps
 
 echo ""
 print_success "All containers deployed successfully!"
-print_info "Backend: http://localhost:${BACKEND_PORT:-8080}"
-print_info "Frontend: http://localhost:${FRONTEND_PORT:-80} or https://localhost:${FRONTEND_HTTPS_PORT:-443}"
+print_info "Frontend (Domain): https://vertexdigitalsystem.com"
+if [ -n "$SERVER_IP" ]; then
+    print_info "Frontend (IP): https://$SERVER_IP (or http://$SERVER_IP)"
+fi
+print_info "Backend API (Domain): https://vertexdigitalsystem.com/api"
+if [ -n "$SERVER_IP" ]; then
+    print_info "Backend API (IP): https://$SERVER_IP/api"
+fi
+print_info "Health Check: https://vertexdigitalsystem.com/api/actuator/health"
 if [ -n "$BACKUP_PATH" ]; then
     print_info "Backup location: $BACKUP_PATH"
 fi
