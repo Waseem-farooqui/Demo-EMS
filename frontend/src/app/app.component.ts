@@ -37,6 +37,9 @@ export class AppComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    // Check if mobile
+    this.checkIfMobile();
+    
     // Check current route and hide navigation for password change
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
@@ -106,10 +109,11 @@ export class AppComponent implements OnInit {
     }
     
     this.isMobileMenuOpen = !this.isMobileMenuOpen;
+    
     // On mobile, also toggle sidebar visibility
-    if (window.innerWidth <= 1024) {
+    if (this.isMobile) {
       if (this.isMobileMenuOpen) {
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        document.body.style.overflow = 'hidden';
         document.body.style.position = 'fixed';
         document.body.style.width = '100%';
       } else {
@@ -142,8 +146,13 @@ export class AppComponent implements OnInit {
     }
   }
 
+  checkIfMobile(): void {
+    this.isMobile = window.innerWidth <= 1024;
+  }
+
   @HostListener('window:resize', ['$event'])
   onResize(event: any): void {
+    this.checkIfMobile();
     // Close mobile menu on resize to desktop
     if (event.target.innerWidth > 1024 && this.isMobileMenuOpen) {
       this.closeMobileMenu();
