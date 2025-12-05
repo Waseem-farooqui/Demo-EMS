@@ -29,6 +29,7 @@ export class AppComponent implements OnInit {
   organizationName = '';
   organizationLogoUrl = '';
   showNavigation = true;
+  isMobile = false;
 
   constructor(
     private authService: AuthService,
