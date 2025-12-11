@@ -79,14 +79,16 @@ public class DocumentController {
             boolean isValidDocument = validationResult.getKey();
             String extractedText = validationResult.getValue();
             
+            // Allow upload even if validation fails - user can manually fill required information
             if (!isValidDocument) {
-                log.warn("Document validation failed - does not appear to be a valid {} document", documentType);
-                return ResponseEntity.badRequest()
-                    .body("The uploaded file does not appear to be a valid " + documentType +
-                          " document. Please upload a clear photo or scan of your " + documentType.toLowerCase());
+                log.warn("⚠️ Document validation failed - does not appear to be a valid {} document. " +
+                        "Allowing upload anyway - user will need to manually fill required information.", documentType);
+                // Set extractedText to null to indicate OCR validation failed
+                extractedText = null;
             }
 
             // Pass pre-extracted text to avoid duplicate OCR processing
+            // extractedText may be null if validation failed - service will handle gracefully
             DocumentDTO document = documentService.uploadDocument(employeeId, documentType, file, extractedText, visaType);
             log.info("✓ Document uploaded successfully - ID: {}, Type: {}, VisaType: {}", 
                 document.getId(), documentType, visaType != null ? visaType : "N/A");

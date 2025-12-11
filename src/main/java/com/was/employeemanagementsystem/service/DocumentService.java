@@ -254,39 +254,67 @@ public class DocumentService {
         // For simple supporting documents, skip OCR extraction (just store the file)
         String extractedText = null;
         Map<String, Object> extractedInfo = new HashMap<>();
+        boolean ocrFailed = false;
+        String ocrFailureMessage = null;
 
         if (requiresOcr) {
-            // Use pre-extracted text if available (from validation), otherwise extract now
-            if (preExtractedText != null && !preExtractedText.trim().isEmpty()) {
-                log.info("♻️ Reusing pre-extracted OCR text from validation ({} characters)", preExtractedText.length());
-                extractedText = preExtractedText;
-            } else {
-                // Extract text from document (only for identity/contract documents)
-                log.info("🔍 Starting OCR text extraction for file: {}", file.getOriginalFilename());
+            try {
+                // Use pre-extracted text if available (from validation), otherwise extract now
+                if (preExtractedText != null && !preExtractedText.trim().isEmpty()) {
+                    log.info("♻️ Reusing pre-extracted OCR text from validation ({} characters)", preExtractedText.length());
+                    extractedText = preExtractedText;
+                } else {
+                    // Extract text from document (only for identity/contract documents)
+                    log.info("🔍 Starting OCR text extraction for file: {}", file.getOriginalFilename());
 
-                // For CONTRACT documents, only extract from first page (required data is there)
-                boolean firstPageOnly = documentType.equals("CONTRACT");
-                extractedText = ocrService.extractTextFromDocument(file, firstPageOnly);
-            }
+                    // For CONTRACT documents, only extract from first page (required data is there)
+                    boolean firstPageOnly = documentType.equals("CONTRACT");
+                    try {
+                        extractedText = ocrService.extractTextFromDocument(file, firstPageOnly);
+                    } catch (Exception e) {
+                        log.warn("⚠️ OCR extraction failed: {}. Allowing upload - user will need to manually fill required information.", e.getMessage());
+                        ocrFailed = true;
+                        ocrFailureMessage = "OCR processing failed: " + e.getMessage() + ". Please manually fill in the required document information.";
+                        extractedText = null;
+                    }
+                }
 
-            if (extractedText == null || extractedText.trim().isEmpty()) {
-                log.error("❌ No text extracted from document!");
-            } else {
-                log.info("✅ Text extraction successful. Length: {} characters", extractedText.length());
-                log.debug("📄 Extracted text preview (first 500 chars): {}",
-                    extractedText.length() > 500 ? extractedText.substring(0, 500) : extractedText);
-            }
+                if (extractedText == null || extractedText.trim().isEmpty()) {
+                    if (!ocrFailed) {
+                        log.warn("⚠️ No text extracted from document. OCR may have failed or document may not contain readable text.");
+                        ocrFailed = true;
+                        ocrFailureMessage = "Unable to extract text from document. Please manually fill in the required document information.";
+                    }
+                } else {
+                    log.info("✅ Text extraction successful. Length: {} characters", extractedText.length());
+                    log.debug("📄 Extracted text preview (first 500 chars): {}",
+                        extractedText.length() > 500 ? extractedText.substring(0, 500) : extractedText);
+                }
 
-            // Extract information based on document type
-            if (documentType.equals("PASSPORT")) {
-                log.info("🛂 Processing as PASSPORT document");
-                extractedInfo = ocrService.extractPassportInformation(extractedText);
-            } else if (documentType.equals("VISA")) {
-                log.info("✈️ Processing as VISA document");
-                extractedInfo = ocrService.extractVisaInformation(extractedText);
-            } else if (documentType.equals("CONTRACT")) {
-                log.info("📝 Processing as CONTRACT document");
-                extractedInfo = ocrService.extractContractInformation(extractedText);
+                // Extract information based on document type (only if we have extracted text)
+                if (extractedText != null && !extractedText.trim().isEmpty()) {
+                    try {
+                        if (documentType.equals("PASSPORT")) {
+                            log.info("🛂 Processing as PASSPORT document");
+                            extractedInfo = ocrService.extractPassportInformation(extractedText);
+                        } else if (documentType.equals("VISA")) {
+                            log.info("✈️ Processing as VISA document");
+                            extractedInfo = ocrService.extractVisaInformation(extractedText);
+                        } else if (documentType.equals("CONTRACT")) {
+                            log.info("📝 Processing as CONTRACT document");
+                            extractedInfo = ocrService.extractContractInformation(extractedText);
+                        }
+                    } catch (Exception e) {
+                        log.warn("⚠️ Failed to extract structured information from OCR text: {}. User will need to manually fill required information.", e.getMessage());
+                        ocrFailed = true;
+                        ocrFailureMessage = "Failed to extract document information from OCR text. Please manually fill in the required document information.";
+                        extractedInfo = new HashMap<>();
+                    }
+                }
+            } catch (Exception e) {
+                log.error("❌ Unexpected error during OCR processing: {}. Allowing upload - user will need to manually fill required information.", e.getMessage(), e);
+                ocrFailed = true;
+                ocrFailureMessage = "OCR processing encountered an error. Please manually fill in the required document information.";
             }
         } else {
             log.info("📄 Processing as {} document - skipping OCR extraction", documentType);
@@ -469,7 +497,16 @@ public class DocumentService {
         }
 
         Document savedDocument = documentRepository.save(document);
-        return convertToDTO(savedDocument);
+        DocumentDTO dto = convertToDTO(savedDocument);
+        
+        // Set OCR failure flags if OCR failed
+        if (ocrFailed) {
+            dto.setOcrFailed(true);
+            dto.setOcrFailureMessage(ocrFailureMessage);
+            log.info("⚠️ Document uploaded successfully but OCR failed. User will need to manually fill required information.");
+        }
+        
+        return dto;
     }
 
     public List<DocumentDTO> getAllDocuments() {

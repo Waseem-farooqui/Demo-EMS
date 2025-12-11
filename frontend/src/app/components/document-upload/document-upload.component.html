@@ -54,6 +54,20 @@
     {{ success }}
   </div>
 
+  <!-- OCR Failure Warning -->
+  <div *ngIf="uploadedDocument?.ocrFailed" class="alert alert-warning" style="margin-top: 1rem;">
+    <span class="alert-icon">⚠</span>
+    <div>
+      <strong>OCR Processing Failed</strong>
+      <p style="margin-top: 0.5rem; margin-bottom: 0;">
+        {{ uploadedDocument.ocrFailureMessage || 'Unable to extract information from the document automatically.' }}
+      </p>
+      <p style="margin-top: 0.5rem; margin-bottom: 0; font-weight: 500;">
+        Please manually fill in the required document information (document number, expiry date, issuing country, etc.) by editing the document details.
+      </p>
+    </div>
+  </div>
+
   <!-- Upload Form -->
   <div *ngIf="!uploadedDocument" class="upload-card">
     <form (ngSubmit)="onSubmit()">
@@ -250,6 +264,29 @@
         </p>
       </div>
 
+
+      <!-- OCR Failure Notice -->
+      <div *ngIf="uploadedDocument?.ocrFailed && isOcrDocumentType(uploadedDocument.documentType)" class="section duplicate-warning">
+        <h4>⚠ OCR Processing Failed</h4>
+        <p>{{ uploadedDocument.ocrFailureMessage || 'Unable to extract information from the document automatically.' }}</p>
+        <p class="warning-text" style="font-weight: 500; margin-top: 1rem;">
+          <strong>Action Required:</strong> Please manually fill in the required document information by editing this document.
+          Required fields include:
+        </p>
+        <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+          <li *ngIf="uploadedDocument.documentType === 'PASSPORT' || uploadedDocument.documentType === 'VISA'">
+            Document Number, Expiry Date, Issuing Country
+          </li>
+          <li *ngIf="uploadedDocument.documentType === 'CONTRACT'">
+            Contract Date, Job Title, Place of Work
+          </li>
+        </ul>
+        <p style="margin-top: 1rem; margin-bottom: 0;">
+          <a [routerLink]="['/documents', uploadedDocument.id]" class="btn btn-primary" style="display: inline-block;">
+            Edit Document Details
+          </a>
+        </p>
+      </div>
 
       <!-- Duplicate Warning -->
       <div *ngIf="duplicateDocument" class="section duplicate-warning">

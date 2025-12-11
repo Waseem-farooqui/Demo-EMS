@@ -34,6 +34,10 @@ export interface Document {
   // Document view tracking
   lastViewedAt?: string;
   lastViewedBy?: string;
+
+  // OCR processing status
+  ocrFailed?: boolean; // true if OCR failed, undefined if OCR not attempted, false if OCR succeeded
+  ocrFailureMessage?: string; // Message explaining why OCR failed
 }
 
 export interface DocumentUploadRequest {

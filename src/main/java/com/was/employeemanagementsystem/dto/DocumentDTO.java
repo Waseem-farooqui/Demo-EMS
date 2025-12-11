@@ -43,5 +43,9 @@ public class DocumentDTO {
     // Document view tracking
     private LocalDateTime lastViewedAt;
     private String lastViewedBy;
+
+    // OCR processing status
+    private Boolean ocrFailed; // true if OCR failed, null if OCR not attempted, false if OCR succeeded
+    private String ocrFailureMessage; // Message explaining why OCR failed
 }
 

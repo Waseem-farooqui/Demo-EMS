@@ -35,8 +35,35 @@
       </div>
     </div>
 
-    <!-- OCR Failure Alert - Only for PASSPORT and VISA -->
-    <div *ngIf="(document.documentType === 'PASSPORT' || document.documentType === 'VISA') && isDataIncomplete()" class="alert alert-warning">
+    <!-- OCR Failure Alert - For PASSPORT, VISA, and CONTRACT -->
+    <div *ngIf="document.ocrFailed && (document.documentType === 'PASSPORT' || document.documentType === 'VISA' || document.documentType === 'CONTRACT')" class="alert alert-warning">
+      <div class="alert-header">
+        <span class="alert-icon">⚠️</span>
+        <strong>OCR Processing Failed</strong>
+      </div>
+      <p *ngIf="document.ocrFailureMessage">{{ document.ocrFailureMessage }}</p>
+      <p *ngIf="!document.ocrFailureMessage">The automatic text extraction was unable to read information from your document.</p>
+      <p *ngIf="isDataIncomplete()"><strong>Missing information:</strong> {{ getMissingFields().join(', ') }}</p>
+      <div class="alert-suggestion">
+        <p><strong>📝 Action Required:</strong></p>
+        <p>Please manually fill in the required document information. Required fields include:</p>
+        <ul>
+          <li *ngIf="document.documentType === 'PASSPORT' || document.documentType === 'VISA'">
+            Document Number, Expiry Date, Issuing Country
+          </li>
+          <li *ngIf="document.documentType === 'CONTRACT'">
+            Contract Date, Job Title, Place of Work
+          </li>
+        </ul>
+        <p class="manual-entry-prompt">
+          <strong>You can manually enter the missing information below.</strong>
+          <span *ngIf="!editMode">Click "{{ isDataIncomplete() ? 'Complete Missing Data' : 'Edit' }}" button above to enter details.</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- OCR Incomplete Alert (for cases where OCR partially succeeded but data is incomplete) -->
+    <div *ngIf="!document.ocrFailed && (document.documentType === 'PASSPORT' || document.documentType === 'VISA') && isDataIncomplete()" class="alert alert-warning">
       <div class="alert-header">
         <span class="alert-icon">⚠️</span>
         <strong>OCR Extraction Incomplete</strong>
