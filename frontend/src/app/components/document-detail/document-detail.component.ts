@@ -364,9 +364,19 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   }
 
   shouldShowImportantDates(doc?: Document | null): boolean {
-    if (!doc) {
+    if (!doc || !doc.documentType) {
       return false;
     }
+    const docType = doc.documentType.toUpperCase();
+    
+    // Always show Important Dates section for PASSPORT and VISA (required fields)
+    // These document types require expiry date regardless of whether OCR extracted it
+    // or whether document number is present
+    if (docType === 'PASSPORT' || docType === 'VISA') {
+      return true; // Always show for PASSPORT and VISA, regardless of other fields
+    }
+    
+    // For CONTRACT and other document types, only show if dates exist
     return this.tracksExpiry(doc.documentType) && (!!doc.issueDate || !!doc.expiryDate);
   }
 
