@@ -416,6 +416,14 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     return !this.metadataOptionalTypes.has(type.toUpperCase());
   }
 
+  isPassportOrVisa(doc?: Document | null): boolean {
+    if (!doc || !doc.documentType) {
+      return false;
+    }
+    const docType = doc.documentType.toUpperCase();
+    return docType === 'PASSPORT' || docType === 'VISA';
+  }
+
   getExpiryStatus(daysUntilExpiry?: number): string {
     if (!daysUntilExpiry) return 'unknown';
     if (daysUntilExpiry < 0) return 'expired';

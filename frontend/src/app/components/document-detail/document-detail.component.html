@@ -216,8 +216,9 @@
         </div>
       </div>
 
-      <!-- Date Information - Only for PASSPORT and VISA -->
-      <div class="info-section" *ngIf="shouldShowImportantDates(document)">
+      <!-- Date Information - Always show for PASSPORT and VISA, even if dates are missing -->
+      <!-- Show if: 1) Document is PASSPORT/VISA, OR 2) shouldShowImportantDates returns true -->
+      <div class="info-section" *ngIf="document && document.documentType && ((document.documentType === 'PASSPORT' || document.documentType === 'VISA' || document.documentType.toUpperCase() === 'PASSPORT' || document.documentType.toUpperCase() === 'VISA') || shouldShowImportantDates(document))">
         <h3><span class="section-icon">📅</span> Important Dates</h3>
 
         <div class="info-item" [ngClass]="{'missing-data': !document.issueDate}">
