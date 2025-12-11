@@ -132,75 +132,96 @@ deploy_backend() {
     fi
     print_success "Backend image built successfully"
     
-    # Step 2: Start new container with different name (blue-green deployment)
-    print_info "Starting new backend container (blue-green)..."
+    # Step 2: Rolling update approach (simpler and more reliable)
+    # Get the new image name
+    NEW_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "backend|demo-ems.*backend" | head -1)
+    
+    if [ -z "$NEW_IMAGE" ]; then
+        print_error "Could not find new backend image!"
+        return 1
+    fi
+    
+    print_info "New backend image: $NEW_IMAGE"
+    
+    # Step 3: Start new container on different port for testing
+    print_info "Starting new backend container on test port (8081)..."
     NEW_CONTAINER="ems-backend-new-${TIMESTAMP}"
     
-    # Create temporary compose override for new container
-    cat > /tmp/compose-override.yaml <<EOF
-services:
-  backend-new:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ${NEW_CONTAINER}
-    environment:
-      $(docker compose -f "$COMPOSE_FILE" config | grep -A 100 "backend:" | grep "environment:" -A 50 | tail -n +2)
-    ports:
-      - "8081:8080"  # Different port to avoid conflict
-    volumes:
-      - uploads_data:/app/uploads
-    networks:
-      - ems-network
-    depends_on:
-      mysql:
-        condition: service_healthy
-EOF
+    # Load environment variables from .env file
+    if [ -f .env ]; then
+        set -a
+        source .env
+        set +a
+    fi
     
-    # Start new container
-    docker compose -f "$COMPOSE_FILE" -f /tmp/compose-override.yaml up -d backend-new
+    # Start new container with same config but different port
+    docker run -d \
+        --name "$NEW_CONTAINER" \
+        --network ems-network \
+        -p 8081:8080 \
+        --env-file .env \
+        -v uploads_data:/app/uploads \
+        --health-cmd="curl -f http://localhost:8080/api/actuator/health || exit 1" \
+        --health-interval=10s \
+        --health-timeout=5s \
+        --health-retries=3 \
+        "$NEW_IMAGE" || {
+        print_error "Failed to start new backend container"
+        return 1
+    }
     
     # Wait for new container to be healthy
     print_info "Waiting for new backend container to be ready..."
-    sleep 10
+    sleep 15
     
-    # Test new container
-    if curl -f http://localhost:8081/api/actuator/health >/dev/null 2>&1; then
-        print_success "New backend container is healthy"
-        
-        # Step 3: Switch traffic (update frontend to point to new backend temporarily)
-        # Actually, we'll do a rolling update instead
-        
-        # Stop old container
-        print_info "Stopping old backend container..."
-        docker stop ems-backend
-        
-        # Rename new container to production name
-        docker stop "$NEW_CONTAINER" 2>/dev/null || true
-        docker rm "$NEW_CONTAINER" 2>/dev/null || true
-        
-        # Start new container with production name
-        print_info "Starting backend with production configuration..."
-        docker compose -f "$COMPOSE_FILE" up -d backend
-        
-        # Wait for health check
-        if check_service_health "ems-backend"; then
-            print_success "Backend deployed successfully!"
-            rm -f /tmp/compose-override.yaml
-            return 0
-        else
-            print_error "Backend health check failed!"
-            # Rollback
-            print_warning "Rolling back..."
-            docker compose -f "$COMPOSE_FILE" stop backend
-            docker start ems-backend || true
-            return 1
+    MAX_HEALTH_CHECKS=20
+    HEALTH_CHECK_COUNT=0
+    while [ $HEALTH_CHECK_COUNT -lt $MAX_HEALTH_CHECKS ]; do
+        if curl -f http://localhost:8081/api/actuator/health >/dev/null 2>&1; then
+            print_success "New backend container is healthy"
+            break
         fi
-    else
+        HEALTH_CHECK_COUNT=$((HEALTH_CHECK_COUNT + 1))
+        print_info "Waiting for health check... ($HEALTH_CHECK_COUNT/$MAX_HEALTH_CHECKS)"
+        sleep 3
+    done
+    
+    if [ $HEALTH_CHECK_COUNT -eq $MAX_HEALTH_CHECKS ]; then
         print_error "New backend container failed health check"
         docker stop "$NEW_CONTAINER" 2>/dev/null || true
         docker rm "$NEW_CONTAINER" 2>/dev/null || true
-        rm -f /tmp/compose-override.yaml
+        return 1
+    fi
+    
+    # Step 4: Switch traffic - restart production backend
+    print_info "Switching to new backend version..."
+    
+    # Stop old container
+    print_info "Stopping old backend container..."
+    docker compose -f "$COMPOSE_FILE" stop backend || docker stop ems-backend 2>/dev/null || true
+    
+    # Remove old container
+    docker compose -f "$COMPOSE_FILE" rm -f backend 2>/dev/null || docker rm -f ems-backend 2>/dev/null || true
+    
+    # Start new container with production configuration
+    print_info "Starting backend with production configuration..."
+    docker compose -f "$COMPOSE_FILE" up -d backend
+    
+    # Wait for health check
+    print_info "Waiting for production backend to be ready..."
+    sleep 15
+    
+    if check_service_health "ems-backend"; then
+        print_success "Backend deployed successfully!"
+        
+        # Cleanup temporary container
+        docker stop "$NEW_CONTAINER" 2>/dev/null || true
+        docker rm "$NEW_CONTAINER" 2>/dev/null || true
+        
+        return 0
+    else
+        print_error "Backend health check failed after deployment!"
+        print_warning "Check logs: docker compose logs backend"
         return 1
     fi
 }
@@ -219,9 +240,22 @@ deploy_frontend() {
     fi
     print_success "Frontend image built successfully"
     
-    # Step 2: Create new container with different name
-    print_info "Starting new frontend container..."
+    # Step 2: Get new image name
+    NEW_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "frontend|demo-ems.*frontend" | head -1)
+    
+    if [ -z "$NEW_IMAGE" ]; then
+        print_error "Could not find new frontend image!"
+        return 1
+    fi
+    
+    print_info "New frontend image: $NEW_IMAGE"
+    
+    # Step 3: Start new container on different port for testing
+    print_info "Starting new frontend container on test port (8082)..."
     NEW_CONTAINER="ems-frontend-new-${TIMESTAMP}"
+    
+    # Determine SSL directory
+    SSL_DIR_VAR=${SSL_DIR:-./ssl}
     
     # Start new container on different port
     docker run -d \
@@ -229,57 +263,71 @@ deploy_frontend() {
         --network ems-network \
         -p 8082:80 \
         -p 8443:443 \
-        -v ${SSL_DIR:-./ssl}:/etc/nginx/ssl:ro \
+        -v "$SSL_DIR_VAR:/etc/nginx/ssl:ro" \
         -v certbot_webroot:/var/www/certbot:ro \
         --health-cmd="wget --quiet --spider http://localhost/ || exit 1" \
         --health-interval=10s \
         --health-timeout=5s \
         --health-retries=3 \
-        $(docker images --format "{{.Repository}}:{{.Tag}}" | grep "frontend" | head -1)
+        "$NEW_IMAGE" || {
+        print_error "Failed to start new frontend container"
+        return 1
+    }
     
     # Wait for new container to be healthy
     print_info "Waiting for new frontend container to be ready..."
-    sleep 5
+    sleep 10
     
-    # Test new container
-    if curl -f http://localhost:8082/ >/dev/null 2>&1; then
-        print_success "New frontend container is healthy"
-        
-        # Step 3: Switch traffic
-        print_info "Switching traffic to new frontend..."
-        
-        # Stop old container
-        docker stop ems-frontend
-        
-        # Remove old container
-        docker rm ems-frontend
-        
-        # Start new container with production name and ports
-        print_info "Starting frontend with production configuration..."
-        docker compose -f "$COMPOSE_FILE" up -d frontend
-        
-        # Wait for health check
-        sleep 5
-        if docker exec ems-frontend wget --quiet --spider http://localhost/ >/dev/null 2>&1; then
-            print_success "Frontend deployed successfully!"
-            
-            # Cleanup temporary container
-            docker stop "$NEW_CONTAINER" 2>/dev/null || true
-            docker rm "$NEW_CONTAINER" 2>/dev/null || true
-            
-            return 0
-        else
-            print_error "Frontend health check failed!"
-            # Rollback
-            print_warning "Rolling back..."
-            docker compose -f "$COMPOSE_FILE" stop frontend
-            docker start "$NEW_CONTAINER" || true
-            return 1
+    MAX_HEALTH_CHECKS=15
+    HEALTH_CHECK_COUNT=0
+    while [ $HEALTH_CHECK_COUNT -lt $MAX_HEALTH_CHECKS ]; do
+        if curl -f http://localhost:8082/ >/dev/null 2>&1; then
+            print_success "New frontend container is healthy"
+            break
         fi
-    else
+        HEALTH_CHECK_COUNT=$((HEALTH_CHECK_COUNT + 1))
+        print_info "Waiting for health check... ($HEALTH_CHECK_COUNT/$MAX_HEALTH_CHECKS)"
+        sleep 2
+    done
+    
+    if [ $HEALTH_CHECK_COUNT -eq $MAX_HEALTH_CHECKS ]; then
         print_error "New frontend container failed health check"
         docker stop "$NEW_CONTAINER" 2>/dev/null || true
         docker rm "$NEW_CONTAINER" 2>/dev/null || true
+        return 1
+    fi
+    
+    # Step 4: Switch traffic - restart production frontend
+    print_info "Switching to new frontend version..."
+    
+    # Stop old container
+    print_info "Stopping old frontend container..."
+    docker compose -f "$COMPOSE_FILE" stop frontend || docker stop ems-frontend 2>/dev/null || true
+    
+    # Remove old container
+    docker compose -f "$COMPOSE_FILE" rm -f frontend 2>/dev/null || docker rm -f ems-frontend 2>/dev/null || true
+    
+    # Start new container with production configuration
+    print_info "Starting frontend with production configuration..."
+    docker compose -f "$COMPOSE_FILE" up -d frontend
+    
+    # Wait for health check
+    print_info "Waiting for production frontend to be ready..."
+    sleep 10
+    
+    if docker exec ems-frontend wget --quiet --spider http://localhost/ >/dev/null 2>&1 || \
+       curl -f http://localhost/ >/dev/null 2>&1 || \
+       curl -f https://localhost/ >/dev/null 2>&1; then
+        print_success "Frontend deployed successfully!"
+        
+        # Cleanup temporary container
+        docker stop "$NEW_CONTAINER" 2>/dev/null || true
+        docker rm "$NEW_CONTAINER" 2>/dev/null || true
+        
+        return 0
+    else
+        print_error "Frontend health check failed after deployment!"
+        print_warning "Check logs: docker compose logs frontend"
         return 1
     fi
 }
