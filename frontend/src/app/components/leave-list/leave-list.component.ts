@@ -55,12 +55,19 @@ export class LeaveListComponent implements OnInit, OnDestroy {
   selectedEmployee: Employee | null = null;
   showEmployeeListView = true; // Start with employee list view
 
-  // Pagination properties
+  // Pagination properties for leaves
   currentPage = 0;
   pageSize = 10;
   totalLeaves = 0;
   totalPages = 0;
   paginatedLeaves: Leave[] = [];
+
+  // Pagination properties for employees
+  currentEmployeePage = 0;
+  employeePageSize = 10;
+  totalEmployees = 0;
+  totalEmployeePages = 0;
+  paginatedEmployees: Employee[] = [];
 
   private subscriptions: Subscription[] = [];
 
@@ -134,6 +141,9 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     const employeesSub = this.employeeService.getAllEmployees().subscribe({
       next: (data) => {
         this.employees = data;
+        this.totalEmployees = data.length;
+        this.totalEmployeePages = Math.ceil(this.totalEmployees / this.employeePageSize);
+        this.updatePaginatedEmployees();
         this.loadingEmployees = false;
       },
       error: (err) => {
@@ -145,25 +155,108 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.subscriptions.push(employeesSub);
   }
 
+  updatePaginatedEmployees(): void {
+    const start = this.currentEmployeePage * this.employeePageSize;
+    const end = start + this.employeePageSize;
+    this.paginatedEmployees = this.employees.slice(start, end);
+  }
+
+  goToEmployeePage(page: number): void {
+    if (page >= 0 && page < this.totalEmployeePages) {
+      this.currentEmployeePage = page;
+      this.updatePaginatedEmployees();
+    }
+  }
+
+  nextEmployeePage(): void {
+    if (this.currentEmployeePage < this.totalEmployeePages - 1) {
+      this.currentEmployeePage++;
+      this.updatePaginatedEmployees();
+    }
+  }
+
+  previousEmployeePage(): void {
+    if (this.currentEmployeePage > 0) {
+      this.currentEmployeePage--;
+      this.updatePaginatedEmployees();
+    }
+  }
+
+  changeEmployeePageSize(size: number): void {
+    this.employeePageSize = size;
+    this.currentEmployeePage = 0;
+    this.totalEmployeePages = Math.ceil(this.totalEmployees / this.employeePageSize);
+    this.updatePaginatedEmployees();
+  }
+
+  getEmployeePageNumbers(): (number | string)[] {
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+    
+    if (this.totalEmployeePages <= maxVisible) {
+      for (let i = 1; i <= this.totalEmployeePages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      
+      if (this.currentEmployeePage + 1 > 3) {
+        pages.push('...');
+      }
+      
+      const start = Math.max(2, this.currentEmployeePage + 1 - 1);
+      const end = Math.min(this.totalEmployeePages - 1, this.currentEmployeePage + 1 + 1);
+      
+      for (let i = start; i <= end; i++) {
+        if (i !== 1 && i !== this.totalEmployeePages) {
+          pages.push(i);
+        }
+      }
+      
+      if (this.currentEmployeePage + 1 < this.totalEmployeePages - 2) {
+        pages.push('...');
+      }
+      
+      pages.push(this.totalEmployeePages);
+    }
+    
+    return pages;
+  }
+
+  onEmployeePageClick(page: number | string): void {
+    if (typeof page === 'number') {
+      this.goToEmployeePage(page - 1);
+    }
+  }
+
   loadLeaves(employeeId?: number): void {
     this.loading = true;
     this.error = null;
 
     // Always use selectedEmployee.id if available, otherwise use passed employeeId
     const targetEmployeeId = this.selectedEmployee?.id || employeeId;
+    
+    console.log('loadLeaves called:', { 
+      targetEmployeeId, 
+      selectedEmployeeId: this.selectedEmployee?.id, 
+      passedEmployeeId: employeeId,
+      filterStatus: this.filterStatus 
+    });
 
     let observable;
     if (targetEmployeeId) {
       // Load leaves for specific employee ONLY
-      // Always get all leaves for this employee, then filter by status client-side if needed
+      console.log('Loading leaves for employee:', targetEmployeeId);
       observable = this.leaveService.getLeavesByEmployeeId(targetEmployeeId);
     } else if (this.isSuperAdmin) {
       // Super admin: load all leaves (only when no employee is selected)
+      console.log('Loading all leaves (Super Admin)');
       observable = this.filterStatus === 'ALL'
         ? this.leaveService.getAllLeaves()
         : this.leaveService.getLeavesByStatus(this.filterStatus);
     } else {
       // Regular user: load their own leaves
+      console.log('Loading own leaves (Regular User)');
       observable = this.filterStatus === 'ALL'
         ? this.leaveService.getAllLeaves() // This will return only their own leaves from backend
         : this.leaveService.getLeavesByStatus(this.filterStatus);
@@ -171,16 +264,26 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
     const leavesSub = observable.subscribe({
       next: (data) => {
+        console.log('Received leaves data:', { 
+          count: data.length, 
+          targetEmployeeId,
+          sampleLeaves: data.slice(0, 3).map(l => ({ id: l.id, employeeId: l.employeeId, employeeName: l.employeeName }))
+        });
+        
         // If we have a selected employee, ensure we only show their leaves
         let filteredData = data;
         
         if (targetEmployeeId) {
           // Double-check: filter to ensure we only show leaves for the selected employee
+          const beforeFilter = filteredData.length;
           filteredData = data.filter(leave => leave.employeeId === targetEmployeeId);
+          console.log(`Filtered leaves for employee ${targetEmployeeId}: ${beforeFilter} -> ${filteredData.length}`);
           
           // Then filter by status if needed
           if (this.filterStatus !== 'ALL') {
+            const beforeStatusFilter = filteredData.length;
             filteredData = filteredData.filter(leave => leave.status === this.filterStatus);
+            console.log(`Filtered by status ${this.filterStatus}: ${beforeStatusFilter} -> ${filteredData.length}`);
           }
         } else if (this.filterStatus !== 'ALL' && !targetEmployeeId) {
           // Only filter by status if no employee is selected
@@ -188,6 +291,7 @@ export class LeaveListComponent implements OnInit, OnDestroy {
         }
         
         this.leaves = filteredData;
+        console.log('Final leaves count:', this.leaves.length);
         
         // Apply pagination
         this.totalLeaves = this.leaves.length;
@@ -287,9 +391,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
   Math = Math;
 
   selectEmployee(employee: Employee): void {
+    console.log('Selecting employee:', employee);
     this.selectedEmployee = employee;
     this.showEmployeeListView = false;
     this.currentPage = 0; // Reset to first page when selecting employee
+    this.filterStatus = 'ALL'; // Reset filter when selecting employee
     
     // Update URL with employeeId query parameter
     this.router.navigate(['/leaves'], { 
@@ -297,6 +403,7 @@ export class LeaveListComponent implements OnInit, OnDestroy {
       queryParamsHandling: 'merge'
     });
     
+    // Load leaves for this specific employee
     this.loadLeaves(employee.id!);
   }
 

@@ -35,7 +35,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let employee of employees" class="employee-row">
+          <tr *ngFor="let employee of paginatedEmployees" class="employee-row">
             <td>
               <div class="employee-name">
                 <span class="name-icon">👤</span>
@@ -58,6 +58,44 @@
           </tr>
         </tbody>
       </table>
+
+      <!-- Employee List Pagination -->
+      <div *ngIf="employees.length > 0" class="pagination-container">
+        <div class="pagination-info">
+          <span>Showing {{ (currentEmployeePage * employeePageSize) + 1 }} - {{ Math.min((currentEmployeePage + 1) * employeePageSize, totalEmployees) }} of {{ totalEmployees }} employees</span>
+          <select [(ngModel)]="employeePageSize" (change)="changeEmployeePageSize(+employeePageSize)" class="page-size-select">
+            <option [value]="10">10 per page</option>
+            <option [value]="25">25 per page</option>
+            <option [value]="50">50 per page</option>
+            <option [value]="100">100 per page</option>
+          </select>
+        </div>
+        <div class="pagination-buttons">
+          <button 
+            class="btn btn-sm btn-secondary" 
+            [disabled]="currentEmployeePage === 0"
+            (click)="previousEmployeePage()">
+            ← Previous
+          </button>
+          <div class="page-numbers">
+            <button
+              *ngFor="let page of getEmployeePageNumbers()"
+              class="btn btn-sm"
+              [class.btn-primary]="page !== '...' && page === currentEmployeePage + 1"
+              [class.btn-secondary]="page === '...' || page !== currentEmployeePage + 1"
+              [disabled]="page === '...'"
+              (click)="onEmployeePageClick(page)">
+              {{ page }}
+            </button>
+          </div>
+          <button 
+            class="btn btn-sm btn-secondary" 
+            [disabled]="currentEmployeePage >= totalEmployeePages - 1"
+            (click)="nextEmployeePage()">
+            Next →
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -302,7 +340,7 @@
     </table>
 
     <!-- Pagination Controls -->
-    <div *ngIf="totalPages > 1" class="pagination-container">
+    <div *ngIf="leaves.length > 0" class="pagination-container">
       <div class="pagination-info">
         <span>Showing {{ (currentPage * pageSize) + 1 }} - {{ Math.min((currentPage + 1) * pageSize, totalLeaves) }} of {{ totalLeaves }} leaves</span>
         <select [(ngModel)]="pageSize" (change)="changePageSize(+pageSize)" class="page-size-select">
