@@ -89,22 +89,39 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
     this.leaveId = this.route.snapshot.params['id'];
     this.isEditMode = !!this.leaveId;
 
-    this.loadEmployees();
-
+    // If editing, load the leave first to get the employeeId, then load employees filtered to that employee
     if (this.isEditMode && this.leaveId) {
       this.loadLeave(this.leaveId);
+      // Load employees after leave is loaded (will be filtered in loadEmployees)
+      setTimeout(() => {
+        this.loadEmployees();
+      }, 100);
+    } else {
+      // For new leave, load all employees
+      this.loadEmployees();
     }
   }
 
   loadEmployees(): void {
     const employeesSub = this.employeeService.getAllEmployees().subscribe({
       next: (data) => {
-        this.employees = data;
-        // For non-admin users, auto-select their employee
-        if (!this.isAdmin && data.length > 0) {
-          this.leave.employeeId = data[0].id!;
-          this.loadLeaveBalances(this.leave.employeeId);
-          this.loadBlockedDates(this.leave.employeeId);
+        // If in edit mode, filter employees to only show the employee who owns this leave
+        if (this.isEditMode && this.leave.employeeId) {
+          // Only show the employee who owns this leave
+          const leaveOwner = data.find(emp => emp.id === this.leave.employeeId);
+          this.employees = leaveOwner ? [leaveOwner] : [];
+          console.log('Edit mode: Filtered employees to leave owner only:', {
+            employeeId: this.leave.employeeId,
+            employeeName: leaveOwner?.fullName
+          });
+        } else {
+          this.employees = data;
+          // For non-admin users, auto-select their employee
+          if (!this.isAdmin && data.length > 0) {
+            this.leave.employeeId = data[0].id!;
+            this.loadLeaveBalances(this.leave.employeeId);
+            this.loadBlockedDates(this.leave.employeeId);
+          }
         }
       },
       error: (err) => {
@@ -253,11 +270,26 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
     this.loading = true;
     const leaveSub = this.leaveService.getLeaveById(id).subscribe({
       next: (data) => {
+        console.log('Loaded leave for editing:', { 
+          leaveId: data.id, 
+          employeeId: data.employeeId, 
+          employeeName: data.employeeName 
+        });
+        
         this.leave = {
           ...data,
           startDate: this.formatDateForInput(data.startDate),
           endDate: this.formatDateForInput(data.endDate)
         };
+        
+        // Ensure employeeId is set correctly
+        if (data.employeeId) {
+          this.leave.employeeId = data.employeeId;
+          // Load leave balances and blocked dates for this specific employee
+          this.loadLeaveBalances(data.employeeId);
+          this.loadBlockedDates(data.employeeId);
+        }
+        
         this.loading = false;
       },
       error: (err) => {
