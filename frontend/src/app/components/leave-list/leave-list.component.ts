@@ -51,9 +51,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
   // Employee list view
   employees: Employee[] = [];
+  filteredEmployees: Employee[] = [];
   loadingEmployees = false;
   selectedEmployee: Employee | null = null;
   showEmployeeListView = true; // Start with employee list view
+  globalSearchQuery = ''; // Search filter for employees
 
   // Pagination properties for leaves
   currentPage = 0;
@@ -141,9 +143,7 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     const employeesSub = this.employeeService.getAllEmployees().subscribe({
       next: (data) => {
         this.employees = data;
-        this.totalEmployees = data.length;
-        this.totalEmployeePages = Math.ceil(this.totalEmployees / this.employeePageSize);
-        this.updatePaginatedEmployees();
+        this.applyEmployeeFilters();
         this.loadingEmployees = false;
       },
       error: (err) => {
@@ -155,10 +155,47 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.subscriptions.push(employeesSub);
   }
 
+  applyEmployeeFilters(): void {
+    let filtered = [...this.employees];
+    
+    // Apply global search filter
+    if (this.globalSearchQuery && this.globalSearchQuery.trim() !== '') {
+      const searchTerm = this.globalSearchQuery.toLowerCase().trim();
+      filtered = filtered.filter(emp => {
+        const fullName = (emp.fullName || '').toLowerCase();
+        const email = (emp.workEmail || '').toLowerCase();
+        const department = (emp.departmentName || '').toLowerCase();
+        const jobTitle = (emp.jobTitle || '').toLowerCase();
+        const username = (emp.username || '').toLowerCase();
+        
+        return fullName.includes(searchTerm) ||
+               email.includes(searchTerm) ||
+               department.includes(searchTerm) ||
+               jobTitle.includes(searchTerm) ||
+               username.includes(searchTerm);
+      });
+    }
+    
+    this.filteredEmployees = filtered;
+    this.totalEmployees = filtered.length;
+    this.totalEmployeePages = Math.ceil(this.totalEmployees / this.employeePageSize);
+    this.currentEmployeePage = 0; // Reset to first page when filtering
+    this.updatePaginatedEmployees();
+  }
+
+  onGlobalSearchChange(): void {
+    this.applyEmployeeFilters();
+  }
+
+  clearEmployeeFilters(): void {
+    this.globalSearchQuery = '';
+    this.applyEmployeeFilters();
+  }
+
   updatePaginatedEmployees(): void {
     const start = this.currentEmployeePage * this.employeePageSize;
     const end = start + this.employeePageSize;
-    this.paginatedEmployees = this.employees.slice(start, end);
+    this.paginatedEmployees = this.filteredEmployees.slice(start, end);
   }
 
   goToEmployeePage(page: number): void {
@@ -230,6 +267,12 @@ export class LeaveListComponent implements OnInit, OnDestroy {
   }
 
   loadLeaves(employeeId?: number): void {
+    // If we're in employee list view, don't load leaves
+    if (this.showEmployeeListView) {
+      console.log('Still in employee list view, skipping leave load');
+      return;
+    }
+
     this.loading = true;
     this.error = null;
 
@@ -239,8 +282,10 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     console.log('loadLeaves called:', { 
       targetEmployeeId, 
       selectedEmployeeId: this.selectedEmployee?.id, 
+      selectedEmployeeName: this.selectedEmployee?.fullName,
       passedEmployeeId: employeeId,
-      filterStatus: this.filterStatus 
+      filterStatus: this.filterStatus,
+      showEmployeeListView: this.showEmployeeListView
     });
 
     let observable;
@@ -276,7 +321,18 @@ export class LeaveListComponent implements OnInit, OnDestroy {
         if (targetEmployeeId) {
           // Double-check: filter to ensure we only show leaves for the selected employee
           const beforeFilter = filteredData.length;
-          filteredData = data.filter(leave => leave.employeeId === targetEmployeeId);
+          filteredData = data.filter(leave => {
+            const matches = leave.employeeId === targetEmployeeId;
+            if (!matches) {
+              console.warn('Filtering out leave:', { 
+                leaveId: leave.id, 
+                leaveEmployeeId: leave.employeeId, 
+                leaveEmployeeName: leave.employeeName,
+                targetEmployeeId 
+              });
+            }
+            return matches;
+          });
           console.log(`Filtered leaves for employee ${targetEmployeeId}: ${beforeFilter} -> ${filteredData.length}`);
           
           // Then filter by status if needed
@@ -291,7 +347,7 @@ export class LeaveListComponent implements OnInit, OnDestroy {
         }
         
         this.leaves = filteredData;
-        console.log('Final leaves count:', this.leaves.length);
+        console.log('Final leaves count:', this.leaves.length, 'for employee:', targetEmployeeId || 'ALL');
         
         // Apply pagination
         this.totalLeaves = this.leaves.length;
@@ -392,6 +448,13 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
   selectEmployee(employee: Employee): void {
     console.log('Selecting employee:', employee);
+    
+    // Ensure we have the employee ID
+    if (!employee || !employee.id) {
+      console.error('Invalid employee selected:', employee);
+      return;
+    }
+    
     this.selectedEmployee = employee;
     this.showEmployeeListView = false;
     this.currentPage = 0; // Reset to first page when selecting employee
@@ -403,8 +466,9 @@ export class LeaveListComponent implements OnInit, OnDestroy {
       queryParamsHandling: 'merge'
     });
     
-    // Load leaves for this specific employee
-    this.loadLeaves(employee.id!);
+    // Load leaves for this specific employee ONLY
+    console.log('Loading leaves for employee ID:', employee.id);
+    this.loadLeaves(employee.id);
   }
 
   backToEmployeeList(): void {

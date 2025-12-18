@@ -23,7 +23,29 @@
       <p>No employees found.</p>
     </div>
 
-    <div *ngIf="!loadingEmployees && employees.length > 0" class="employee-table-container">
+    <!-- Global Search Filter for Employees -->
+    <div *ngIf="!loadingEmployees && employees.length > 0" class="global-search-container" style="margin-bottom: 1.5rem;">
+      <label for="employeeGlobalSearch" class="global-search-label">Filter Employees</label>
+      <input
+        type="text"
+        id="employeeGlobalSearch"
+        class="global-search-input"
+        placeholder="Search employees by name, email, department, or job title..."
+        [(ngModel)]="globalSearchQuery"
+        (input)="onGlobalSearchChange()"
+      />
+      <button *ngIf="globalSearchQuery" (click)="clearEmployeeFilters()" class="btn btn-sm btn-secondary" style="margin-top: 0.5rem;">
+        Clear Filter
+      </button>
+    </div>
+
+    <div *ngIf="!loadingEmployees && filteredEmployees.length === 0 && employees.length > 0" class="no-results">
+      <div class="no-results-icon">🔍</div>
+      <p class="no-results-text">No employees match your search criteria</p>
+      <button class="btn btn-secondary" (click)="clearEmployeeFilters()">Clear Filters</button>
+    </div>
+
+    <div *ngIf="!loadingEmployees && filteredEmployees.length > 0" class="employee-table-container">
       <table class="employee-table">
         <thead>
           <tr>
@@ -60,7 +82,7 @@
       </table>
 
       <!-- Employee List Pagination -->
-      <div *ngIf="employees.length > 0" class="pagination-container">
+      <div *ngIf="filteredEmployees.length > 0" class="pagination-container">
         <div class="pagination-info">
           <span>Showing {{ (currentEmployeePage * employeePageSize) + 1 }} - {{ Math.min((currentEmployeePage + 1) * employeePageSize, totalEmployees) }} of {{ totalEmployees }} employees</span>
           <select [(ngModel)]="employeePageSize" (change)="changeEmployeePageSize(+employeePageSize)" class="page-size-select">
