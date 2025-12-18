@@ -323,10 +323,10 @@
           <button
             *ngFor="let page of getPageNumbers()"
             class="btn btn-sm"
-            [class.btn-primary]="page === currentPage + 1"
-            [class.btn-secondary]="page !== currentPage + 1"
+            [class.btn-primary]="page !== '...' && page === currentPage + 1"
+            [class.btn-secondary]="page === '...' || page !== currentPage + 1"
             [disabled]="page === '...'"
-            (click)="page !== '...' && goToPage(page - 1)">
+            (click)="onPageClick(page)">
             {{ page }}
           </button>
         </div>

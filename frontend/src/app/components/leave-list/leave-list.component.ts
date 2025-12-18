@@ -223,6 +223,12 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     return pages;
   }
 
+  onPageClick(page: number | string): void {
+    if (typeof page === 'number') {
+      this.goToPage(page - 1);
+    }
+  }
+
   // Expose Math to template
   Math = Math;
 
