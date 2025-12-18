@@ -100,15 +100,18 @@ export class LeaveListComponent implements OnInit, OnDestroy {
               this.selectedEmployee = employee;
               this.showEmployeeListView = false;
               this.loadLeaves(employeeId);
+              this.loadLeaveBalances(); // Load balances for selected employee
             },
             error: (err) => {
               console.error('Error loading employee:', err);
               // Fall back to employee list view
               if (this.isAdmin) {
                 this.loadEmployees();
+                this.loadLeaveBalances(); // Load all balances
               } else {
                 this.showEmployeeListView = false;
                 this.loadLeaves();
+                this.loadLeaveBalances();
               }
             }
           });
@@ -116,24 +119,26 @@ export class LeaveListComponent implements OnInit, OnDestroy {
           // Invalid employeeId, show employee list
           if (this.isAdmin) {
             this.loadEmployees();
+            this.loadLeaveBalances(); // Load all balances
           } else {
             this.showEmployeeListView = false;
             this.loadLeaves();
+            this.loadLeaveBalances();
           }
         }
       } else {
         // No employeeId parameter, load employees list first (for admin/super admin)
         if (this.isAdmin) {
           this.loadEmployees();
+          this.loadLeaveBalances(); // Load all balances for employee list view
         } else {
           // For regular users, show their own leaves directly
           this.showEmployeeListView = false;
           this.loadLeaves();
+          this.loadLeaveBalances();
         }
       }
     });
-    
-    this.loadLeaveBalances();
   }
 
   loadEmployees(): void {
@@ -466,9 +471,10 @@ export class LeaveListComponent implements OnInit, OnDestroy {
       queryParamsHandling: 'merge'
     });
     
-    // Load leaves for this specific employee ONLY
+    // Load leaves and balances for this specific employee ONLY
     console.log('Loading leaves for employee ID:', employee.id);
     this.loadLeaves(employee.id);
+    this.loadLeaveBalances(); // Reload balances for selected employee
   }
 
   backToEmployeeList(): void {
@@ -476,12 +482,16 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.showEmployeeListView = true;
     this.leaves = [];
     this.filterStatus = 'ALL';
+    this.employeeLeaveBalances = []; // Clear employee balances
     
     // Remove employeeId from URL
     this.router.navigate(['/leaves'], { 
       queryParams: { employeeId: null },
       queryParamsHandling: 'merge'
     });
+    
+    // Reload balances for all employees (employee list view)
+    this.loadLeaveBalances();
   }
 
   filterByStatus(status: string): void {
@@ -709,8 +719,32 @@ export class LeaveListComponent implements OnInit, OnDestroy {
   loadLeaveBalances(): void {
     this.loadingLeaveBalances = true;
     
-    if (this.isAdmin) {
-      // For admins/super admins: load balances for all employees
+    // If an employee is selected, only load their balances
+    if (this.selectedEmployee && this.selectedEmployee.id) {
+      console.log('Loading leave balances for selected employee:', this.selectedEmployee.id);
+      const balanceSub = this.leaveService.getLeaveBalances(this.selectedEmployee.id).subscribe({
+        next: (balances) => {
+          // Set as employeeLeaveBalances for admin view
+          this.employeeLeaveBalances = [{
+            employeeId: this.selectedEmployee!.id!,
+            employeeName: this.selectedEmployee!.fullName || this.selectedEmployee!.username || 'Unknown',
+            balances: balances
+          }];
+          this.userLeaveBalances = []; // Clear user balances
+          this.loadingLeaveBalances = false;
+        },
+        error: (err) => {
+          console.error('Error loading leave balance:', err);
+          this.loadingLeaveBalances = false;
+        }
+      });
+      this.subscriptions.push(balanceSub);
+      return;
+    }
+    
+    // If no employee selected, load all employees' balances (for admin view in employee list)
+    if (this.isAdmin && this.showEmployeeListView) {
+      // For admins/super admins: load balances for all employees (only when in employee list view)
       const employeesSub = this.employeeService.getAllEmployees().subscribe({
         next: (employees) => {
           if (employees.length === 0) {
@@ -754,13 +788,13 @@ export class LeaveListComponent implements OnInit, OnDestroy {
       this.subscriptions.push(employeesSub);
     } else {
       // For regular users: load their own leave balance
-      // Regular users can only see themselves in the employee list
       const employeesSub = this.employeeService.getAllEmployees().subscribe({
         next: (employees) => {
           if (employees.length > 0 && employees[0].id) {
             const balanceSub = this.leaveService.getLeaveBalances(employees[0].id).subscribe({
               next: (balances) => {
                 this.userLeaveBalances = balances;
+                this.employeeLeaveBalances = []; // Clear employee balances
                 this.loadingLeaveBalances = false;
               },
               error: (err) => {

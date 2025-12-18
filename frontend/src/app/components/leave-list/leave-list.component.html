@@ -161,9 +161,9 @@
       </button>
     </div>
 
-  <!-- Leave Balance Section (for Admins/Super Admins) -->
-  <div *ngIf="isAdmin && !loadingLeaveBalances && employeeLeaveBalances.length > 0" class="leave-balance-section">
-    <h3 class="section-title">🏖️ Employee Leave Balances</h3>
+  <!-- Leave Balance Section (for Admins/Super Admins - Selected Employee Only) -->
+  <div *ngIf="isAdmin && !loadingLeaveBalances && employeeLeaveBalances.length > 0 && selectedEmployee" class="leave-balance-section">
+    <h3 class="section-title">🏖️ Leave Balances for {{ selectedEmployee.fullName || selectedEmployee.username }}</h3>
     <div class="leave-balance-grid">
       <div *ngFor="let employeeBalance of employeeLeaveBalances" class="employee-balance-group">
         <h4 class="employee-name">{{ employeeBalance.employeeName }}</h4>
