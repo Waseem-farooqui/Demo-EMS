@@ -18,7 +18,12 @@ public enum CommonDepartments {
     PROCUREMENT("Procurement", "PROC", "Manages purchasing and vendor relationships"),
     LOGISTICS("Logistics", "LOG", "Manages supply chain and distribution"),
     TRAINING_AND_DEVELOPMENT("Training and Development", "T&D", "Manages employee training programs"),
-    FACILITIES_MANAGEMENT("Facilities Management", "FM", "Manages building and infrastructure");
+    FACILITIES_MANAGEMENT("Facilities Management", "FM", "Manages building and infrastructure"),
+    FRONT_OFFICE("Front Office", "FO", "Manages guest services, reception, and front desk operations"),
+    HOUSEKEEPING("Housekeeping", "HK", "Manages room cleaning, maintenance, and housekeeping services"),
+    FOOD_AND_BEVERAGE("Food & Beverage", "F&B", "Manages restaurant, bar, and catering services"),
+    ENGINEERING_MAINTENANCE("Engineering/Maintenance", "ENG", "Manages building maintenance, repairs, and technical operations"),
+    SECURITY("Security", "SEC", "Manages security operations, access control, and safety");
 
     private final String departmentName;
     private final String code;

@@ -4,8 +4,11 @@ import {FormsModule} from '@angular/forms';
 import {Router, RouterModule} from '@angular/router';
 import {LeaveService} from '../../services/leave.service';
 import {AuthService} from '../../services/auth.service';
-import {Leave, LeaveApprovalRequest} from '../../models/leave.model';
-import {Subscription} from 'rxjs';
+import {EmployeeService} from '../../services/employee.service';
+import {Leave, LeaveApprovalRequest, LeaveBalance} from '../../models/leave.model';
+import {Employee} from '../../models/employee.model';
+import {Subscription, forkJoin, of} from 'rxjs';
+import {catchError} from 'rxjs/operators';
 
 interface User {
   id?: number;
@@ -13,6 +16,12 @@ interface User {
   username?: string;
   roles?: string[];
   organizationId?: number;
+}
+
+interface EmployeeLeaveBalance {
+  employeeId: number;
+  employeeName: string;
+  balances: LeaveBalance[];
 }
 
 @Component({
@@ -34,12 +43,24 @@ export class LeaveListComponent implements OnInit, OnDestroy {
   selectedLeave: Leave | null = null;
   commentText = '';
   actionType: 'APPROVE' | 'REJECT' | 'COMMENT' | 'REQUEST_UPDATE' = 'COMMENT';
+  
+  // Leave balance properties
+  employeeLeaveBalances: EmployeeLeaveBalance[] = [];
+  userLeaveBalances: LeaveBalance[] = [];
+  loadingLeaveBalances = false;
+
+  // Employee list view
+  employees: Employee[] = [];
+  loadingEmployees = false;
+  selectedEmployee: Employee | null = null;
+  showEmployeeListView = true; // Start with employee list view
 
   private subscriptions: Subscription[] = [];
 
   constructor(
     private leaveService: LeaveService,
     private authService: AuthService,
+    private employeeService: EmployeeService,
     private router: Router
   ) { }
 
@@ -48,20 +69,59 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     const roles = this.currentUser?.roles || [];
     this.isSuperAdmin = roles.includes('SUPER_ADMIN');
     this.isAdmin = roles.includes('ADMIN') || this.isSuperAdmin;
-    this.loadLeaves();
+    
+    // Load employees list first (for admin/super admin)
+    if (this.isAdmin) {
+      this.loadEmployees();
+    } else {
+      // For regular users, show their own leaves directly
+      this.showEmployeeListView = false;
+      this.loadLeaves();
+    }
+    this.loadLeaveBalances();
   }
 
-  loadLeaves(): void {
+  loadEmployees(): void {
+    this.loadingEmployees = true;
+    this.error = null;
+    
+    const employeesSub = this.employeeService.getAllEmployees().subscribe({
+      next: (data) => {
+        this.employees = data;
+        this.loadingEmployees = false;
+      },
+      error: (err) => {
+        this.error = 'Failed to load employees. Please try again.';
+        this.loadingEmployees = false;
+        console.error('Error loading employees:', err);
+      }
+    });
+    this.subscriptions.push(employeesSub);
+  }
+
+  loadLeaves(employeeId?: number): void {
     this.loading = true;
     this.error = null;
 
-    const observable = this.filterStatus === 'ALL'
-      ? this.leaveService.getAllLeaves()
-      : this.leaveService.getLeavesByStatus(this.filterStatus);
+    let observable;
+    if (employeeId) {
+      // Load leaves for specific employee (always load all, filter client-side if needed)
+      observable = this.leaveService.getLeavesByEmployeeId(employeeId);
+    } else {
+      // Load all leaves
+      observable = this.filterStatus === 'ALL'
+        ? this.leaveService.getAllLeaves()
+        : this.leaveService.getLeavesByStatus(this.filterStatus);
+    }
 
     const leavesSub = observable.subscribe({
       next: (data) => {
-        this.leaves = data;
+        // If filtering by status, filter client-side
+        if (this.filterStatus !== 'ALL') {
+          this.leaves = data.filter(leave => leave.status === this.filterStatus);
+        } else {
+          this.leaves = data;
+        }
         this.loading = false;
       },
       error: (err) => {
@@ -73,9 +133,26 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.subscriptions.push(leavesSub);
   }
 
+  selectEmployee(employee: Employee): void {
+    this.selectedEmployee = employee;
+    this.showEmployeeListView = false;
+    this.loadLeaves(employee.id!);
+  }
+
+  backToEmployeeList(): void {
+    this.selectedEmployee = null;
+    this.showEmployeeListView = true;
+    this.leaves = [];
+    this.filterStatus = 'ALL';
+  }
+
   filterByStatus(status: string): void {
     this.filterStatus = status;
-    this.loadLeaves();
+    if (this.selectedEmployee) {
+      this.loadLeaves(this.selectedEmployee.id!);
+    } else {
+      this.loadLeaves();
+    }
   }
 
   approveLeave(leave: Leave): void {
@@ -268,6 +345,91 @@ export class LeaveListComponent implements OnInit, OnDestroy {
       }
     });
     this.subscriptions.push(holidayFormSub);
+  }
+
+  loadLeaveBalances(): void {
+    this.loadingLeaveBalances = true;
+    
+    if (this.isAdmin) {
+      // For admins/super admins: load balances for all employees
+      const employeesSub = this.employeeService.getAllEmployees().subscribe({
+        next: (employees) => {
+          if (employees.length === 0) {
+            this.loadingLeaveBalances = false;
+            return;
+          }
+          
+          // Load leave balances for all employees
+          const balanceRequests = employees.map(emp => 
+            this.leaveService.getLeaveBalances(emp.id!).pipe(
+              catchError(err => {
+                console.error(`Error loading leave balance for employee ${emp.id}:`, err);
+                return of([]); // Return empty array on error
+              })
+            )
+          );
+          
+          const balancesSub = forkJoin(balanceRequests).subscribe({
+            next: (allBalances) => {
+              this.employeeLeaveBalances = employees
+                .map((emp, index) => ({
+                  employeeId: emp.id!,
+                  employeeName: emp.fullName || emp.username || 'Unknown',
+                  balances: allBalances[index] || []
+                }))
+                .filter(item => item.balances.length > 0); // Only include employees with balances
+              this.loadingLeaveBalances = false;
+            },
+            error: (err) => {
+              console.error('Error loading leave balances:', err);
+              this.loadingLeaveBalances = false;
+            }
+          });
+          this.subscriptions.push(balancesSub);
+        },
+        error: (err) => {
+          console.error('Error loading employees:', err);
+          this.loadingLeaveBalances = false;
+        }
+      });
+      this.subscriptions.push(employeesSub);
+    } else {
+      // For regular users: load their own leave balance
+      // Regular users can only see themselves in the employee list
+      const employeesSub = this.employeeService.getAllEmployees().subscribe({
+        next: (employees) => {
+          if (employees.length > 0 && employees[0].id) {
+            const balanceSub = this.leaveService.getLeaveBalances(employees[0].id).subscribe({
+              next: (balances) => {
+                this.userLeaveBalances = balances;
+                this.loadingLeaveBalances = false;
+              },
+              error: (err) => {
+                console.error('Error loading leave balance:', err);
+                this.loadingLeaveBalances = false;
+              }
+            });
+            this.subscriptions.push(balanceSub);
+          } else {
+            this.loadingLeaveBalances = false;
+          }
+        },
+        error: (err) => {
+          console.error('Error loading employee:', err);
+          this.loadingLeaveBalances = false;
+        }
+      });
+      this.subscriptions.push(employeesSub);
+    }
+  }
+
+  getLeaveBalanceStatusClass(remainingLeaves: number): string {
+    if (remainingLeaves <= 2) {
+      return 'balance-low';
+    } else if (remainingLeaves <= 5) {
+      return 'balance-warning';
+    }
+    return 'balance-good';
   }
 
   ngOnDestroy(): void {

@@ -43,6 +43,7 @@ public class DocumentService {
     private static final Set<String> SUPPORTED_DOCUMENT_TYPES = Set.of(
             "PASSPORT",
             "VISA",
+            "BRP",
             "CONTRACT",
             "RESUME",
             "SHARE_CODE",

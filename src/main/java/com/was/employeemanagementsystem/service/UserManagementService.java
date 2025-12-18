@@ -171,6 +171,7 @@ public class UserManagementService {
         employee.setBankName(request.getBankName());
         employee.setWageRate(request.getWageRate());
         employee.setContractHours(request.getContractHours());
+        employee.setComments(request.getComments());
         employee.setPresentAddress(request.getPresentAddress());
         employee.setPreviousAddress(request.getPreviousAddress());
 
@@ -189,11 +190,7 @@ public class UserManagementService {
         // Handle multiple next of kin entries
         applyNextOfKin(employee, request.getNextOfKinList());
         
-        employee.setBloodGroup(request.getBloodGroup());
         employee.setAllottedOrganization(request.getAllottedOrganization());
-        employee.setEmergencyContactName(request.getEmergencyContactName());
-        employee.setEmergencyContactPhone(request.getEmergencyContactPhone());
-        employee.setEmergencyContactRelationship(request.getEmergencyContactRelationship());
 
         // Parse date of joining
         if (request.getDateOfJoining() != null && !request.getDateOfJoining().isEmpty()) {
@@ -309,6 +306,7 @@ public class UserManagementService {
                     record.setContactPersonTitle(dto.getContactPersonTitle());
                     record.setContactPersonName(dto.getContactPersonName());
                     record.setContactPersonEmail(dto.getContactPersonEmail());
+                    record.setContactPersonPhone(dto.getContactPersonPhone());
                     record.setEmployee(employee);
                     employee.getEmploymentRecords().add(record);
                 });
@@ -323,7 +321,9 @@ public class UserManagementService {
                 && (dto.getEmployerName() == null || dto.getEmployerName().trim().isEmpty())
                 && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty())
                 && (dto.getContactPersonTitle() == null || dto.getContactPersonTitle().trim().isEmpty())
-                && (dto.getContactPersonEmail() == null || dto.getContactPersonEmail().trim().isEmpty());
+                && (dto.getContactPersonName() == null || dto.getContactPersonName().trim().isEmpty())
+                && (dto.getContactPersonEmail() == null || dto.getContactPersonEmail().trim().isEmpty())
+                && (dto.getContactPersonPhone() == null || dto.getContactPersonPhone().trim().isEmpty());
     }
 
     private void applyNextOfKin(Employee employee, List<NextOfKinDTO> nextOfKinDTOs) {

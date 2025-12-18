@@ -45,7 +45,6 @@ public class CreateUserRequest {
     private String nextOfKinName;
     private String nextOfKinContact;
     private String nextOfKinAddress;
-    private String bloodGroup;
     private String allottedOrganization;
 
     // Financial and Employment Details
@@ -57,11 +56,7 @@ public class CreateUserRequest {
     private String bankName;
     private String wageRate;
     private String contractHours;
-
-    // Emergency Contact Information
-    private String emergencyContactName;
-    private String emergencyContactPhone;
-    private String emergencyContactRelationship;
+    private String comments; // General comments/notes about the employee
 
     private List<EmploymentRecordDTO> employmentRecords;
     private List<NextOfKinDTO> nextOfKinList;

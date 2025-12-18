@@ -51,7 +51,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
 
   // Document upload
   selectedDocuments: File[] = [];
-  documentTypes: string[] = ['PASSPORT', 'VISA', 'CONTRACT', 'RESUME', 'SHARE_CODE', 
+  documentTypes: string[] = ['PASSPORT', 'VISA', 'BRP', 'CONTRACT', 'RESUME', 'SHARE_CODE', 
                              'PROOF_OF_ADDRESS', 'REGISTRATION_FORM', 'CERTIFICATE',
                              'PROFESSIONAL_CERTIFICATE', 'TERM_LETTER',
                              'NATIONAL_INSURANCE', 'BANK_STATEMENT'];
@@ -129,6 +129,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       bankName: [''],
       wageRate: [''],
       contractHours: [''],
+      comments: [''], // General comments/notes about the employee
       hasMedicalCondition: [false],
       medicalConditionDetails: [''],
       // Legacy next of kin fields (kept for backward compatibility)
@@ -136,10 +137,6 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       nextOfKinContact: [''],
       nextOfKinAddress: [''],
       nextOfKinList: this.fb.array([this.createNextOfKinGroup()]),
-      bloodGroup: [''],
-      emergencyContactName: [''],
-      emergencyContactPhone: [''],
-      emergencyContactRelationship: [''],
       employmentRecords: this.fb.array([this.createEmploymentRecordGroup()])
     });
 
@@ -465,7 +462,8 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       employerAddress: [record?.employerAddress || ''],
       contactPersonTitle: [record?.contactPersonTitle || ''],
       contactPersonName: [record?.contactPersonName || ''],
-      contactPersonEmail: [record?.contactPersonEmail || '']
+      contactPersonEmail: [record?.contactPersonEmail || ''],
+      contactPersonPhone: [record?.contactPersonPhone || '']
     });
   }
 
@@ -485,7 +483,8 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       (record.employerAddress && record.employerAddress.trim()) ||
       (record.contactPersonTitle && record.contactPersonTitle.trim()) ||
       (record.contactPersonName && record.contactPersonName.trim()) ||
-      (record.contactPersonEmail && record.contactPersonEmail.trim())
+      (record.contactPersonEmail && record.contactPersonEmail.trim()) ||
+      (record.contactPersonPhone && record.contactPersonPhone.trim())
     );
   }
 

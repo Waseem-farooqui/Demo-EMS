@@ -551,10 +551,6 @@ public class EmployeeService {
         
         // Handle multiple next of kin entries
         synchronizeNextOfKin(employee, employeeDTO.getNextOfKinList());
-        
-        employee.setEmergencyContactName(employeeDTO.getEmergencyContactName());
-        employee.setEmergencyContactPhone(employeeDTO.getEmergencyContactPhone());
-        employee.setEmergencyContactRelationship(employeeDTO.getEmergencyContactRelationship());
 
         // Update job information
         employee.setJobTitle(employeeDTO.getJobTitle());
@@ -574,6 +570,7 @@ public class EmployeeService {
         employee.setBankName(employeeDTO.getBankName());
         employee.setWageRate(employeeDTO.getWageRate());
         employee.setContractHours(employeeDTO.getContractHours());
+        employee.setComments(employeeDTO.getComments());
 
         // Only admins and super admins can change userId
         if (securityUtils.isAdminOrSuperAdmin() && employeeDTO.getUserId() != null) {
@@ -833,11 +830,6 @@ public class EmployeeService {
         } else {
             dto.setNextOfKinList(new ArrayList<>());
         }
-        
-        dto.setBloodGroup(employee.getBloodGroup());
-        dto.setEmergencyContactName(employee.getEmergencyContactName());
-        dto.setEmergencyContactPhone(employee.getEmergencyContactPhone());
-        dto.setEmergencyContactRelationship(employee.getEmergencyContactRelationship());
 
         // Job information
         dto.setJobTitle(employee.getJobTitle());
@@ -858,6 +850,7 @@ public class EmployeeService {
         dto.setBankName(employee.getBankName());
         dto.setWageRate(employee.getWageRate());
         dto.setContractHours(employee.getContractHours());
+        dto.setComments(employee.getComments());
         dto.setUserId(employee.getUserId());
 
         // Add username and role if user exists
@@ -912,11 +905,6 @@ public class EmployeeService {
         
         // Handle multiple next of kin entries
         employee.setNextOfKinList(buildNextOfKinFromDto(dto.getNextOfKinList(), employee));
-        
-        employee.setBloodGroup(dto.getBloodGroup());
-        employee.setEmergencyContactName(dto.getEmergencyContactName());
-        employee.setEmergencyContactPhone(dto.getEmergencyContactPhone());
-        employee.setEmergencyContactRelationship(dto.getEmergencyContactRelationship());
 
         // Job information
         employee.setJobTitle(dto.getJobTitle());
@@ -937,6 +925,7 @@ public class EmployeeService {
         employee.setBankName(dto.getBankName());
         employee.setWageRate(dto.getWageRate());
         employee.setContractHours(dto.getContractHours());
+        employee.setComments(dto.getComments());
         
         employee.setUserId(dto.getUserId());
 
@@ -989,6 +978,7 @@ public class EmployeeService {
         record.setContactPersonTitle(dto.getContactPersonTitle());
         record.setContactPersonName(dto.getContactPersonName());
         record.setContactPersonEmail(dto.getContactPersonEmail());
+        record.setContactPersonPhone(dto.getContactPersonPhone());
         record.setEmployee(employee);
         return record;
     }
@@ -1003,6 +993,7 @@ public class EmployeeService {
         dto.setContactPersonTitle(record.getContactPersonTitle());
         dto.setContactPersonName(record.getContactPersonName());
         dto.setContactPersonEmail(record.getContactPersonEmail());
+        dto.setContactPersonPhone(record.getContactPersonPhone());
         return dto;
     }
 
@@ -1016,7 +1007,9 @@ public class EmployeeService {
                 && (dto.getEmployerName() == null || dto.getEmployerName().trim().isEmpty())
                 && (dto.getEmployerAddress() == null || dto.getEmployerAddress().trim().isEmpty())
                 && (dto.getContactPersonTitle() == null || dto.getContactPersonTitle().trim().isEmpty())
-                && (dto.getContactPersonEmail() == null || dto.getContactPersonEmail().trim().isEmpty());
+                && (dto.getContactPersonName() == null || dto.getContactPersonName().trim().isEmpty())
+                && (dto.getContactPersonEmail() == null || dto.getContactPersonEmail().trim().isEmpty())
+                && (dto.getContactPersonPhone() == null || dto.getContactPersonPhone().trim().isEmpty());
     }
 
     // Next of Kin methods

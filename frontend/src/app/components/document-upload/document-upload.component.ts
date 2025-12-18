@@ -79,6 +79,7 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   documentTypeOptions: DocumentTypeOption[] = [
     { value: 'PASSPORT', label: 'Passport (ID Document)' },
     { value: 'VISA', label: 'Visa / Work Permission' },
+    { value: 'BRP', label: 'BRP (Biometric Residence Permit)' },
     { value: 'CONTRACT', label: 'Employment Contract' },
     { value: 'RESUME', label: 'CV / Resume' },
     { value: 'SHARE_CODE', label: 'Share Code Proof' },

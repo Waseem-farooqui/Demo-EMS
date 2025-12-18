@@ -47,7 +47,7 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
 
   // Document upload
   selectedDocuments: File[] = [];
-  documentTypes: string[] = ['PASSPORT', 'VISA', 'CONTRACT', 'RESUME', 'SHARE_CODE', 
+  documentTypes: string[] = ['PASSPORT', 'VISA', 'BRP', 'CONTRACT', 'RESUME', 'SHARE_CODE', 
                              'PROOF_OF_ADDRESS', 'REGISTRATION_FORM', 'CERTIFICATE',
                              'PROFESSIONAL_CERTIFICATE', 'TERM_LETTER',
                              'NATIONAL_INSURANCE', 'BANK_STATEMENT'];
@@ -55,6 +55,42 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
 
   // Departments
   departments: any[] = [];
+  
+  // Common positions
+  positions: string[] = [
+    'Handyman',
+    'Handy Man',
+    'Manager',
+    'Supervisor',
+    'Assistant Manager',
+    'Team Leader',
+    'Coordinator',
+    'Administrator',
+    'Executive',
+    'Director',
+    'Specialist',
+    'Analyst',
+    'Officer',
+    'Representative',
+    'Assistant',
+    'Associate',
+    'Technician',
+    'Engineer',
+    'Developer',
+    'Designer',
+    'Consultant',
+    'Advisor',
+    'Receptionist',
+    'Cashier',
+    'Housekeeper',
+    'Security Guard',
+    'Maintenance Worker',
+    'Driver',
+    'Cook',
+    'Waiter/Waitress',
+    'Bartender',
+    'Other'
+  ];
 
   constructor(
     private fb: FormBuilder,
@@ -70,6 +106,7 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
 
     this.employeeForm = this.fb.group({
       // Step 1: Personal Information
+      title: [''],
       fullName: ['', Validators.required],
       personType: ['', Validators.required],
       workEmail: ['', [Validators.required, Validators.email]],
@@ -92,6 +129,7 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
       bankName: [''],
       wageRate: [''],
       contractHours: [''],
+      comments: [''], // General comments/notes
       // Step 3: Role & Department
       departmentId: [null],
       allottedOrganization: [''],
@@ -105,8 +143,7 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
       employmentRecords: this.fb.array([]),
       // Step 6: Medical Information
       hasMedicalCondition: [false],
-      medicalConditionDetails: [''],
-      bloodGroup: ['']
+      medicalConditionDetails: ['']
     });
 
     this.addEmploymentRecord();
@@ -410,7 +447,8 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
       employerAddress: [record?.employerAddress || ''],
       contactPersonTitle: [record?.contactPersonTitle || ''],
       contactPersonName: [record?.contactPersonName || ''],
-      contactPersonEmail: [record?.contactPersonEmail || '']
+      contactPersonEmail: [record?.contactPersonEmail || ''],
+      contactPersonPhone: [record?.contactPersonPhone || '']
     });
   }
 
@@ -439,7 +477,8 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
       (record.employerAddress && record.employerAddress.trim()) ||
       (record.contactPersonTitle && record.contactPersonTitle.trim()) ||
       (record.contactPersonName && record.contactPersonName.trim()) ||
-      (record.contactPersonEmail && record.contactPersonEmail.trim())
+      (record.contactPersonEmail && record.contactPersonEmail.trim()) ||
+      (record.contactPersonPhone && record.contactPersonPhone.trim())
     );
   }
 

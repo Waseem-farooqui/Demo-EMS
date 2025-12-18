@@ -7,6 +7,7 @@ export interface EmploymentRecord {
   contactPersonTitle?: string;
   contactPersonName?: string;
   contactPersonEmail?: string;
+  contactPersonPhone?: string;
 }
 
 export interface NextOfKin {
@@ -39,7 +40,6 @@ export interface Employee {
   nextOfKinContact?: string;
   nextOfKinAddress?: string;
   nextOfKinList?: NextOfKin[];
-  bloodGroup?: string;
   workingTiming?: string;
   holidayAllowance?: number;
   employmentStatus?: string;
@@ -53,14 +53,12 @@ export interface Employee {
   bankName?: string;
   wageRate?: string;
   contractHours?: string;
+  comments?: string; // General comments/notes about the employee
   userId?: number;
   username?: string;  // Add username for display
   role?: string;  // User role (USER, ADMIN, SUPER_ADMIN)
   departmentId?: number;
   departmentName?: string;
   employmentRecords?: EmploymentRecord[];
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  emergencyContactRelationship?: string;
 }
 

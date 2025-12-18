@@ -585,11 +585,6 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label [for]="'nextOfKinRelationship-' + i">Relationship</label>
-          <input type="text" [id]="'nextOfKinRelationship-' + i" class="form-control" formControlName="relationship"
-                 placeholder="e.g., Spouse, Parent, Sibling">
-        </div>
         <div class="form-group full-width">
           <label [for]="'nextOfKinAddress-' + i">Address</label>
           <textarea [id]="'nextOfKinAddress-' + i" rows="3" class="form-control" formControlName="address"
@@ -674,6 +669,13 @@
                  placeholder="contact@company.com">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="contactPersonPhone-{{ i }}">Contact Person Mobile Number</label>
+          <input type="tel" [id]="'contactPersonPhone-' + i" class="form-control" formControlName="contactPersonPhone"
+                 placeholder="+44 123 456 7890">
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -705,67 +707,34 @@
         Please add at least a short description.
       </div>
     </div>
-    <div class="form-group">
-      <label for="bloodGroup">Blood Group</label>
-      <input
-        type="text"
-        id="bloodGroup"
-        formControlName="bloodGroup"
-        class="form-control"
-        placeholder="e.g., O+, A-, B+"
-      >
-    </div>
-  </div>
-
-  <!-- Emergency Contact Section -->
-  <div class="form-section-divider">
-    <h4>🚨 Emergency Contact Information</h4>
-    <p>Contact person in case of emergency (Optional)</p>
-  </div>
-
-  <div class="form-grid">
-    <div class="form-group">
-      <label for="emergencyContactName">Emergency Contact Name</label>
-      <input
-        type="text"
-        id="emergencyContactName"
-        formControlName="emergencyContactName"
-        class="form-control"
-        placeholder="Full name"
-      >
-    </div>
-
-    <div class="form-group">
-      <label for="emergencyContactPhone">Emergency Contact Phone</label>
-      <input
-        type="tel"
-        id="emergencyContactPhone"
-        formControlName="emergencyContactPhone"
-        class="form-control"
-        placeholder="+44 20 1234 5678"
-      >
-    </div>
-
-    <div class="form-group">
-      <label for="emergencyContactRelationship">Relationship</label>
-      <input
-        type="text"
-        id="emergencyContactRelationship"
-        formControlName="emergencyContactRelationship"
-        class="form-control"
-        placeholder="e.g., Spouse, Parent, Sibling, Friend"
-      >
-    </div>
   </div>
 </div>
 
 <!-- Step 7: Documents -->
 <div class="wizard-step" *ngIf="currentStep === 7">
   <div class="step-header">
-    <h3>📄 Documents</h3>
-    <p>Upload employee documents (Optional)</p>
+    <h3>📄 Documents & Comments</h3>
+    <p>Upload employee documents and add comments (Optional)</p>
   </div>
 
+  <!-- Comments Section -->
+  <div class="form-section-header">
+    <h4>💬 Comments & Notes</h4>
+  </div>
+  <div class="form-group full-width">
+    <label for="comments">Additional Comments</label>
+    <textarea
+      id="comments"
+      formControlName="comments"
+      class="form-control"
+      rows="5"
+      placeholder="Add any additional notes, comments, or observations about this employee..."></textarea>
+    <small class="form-hint">💡 This information will be visible in the employee detail view</small>
+  </div>
+
+  <div class="form-section-header" style="margin-top: 2rem;">
+    <h4>📄 Document Upload</h4>
+  </div>
   <div class="document-upload-section">
     <div class="document-upload-grid">
       <div class="document-upload-item" *ngFor="let docType of documentTypes">

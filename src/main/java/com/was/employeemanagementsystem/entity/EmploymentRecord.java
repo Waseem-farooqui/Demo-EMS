@@ -40,6 +40,9 @@ public class EmploymentRecord {
     @Column(name = "contact_person_email")
     private String contactPersonEmail;
 
+    @Column(name = "contact_person_phone")
+    private String contactPersonPhone;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id")
     @JsonIgnore

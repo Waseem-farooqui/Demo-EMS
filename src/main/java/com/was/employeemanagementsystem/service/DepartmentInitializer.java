@@ -23,17 +23,15 @@ public class DepartmentInitializer implements CommandLineRunner {
         try {
             log.info("🏢 Initializing common departments...");
 
-            // Check if departments already exist
-            long existingCount = departmentRepository.count();
-            if (existingCount > 0) {
-                log.info("✓ Departments already initialized ({} departments exist)", existingCount);
-                return;
-            }
-
-            // Create all common departments
+            // Create all common departments (check for missing ones even if some already exist)
             int created = 0;
+            int skipped = 0;
             for (CommonDepartments commonDept : CommonDepartments.values()) {
-                if (!departmentRepository.existsByCode(commonDept.getCode())) {
+                // Check if department already exists by code or name
+                boolean existsByCode = departmentRepository.existsByCode(commonDept.getCode());
+                boolean existsByName = departmentRepository.findByName(commonDept.getDepartmentName()).isPresent();
+                
+                if (!existsByCode && !existsByName) {
                     Department department = new Department();
                     department.setName(commonDept.getDepartmentName());
                     department.setCode(commonDept.getCode());
@@ -43,10 +41,17 @@ public class DepartmentInitializer implements CommandLineRunner {
                     departmentRepository.save(department);
                     created++;
                     log.info("  ✓ Created department: {} ({})", commonDept.getDepartmentName(), commonDept.getCode());
+                } else {
+                    skipped++;
+                    log.debug("  ⊘ Department already exists: {} ({})", commonDept.getDepartmentName(), commonDept.getCode());
                 }
             }
 
-            log.info("🎉 Successfully initialized {} common departments", created);
+            if (created > 0) {
+                log.info("🎉 Successfully initialized {} new departments ({} already existed)", created, skipped);
+            } else {
+                log.info("✓ All common departments already exist ({} total)", skipped);
+            }
 
         } catch (Exception e) {
             log.error("❌ Error initializing departments: {}", e.getMessage(), e);

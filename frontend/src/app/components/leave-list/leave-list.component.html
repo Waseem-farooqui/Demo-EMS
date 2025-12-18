@@ -1,40 +1,159 @@
 <div class="leave-list-container">
   <div class="page-header">
     <h2>Leave Management</h2>
-enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requests</p>
+    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requests</p>
     <div class="header-actions">
-      <!-- SUPER_ADMIN (CEO) doesn't apply for leaves -->
-      <a *ngIf="!isSuperAdmin" routerLink="/leaves/apply" class="btn btn-primary">
+      <!-- Back button when viewing employee leaves -->
+      <button *ngIf="!showEmployeeListView && isAdmin" (click)="backToEmployeeList()" class="btn btn-secondary">
+        <span>←</span> Back to Employees
+      </button>
+      <!-- Apply Leave button (for regular users or when not in employee list view) -->
+      <a *ngIf="!isSuperAdmin && (!isAdmin || !showEmployeeListView)" routerLink="/leaves/apply" class="btn btn-primary">
         <span>📝</span> Apply Leave
       </a>
     </div>
   </div>
 
-  <div class="filter-section">
-    <button
-      class="filter-btn"
-      [class.active]="filterStatus === 'ALL'"
-      (click)="filterByStatus('ALL')">
-      All Leaves
-    </button>
-    <button
-      class="filter-btn filter-pending"
-      [class.active]="filterStatus === 'PENDING'"
-      (click)="filterByStatus('PENDING')">
-      Pending
-    </button>
-    <button
-      class="filter-btn filter-approved"
-      [class.active]="filterStatus === 'APPROVED'"
-      (click)="filterByStatus('APPROVED')">
-      Approved
-    </button>
-    <button
-      class="filter-btn filter-rejected"
-      [class.active]="filterStatus === 'REJECTED'"
-      (click)="filterByStatus('REJECTED')">
-      Rejected
-    </button>
+  <!-- Employee List View (for Admin/Super Admin) -->
+  <div *ngIf="showEmployeeListView && isAdmin">
+    <div *ngIf="loadingEmployees" class="loading">Loading employees...</div>
+    <div *ngIf="error" class="error-message">{{ error }}</div>
+    
+    <div *ngIf="!loadingEmployees && employees.length === 0" class="no-data">
+      <p>No employees found.</p>
+    </div>
+
+    <div *ngIf="!loadingEmployees && employees.length > 0" class="employee-table-container">
+      <table class="employee-table">
+        <thead>
+          <tr>
+            <th>Employee Name</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th>Job Title</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let employee of employees" class="employee-row">
+            <td>{{ employee.fullName || employee.username || 'N/A' }}</td>
+            <td>{{ employee.workEmail || 'N/A' }}</td>
+            <td>{{ employee.departmentName || 'N/A' }}</td>
+            <td>{{ employee.jobTitle || 'N/A' }}</td>
+            <td>
+              <button (click)="selectEmployee(employee)" class="btn btn-sm btn-primary">
+                View Leaves
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Leave List View (shown when employee is selected or for regular users) -->
+  <div *ngIf="!showEmployeeListView">
+
+    <!-- Selected Employee Info -->
+    <div *ngIf="selectedEmployee" class="selected-employee-info">
+      <h3>Leaves for: {{ selectedEmployee.fullName || selectedEmployee.username }}</h3>
+      <p class="employee-details">
+        <span *ngIf="selectedEmployee.workEmail">Email: {{ selectedEmployee.workEmail }}</span>
+        <span *ngIf="selectedEmployee.departmentName"> | Department: {{ selectedEmployee.departmentName }}</span>
+        <span *ngIf="selectedEmployee.jobTitle"> | Job Title: {{ selectedEmployee.jobTitle }}</span>
+      </p>
+    </div>
+
+    <div class="filter-section">
+      <button
+        class="filter-btn"
+        [class.active]="filterStatus === 'ALL'"
+        (click)="filterByStatus('ALL')">
+        All Leaves
+      </button>
+      <button
+        class="filter-btn filter-pending"
+        [class.active]="filterStatus === 'PENDING'"
+        (click)="filterByStatus('PENDING')">
+        Pending
+      </button>
+      <button
+        class="filter-btn filter-approved"
+        [class.active]="filterStatus === 'APPROVED'"
+        (click)="filterByStatus('APPROVED')">
+        Approved
+      </button>
+      <button
+        class="filter-btn filter-rejected"
+        [class.active]="filterStatus === 'REJECTED'"
+        (click)="filterByStatus('REJECTED')">
+        Rejected
+      </button>
+    </div>
+
+  <!-- Leave Balance Section (for Admins/Super Admins) -->
+  <div *ngIf="isAdmin && !loadingLeaveBalances && employeeLeaveBalances.length > 0" class="leave-balance-section">
+    <h3 class="section-title">🏖️ Employee Leave Balances</h3>
+    <div class="leave-balance-grid">
+      <div *ngFor="let employeeBalance of employeeLeaveBalances" class="employee-balance-group">
+        <h4 class="employee-name">{{ employeeBalance.employeeName }}</h4>
+        <div class="leave-balance-cards">
+          <div *ngFor="let balance of employeeBalance.balances" class="leave-balance-card" 
+               [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
+            <div class="balance-header">
+              <span class="balance-type">{{ balance.leaveType }}</span>
+              <span class="balance-year">{{ balance.financialYear }}</span>
+            </div>
+            <div class="balance-details">
+              <div class="balance-item">
+                <span class="balance-label">Total Allocated:</span>
+                <span class="balance-value">{{ balance.totalAllocated }} days</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">Used:</span>
+                <span class="balance-value used">{{ balance.usedLeaves }} days</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-label">Remaining:</span>
+                <span class="balance-value remaining" [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
+                  {{ balance.remainingLeaves }} days
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leave Balance Section (for Regular Users - show own balance) -->
+  <div *ngIf="!isAdmin && !loadingLeaveBalances && userLeaveBalances.length > 0" class="leave-balance-section">
+    <h3 class="section-title">🏖️ Your Leave Balance</h3>
+    <div class="leave-balance-grid">
+      <div *ngFor="let balance of userLeaveBalances" class="leave-balance-card" 
+           [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
+        <div class="balance-header">
+          <span class="balance-type">{{ balance.leaveType }}</span>
+          <span class="balance-year">{{ balance.financialYear }}</span>
+        </div>
+        <div class="balance-details">
+          <div class="balance-item">
+            <span class="balance-label">Total Allocated:</span>
+            <span class="balance-value">{{ balance.totalAllocated }} days</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-label">Used:</span>
+            <span class="balance-value used">{{ balance.usedLeaves }} days</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-label">Remaining:</span>
+            <span class="balance-value remaining" [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
+              {{ balance.remainingLeaves }} days
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div *ngIf="error" class="error-message">{{ error }}</div>
@@ -250,5 +369,6 @@ enu    <p class="subtitle" *ngIf="isSuperAdmin">Review and manage all leave requ
       </div>
     </div>
   </div>
+  <!-- End Leave List View -->
 </div>
 

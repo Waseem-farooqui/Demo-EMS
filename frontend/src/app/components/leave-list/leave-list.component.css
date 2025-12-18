@@ -491,3 +491,214 @@
   }
 }
 
+/* Leave Balance Section */
+.leave-balance-section {
+  margin-bottom: 30px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.section-title {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.leave-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.employee-balance-group {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.employee-balance-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.employee-name {
+  margin: 0 0 1rem 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.leave-balance-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.leave-balance-card {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  transition: all 0.3s ease;
+}
+
+.leave-balance-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.leave-balance-card.balance-low {
+  border-color: #dc3545;
+  background-color: #fff5f5;
+}
+
+.leave-balance-card.balance-warning {
+  border-color: #ffc107;
+  background-color: #fffbf0;
+}
+
+.leave-balance-card.balance-good {
+  border-color: #28a745;
+  background-color: #f0fff4;
+}
+
+.balance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.balance-type {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #333;
+  text-transform: capitalize;
+}
+
+.balance-year {
+  font-size: 0.875rem;
+  color: #666;
+  background-color: #f8f9fa;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.balance-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.balance-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.balance-label {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.balance-value {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.balance-value.used {
+  color: #6c757d;
+}
+
+.balance-value.remaining.balance-low {
+  color: #dc3545;
+  font-weight: 700;
+}
+
+.balance-value.remaining.balance-warning {
+  color: #856404;
+  font-weight: 700;
+}
+
+.balance-value.remaining.balance-good {
+  color: #155724;
+  font-weight: 700;
+}
+
+/* Employee Table Styles */
+.employee-table-container {
+  overflow-x: auto;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+.employee-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+.employee-table thead {
+  background-color: #f8f9fa;
+}
+
+.employee-table th {
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+  font-size: 14px;
+}
+
+.employee-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #dee2e6;
+  font-size: 14px;
+  color: #495057;
+}
+
+.employee-table tbody tr:hover {
+  background-color: #f8f9fa;
+  cursor: pointer;
+}
+
+.employee-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.employee-row {
+  transition: background-color 0.2s;
+}
+
+/* Selected Employee Info */
+.selected-employee-info {
+  background-color: #f8f9fa;
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 4px solid #667eea;
+}
+
+.selected-employee-info h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.selected-employee-info .employee-details {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+

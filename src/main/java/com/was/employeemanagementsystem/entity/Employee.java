@@ -70,19 +70,6 @@ public class Employee {
     @Deprecated
     private String nextOfKinAddress;
 
-    @Column(name = "blood_group")
-    private String bloodGroup;
-
-    // Emergency Contact Information
-    @Column(name = "emergency_contact_name")
-    private String emergencyContactName;
-
-    @Column(name = "emergency_contact_phone")
-    private String emergencyContactPhone;
-
-    @Column(name = "emergency_contact_relationship")
-    private String emergencyContactRelationship;
-
     // Job Information
     @Column(name = "job_title")
     private String jobTitle;
@@ -132,6 +119,9 @@ public class Employee {
 
     @Column(name = "contract_hours")
     private String contractHours; // e.g., "40 hours/week" or "Full-time"
+
+    @Column(name = "comments", columnDefinition = "TEXT")
+    private String comments; // General comments/notes about the employee
 
     @Column(name = "user_id")
     private Long userId;

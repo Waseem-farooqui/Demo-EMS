@@ -43,8 +43,12 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   saveSuccess = false;
   saveError: string | null = null;
 
+  // Documents that have OCR processing enabled (matches backend OCR_ENABLED_DOCUMENT_TYPES)
+  private readonly ocrDocumentTypes = new Set(['PASSPORT', 'VISA', 'CONTRACT']);
+
+  // Documents where metadata fields are optional (non-OCR documents)
   private readonly metadataOptionalTypes = new Set([
-    'CONTRACT',
+    'BRP',
     'RESUME',
     'SHARE_CODE',
     'PROOF_OF_ADDRESS',
@@ -53,11 +57,16 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
     'PROFESSIONAL_CERTIFICATE',
     'TERM_LETTER',
     'NATIONAL_INSURANCE',
-    'BANK_STATEMENT'
+    'BANK_STATEMENT',
+    'OTHERS'
   ]);
 
+  // Identity documents that require strict fields (PASSPORT, VISA)
   private readonly identityDocumentTypes = new Set(['PASSPORT', 'VISA']);
+
+  // Supporting documents (non-OCR) - just show document preview + basic info
   private readonly supportingDocumentTypes = new Set([
+    'BRP',
     'RESUME',
     'SHARE_CODE',
     'PROOF_OF_ADDRESS',
@@ -73,6 +82,7 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
   private readonly documentTypeLabelMap: Record<string, string> = {
     PASSPORT: 'Passport',
     VISA: 'Visa',
+    BRP: 'BRP',
     CONTRACT: 'Employment Contract',
     RESUME: 'Resume',
     SHARE_CODE: 'Share Code',
@@ -385,6 +395,13 @@ export class DocumentDetailComponent implements OnInit, OnDestroy {
       return false;
     }
     return this.identityDocumentTypes.has((doc.documentType || '').toUpperCase());
+  }
+
+  isOcrDocument(type?: string | null): boolean {
+    if (!type) {
+      return false;
+    }
+    return this.ocrDocumentTypes.has(type.toUpperCase());
   }
 
   isSupportingDocument(type?: string | null): boolean {

@@ -419,11 +419,14 @@
                 <div *ngIf="record.employerAddress">
                   <span class="record-label">Address:</span> {{ record.employerAddress }}
                 </div>
-                <div *ngIf="record.contactPersonTitle || record.contactPersonName || record.contactPersonEmail">
+                <div *ngIf="record.contactPersonTitle || record.contactPersonName || record.contactPersonEmail || record.contactPersonPhone">
                   <span class="record-label">Contact Person:</span>
                   <span *ngIf="record.contactPersonTitle">{{ record.contactPersonTitle }} </span>
                   <span *ngIf="record.contactPersonName">{{ record.contactPersonName }}</span>
                   <span *ngIf="record.contactPersonEmail"> ({{ record.contactPersonEmail }})</span>
+                </div>
+                <div *ngIf="record.contactPersonPhone">
+                  <span class="record-label">Contact Phone:</span> {{ record.contactPersonPhone }}
                 </div>
               </div>
             </div>
@@ -437,10 +440,6 @@
                 <div class="details-section">
                   <h4 class="section-title">🩺 Medical Information</h4>
                   <div class="info-grid">
-                    <div class="info-item">
-                      <span class="info-label">Blood Group:</span>
-                      <span class="info-value">{{ selectedEmployee.bloodGroup || '-' }}</span>
-                    </div>
                     <div class="info-item full-width">
                       <span class="info-label">Has Medical Condition:</span>
                       <span class="info-value">{{ selectedEmployee.hasMedicalCondition ? 'Yes' : 'No' }}</span>
@@ -452,50 +451,13 @@
                   </div>
                 </div>
 
-                <!-- Emergency Contact Section -->
-                <div class="details-section" *ngIf="selectedEmployee.emergencyContactName || selectedEmployee.emergencyContactPhone">
-                  <h4 class="section-title">🚨 Emergency Contact</h4>
-                  <div class="info-grid">
-                    <div class="info-item">
-                      <span class="info-label">Name:</span>
-                      <span class="info-value">{{ selectedEmployee.emergencyContactName || '-' }}</span>
-                    </div>
-                    <div class="info-item">
-                      <span class="info-label">Phone:</span>
-                      <span class="info-value">{{ selectedEmployee.emergencyContactPhone || '-' }}</span>
-                    </div>
-                    <div class="info-item">
-                      <span class="info-label">Relationship:</span>
-                      <span class="info-value">{{ selectedEmployee.emergencyContactRelationship || '-' }}</span>
-                    </div>
-                  </div>
-                </div>
-
-        <!-- Leave Balance Section (for Admins/Super Admins) -->
-        <div class="details-section" *ngIf="(currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('SUPER_ADMIN')) && employeeLeaveBalances.length > 0">
-          <h4 class="section-title">🏖️ Leave Balance</h4>
-          <div class="leave-balance-grid">
-            <div *ngFor="let balance of employeeLeaveBalances" class="leave-balance-card" 
-                 [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
-              <div class="balance-header">
-                <span class="balance-type">{{ balance.leaveType }}</span>
-                <span class="balance-year">{{ balance.financialYear }}</span>
-              </div>
-              <div class="balance-details">
-                <div class="balance-item">
-                  <span class="balance-label">Total Allocated:</span>
-                  <span class="balance-value">{{ balance.totalAllocated }} days</span>
-                </div>
-                <div class="balance-item">
-                  <span class="balance-label">Used:</span>
-                  <span class="balance-value used">{{ balance.usedLeaves }} days</span>
-                </div>
-                <div class="balance-item">
-                  <span class="balance-label">Remaining:</span>
-                  <span class="balance-value remaining" [ngClass]="getLeaveBalanceStatusClass(balance.remainingLeaves)">
-                    {{ balance.remainingLeaves }} days
-                  </span>
-                </div>
+        <!-- Comments Section -->
+        <div class="details-section" *ngIf="selectedEmployee.comments">
+          <h4 class="section-title">💬 Comments & Notes</h4>
+          <div class="info-grid">
+            <div class="info-item full-width">
+              <div class="comments-content">
+                <p class="comments-text">{{ selectedEmployee.comments }}</p>
               </div>
             </div>
           </div>

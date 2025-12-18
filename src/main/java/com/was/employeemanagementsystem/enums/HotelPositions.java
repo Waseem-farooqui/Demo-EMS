@@ -70,7 +70,10 @@ public enum HotelPositions {
     BELL_CAPTAIN("Bell Captain", "Leads the bell staff. Assigns luggage handling tasks"),
     BELLMAN("Bellman / Bellboy / Porter", "Handles guest luggage. Escorts guests to rooms, assists with messaging and deliveries"),
     DOORMAN("Doorman", "Greets guests at entrance. Helps with doors, taxis, and traffic coordination"),
-    VALET_PARKING_ATTENDANT("Valet Parking Attendant", "Parks guest vehicles and manages valet operations");
+    VALET_PARKING_ATTENDANT("Valet Parking Attendant", "Parks guest vehicles and manages valet operations"),
+
+    // Maintenance & Engineering
+    HANDYMAN("Handyman", "Performs general maintenance, repairs, and upkeep tasks throughout the hotel property");
 
     private final String positionName;
     private final String description;

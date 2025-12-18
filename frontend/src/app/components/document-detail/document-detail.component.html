@@ -23,10 +23,11 @@
         <h2>{{ getDocumentTypeLabel(document.documentType) }} Details</h2>
       </div>
       <div class="header-actions">
-        <button *ngIf="(document.documentType === 'PASSPORT' || document.documentType === 'VISA') && !editMode && isDataIncomplete()" (click)="enableEditMode()" class="btn-edit">
+        <!-- Edit buttons only for OCR documents (PASSPORT, VISA, CONTRACT) -->
+        <button *ngIf="isOcrDocument(document.documentType) && !editMode && isDataIncomplete()" (click)="enableEditMode()" class="btn-edit">
           <span>✏️</span> Complete Missing Data
         </button>
-        <button *ngIf="(document.documentType === 'PASSPORT' || document.documentType === 'VISA') && !editMode && !isDataIncomplete()" (click)="enableEditMode()" class="btn-edit">
+        <button *ngIf="isOcrDocument(document.documentType) && !editMode && !isDataIncomplete()" (click)="enableEditMode()" class="btn-edit">
           <span>✏️</span> Edit
         </button>
         <button (click)="deleteDocument()" class="btn-delete">
@@ -35,8 +36,8 @@
       </div>
     </div>
 
-    <!-- OCR Failure Alert - For PASSPORT, VISA, and CONTRACT -->
-    <div *ngIf="document.ocrFailed && (document.documentType === 'PASSPORT' || document.documentType === 'VISA' || document.documentType === 'CONTRACT')" class="alert alert-warning">
+    <!-- OCR Failure Alert - Only for OCR-enabled documents -->
+    <div *ngIf="document.ocrFailed && isOcrDocument(document.documentType)" class="alert alert-warning">
       <div class="alert-header">
         <span class="alert-icon">⚠️</span>
         <strong>OCR Processing Failed</strong>
@@ -62,8 +63,8 @@
       </div>
     </div>
 
-    <!-- OCR Incomplete Alert (for cases where OCR partially succeeded but data is incomplete) -->
-    <div *ngIf="!document.ocrFailed && (document.documentType === 'PASSPORT' || document.documentType === 'VISA') && isDataIncomplete()" class="alert alert-warning">
+    <!-- OCR Incomplete Alert (for cases where OCR partially succeeded but data is incomplete) - Only for PASSPORT and VISA -->
+    <div *ngIf="!document.ocrFailed && isOcrDocument(document.documentType) && (document.documentType === 'PASSPORT' || document.documentType === 'VISA') && isDataIncomplete()" class="alert alert-warning">
       <div class="alert-header">
         <span class="alert-icon">⚠️</span>
         <strong>OCR Extraction Incomplete</strong>
@@ -98,8 +99,8 @@
       {{ saveError }}
     </div>
 
-    <!-- Expiry Status Badge - Only for PASSPORT and VISA -->
-    <div *ngIf="shouldShowExpiryBadge(document)" class="expiry-badge" [ngClass]="'badge-' + getExpiryStatus(document.daysUntilExpiry)">
+    <!-- Expiry Status Badge - Only for OCR documents that track expiry -->
+    <div *ngIf="shouldShowExpiryBadge(document) && isOcrDocument(document.documentType)" class="expiry-badge" [ngClass]="'badge-' + getExpiryStatus(document.daysUntilExpiry)">
       <span class="badge-icon">
         {{ document.daysUntilExpiry && document.daysUntilExpiry < 0 ? '❌' :
            document.daysUntilExpiry && document.daysUntilExpiry <= 30 ? '⚠️' :
@@ -108,8 +109,8 @@
       {{ getExpiryStatusText(document.daysUntilExpiry) }}
     </div>
 
-    <!-- Document Information Grid - Not for RESUME and SHARE_CODE -->
-    <div *ngIf="!isSupportingDocument(document.documentType)" class="info-grid">
+    <!-- Document Information Grid - Show detailed extracted info for OCR documents only -->
+    <div *ngIf="isOcrDocument(document.documentType)" class="info-grid">
       <!-- Employee Information -->
       <div class="info-section">
         <h3><span class="section-icon">👤</span> Employee Information</h3>
@@ -274,17 +275,7 @@
         </div>
       </div>
 
-      <!-- Upload Information for RESUME and SHARE_CODE -->
-      <div class="info-section" *ngIf="isSupportingDocument(document.documentType)">
-        <h3><span class="section-icon">📅</span> Upload Information</h3>
-
-        <div class="info-item">
-          <label>Upload Date:</label>
-          <span class="value">{{ formatDate(document.uploadedDate) }}</span>
-        </div>
-      </div>
-
-      <!-- File Information -->
+      <!-- File Information (shown for all documents) -->
       <div class="info-section">
         <h3><span class="section-icon">📎</span> File Information</h3>
 
@@ -296,6 +287,11 @@
         <div class="info-item">
           <label>File Type:</label>
           <span class="value">{{ document.fileType || 'Not available' }}</span>
+        </div>
+
+        <div class="info-item">
+          <label>Upload Date:</label>
+          <span class="value">{{ formatDate(document.uploadedDate) }}</span>
         </div>
       </div>
 
@@ -311,6 +307,48 @@
         <div class="info-item" *ngIf="document.lastAlertSent">
           <label>Last Alert:</label>
           <span class="value">{{ formatDate(document.lastAlertSent) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Basic Information for Non-OCR Documents (BRP, RESUME, etc.) -->
+    <div *ngIf="!isOcrDocument(document.documentType)" class="info-grid">
+      <!-- Employee Information -->
+      <div class="info-section">
+        <h3><span class="section-icon">👤</span> Employee Information</h3>
+        <div class="info-item">
+          <label>Employee Name:</label>
+          <span class="value">{{ document.employeeName || 'Not available' }}</span>
+        </div>
+        <div class="info-item">
+          <label>Employee ID:</label>
+          <span class="value">{{ document.employeeId || 'Not available' }}</span>
+        </div>
+      </div>
+
+      <!-- Document Information -->
+      <div class="info-section">
+        <h3><span class="section-icon">📄</span> Document Information</h3>
+        <div class="info-item">
+          <label>Document Type:</label>
+          <span class="value badge-type">{{ getDocumentTypeLabel(document.documentType) }}</span>
+        </div>
+      </div>
+
+      <!-- File Information -->
+      <div class="info-section">
+        <h3><span class="section-icon">📎</span> File Information</h3>
+        <div class="info-item">
+          <label>File Name:</label>
+          <span class="value">{{ document.fileName || 'Not available' }}</span>
+        </div>
+        <div class="info-item">
+          <label>File Type:</label>
+          <span class="value">{{ document.fileType || 'Not available' }}</span>
+        </div>
+        <div class="info-item">
+          <label>Upload Date:</label>
+          <span class="value">{{ formatDate(document.uploadedDate) }}</span>
         </div>
       </div>
     </div>

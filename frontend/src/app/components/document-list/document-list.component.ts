@@ -49,6 +49,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     { value: 'ALL', label: 'All Documents' },
     { value: 'PASSPORT', label: 'Passports' },
     { value: 'VISA', label: 'Visas' },
+    { value: 'BRP', label: 'BRP' },
     { value: 'CONTRACT', label: 'Contracts' },
     { value: 'RESUME', label: 'Resumes' },
     { value: 'SHARE_CODE', label: 'Share Codes' },
@@ -79,6 +80,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   private readonly documentTypeLabelMap: Record<string, string> = {
     PASSPORT: 'Passport',
     VISA: 'Visa',
+    BRP: 'BRP',
     CONTRACT: 'Employment Contract',
     RESUME: 'Resume',
     SHARE_CODE: 'Share Code',

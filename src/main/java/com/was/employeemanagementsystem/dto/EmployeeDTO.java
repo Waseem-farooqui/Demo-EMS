@@ -29,12 +29,6 @@ public class EmployeeDTO {
     private String nextOfKinName;
     private String nextOfKinContact;
     private String nextOfKinAddress;
-    private String bloodGroup;
-
-    // Emergency Contact Information
-    private String emergencyContactName;
-    private String emergencyContactPhone;
-    private String emergencyContactRelationship;
 
     // Job Information
     private String jobTitle;
@@ -55,6 +49,7 @@ public class EmployeeDTO {
     private String bankName;
     private String wageRate;
     private String contractHours;
+    private String comments; // General comments/notes about the employee
 
     // Relations
     private Long userId;

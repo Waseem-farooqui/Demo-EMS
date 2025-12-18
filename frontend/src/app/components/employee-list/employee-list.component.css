@@ -1854,3 +1854,21 @@
   font-weight: 700;
 }
 
+/* Comments Section */
+.comments-content {
+  background-color: #f8f9fa;
+  border-left: 4px solid #667eea;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.comments-text {
+  margin: 0;
+  color: #495057;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+

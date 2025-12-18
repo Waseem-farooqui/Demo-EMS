@@ -38,6 +38,7 @@ export interface UserFormData {
   dateOfJoining: string;
   employmentStatus: string;
   contractType: string;
+  comments?: string; // General comments/notes about the employee
   hasMedicalCondition: boolean;
   medicalConditionDetails?: string;
   // Legacy next of kin fields (kept for backward compatibility)
@@ -46,7 +47,6 @@ export interface UserFormData {
   nextOfKinAddress?: string;
   nextOfKinList?: any[];
   employmentRecords?: any[];
-  bloodGroup?: string;
   allottedOrganization?: string;
 }
 
