@@ -36,9 +36,19 @@
         </thead>
         <tbody>
           <tr *ngFor="let employee of employees" class="employee-row">
-            <td>{{ employee.fullName || employee.username || 'N/A' }}</td>
+            <td>
+              <div class="employee-name">
+                <span class="name-icon">👤</span>
+                <strong>{{ employee.fullName || employee.username || 'N/A' }}</strong>
+              </div>
+            </td>
             <td>{{ employee.workEmail || 'N/A' }}</td>
-            <td>{{ employee.departmentName || 'N/A' }}</td>
+            <td>
+              <span class="department-badge" *ngIf="employee.departmentName">
+                {{ employee.departmentName }}
+              </span>
+              <span *ngIf="!employee.departmentName">N/A</span>
+            </td>
             <td>{{ employee.jobTitle || 'N/A' }}</td>
             <td>
               <button (click)="selectEmployee(employee)" class="btn btn-sm btn-primary">
@@ -169,7 +179,7 @@
     <table class="leave-table">
       <thead>
         <tr>
-          <th>Employee</th>
+          <th *ngIf="!selectedEmployee">Employee</th>
           <th>Leave Type</th>
           <th>Start Date</th>
           <th>End Date</th>
@@ -184,8 +194,8 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let leave of leaves">
-          <td>{{ leave.employeeName }}</td>
+        <tr *ngFor="let leave of paginatedLeaves">
+          <td *ngIf="!selectedEmployee">{{ leave.employeeName }}</td>
           <td>{{ leave.leaveType }}</td>
           <td>{{ leave.startDate | date: 'MMM dd, yyyy' }}</td>
           <td>{{ leave.endDate | date: 'MMM dd, yyyy' }}</td>
@@ -290,6 +300,44 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Pagination Controls -->
+    <div *ngIf="totalPages > 1" class="pagination-container">
+      <div class="pagination-info">
+        <span>Showing {{ (currentPage * pageSize) + 1 }} - {{ Math.min((currentPage + 1) * pageSize, totalLeaves) }} of {{ totalLeaves }} leaves</span>
+        <select [(ngModel)]="pageSize" (change)="changePageSize(+pageSize)" class="page-size-select">
+          <option [value]="10">10 per page</option>
+          <option [value]="25">25 per page</option>
+          <option [value]="50">50 per page</option>
+          <option [value]="100">100 per page</option>
+        </select>
+      </div>
+      <div class="pagination-buttons">
+        <button 
+          class="btn btn-sm btn-secondary" 
+          [disabled]="currentPage === 0"
+          (click)="previousPage()">
+          ← Previous
+        </button>
+        <div class="page-numbers">
+          <button
+            *ngFor="let page of getPageNumbers()"
+            class="btn btn-sm"
+            [class.btn-primary]="page === currentPage + 1"
+            [class.btn-secondary]="page !== currentPage + 1"
+            [disabled]="page === '...'"
+            (click)="page !== '...' && goToPage(page - 1)">
+            {{ page }}
+          </button>
+        </div>
+        <button 
+          class="btn btn-sm btn-secondary" 
+          [disabled]="currentPage >= totalPages - 1"
+          (click)="nextPage()">
+          Next →
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Comment/Action Modal for SUPER_ADMIN -->

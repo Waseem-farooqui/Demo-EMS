@@ -55,6 +55,13 @@ export class LeaveListComponent implements OnInit, OnDestroy {
   selectedEmployee: Employee | null = null;
   showEmployeeListView = true; // Start with employee list view
 
+  // Pagination properties
+  currentPage = 0;
+  pageSize = 10;
+  totalLeaves = 0;
+  totalPages = 0;
+  paginatedLeaves: Leave[] = [];
+
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -105,23 +112,34 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
     let observable;
     if (employeeId) {
-      // Load leaves for specific employee (always load all, filter client-side if needed)
+      // Load leaves for specific employee
       observable = this.leaveService.getLeavesByEmployeeId(employeeId);
-    } else {
-      // Load all leaves
+    } else if (this.isSuperAdmin) {
+      // Super admin: load all leaves
       observable = this.filterStatus === 'ALL'
         ? this.leaveService.getAllLeaves()
+        : this.leaveService.getLeavesByStatus(this.filterStatus);
+    } else {
+      // Regular user: load their own leaves
+      observable = this.filterStatus === 'ALL'
+        ? this.leaveService.getAllLeaves() // This will return only their own leaves from backend
         : this.leaveService.getLeavesByStatus(this.filterStatus);
     }
 
     const leavesSub = observable.subscribe({
       next: (data) => {
-        // If filtering by status, filter client-side
-        if (this.filterStatus !== 'ALL') {
+        // Filter by status if needed (for employee-specific leaves)
+        if (employeeId && this.filterStatus !== 'ALL') {
           this.leaves = data.filter(leave => leave.status === this.filterStatus);
         } else {
           this.leaves = data;
         }
+        
+        // Apply pagination
+        this.totalLeaves = this.leaves.length;
+        this.totalPages = Math.ceil(this.totalLeaves / this.pageSize);
+        this.updatePaginatedLeaves();
+        
         this.loading = false;
       },
       error: (err) => {
@@ -133,9 +151,85 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.subscriptions.push(leavesSub);
   }
 
+  updatePaginatedLeaves(): void {
+    const start = this.currentPage * this.pageSize;
+    const end = start + this.pageSize;
+    this.paginatedLeaves = this.leaves.slice(start, end);
+  }
+
+  goToPage(page: number): void {
+    if (page >= 0 && page < this.totalPages) {
+      this.currentPage = page;
+      this.updatePaginatedLeaves();
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage < this.totalPages - 1) {
+      this.currentPage++;
+      this.updatePaginatedLeaves();
+    }
+  }
+
+  previousPage(): void {
+    if (this.currentPage > 0) {
+      this.currentPage--;
+      this.updatePaginatedLeaves();
+    }
+  }
+
+  changePageSize(size: number): void {
+    this.pageSize = size;
+    this.currentPage = 0;
+    this.totalPages = Math.ceil(this.totalLeaves / this.pageSize);
+    this.updatePaginatedLeaves();
+  }
+
+  getPageNumbers(): (number | string)[] {
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+    
+    if (this.totalPages <= maxVisible) {
+      // Show all pages if total pages is less than max visible
+      for (let i = 1; i <= this.totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Show first page
+      pages.push(1);
+      
+      if (this.currentPage + 1 > 3) {
+        pages.push('...');
+      }
+      
+      // Show pages around current page
+      const start = Math.max(2, this.currentPage + 1 - 1);
+      const end = Math.min(this.totalPages - 1, this.currentPage + 1 + 1);
+      
+      for (let i = start; i <= end; i++) {
+        if (i !== 1 && i !== this.totalPages) {
+          pages.push(i);
+        }
+      }
+      
+      if (this.currentPage + 1 < this.totalPages - 2) {
+        pages.push('...');
+      }
+      
+      // Show last page
+      pages.push(this.totalPages);
+    }
+    
+    return pages;
+  }
+
+  // Expose Math to template
+  Math = Math;
+
   selectEmployee(employee: Employee): void {
     this.selectedEmployee = employee;
     this.showEmployeeListView = false;
+    this.currentPage = 0; // Reset to first page when selecting employee
     this.loadLeaves(employee.id!);
   }
 
@@ -148,6 +242,7 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
   filterByStatus(status: string): void {
     this.filterStatus = status;
+    this.currentPage = 0; // Reset to first page when filtering
     if (this.selectedEmployee) {
       this.loadLeaves(this.selectedEmployee.id!);
     } else {
@@ -174,7 +269,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
       const approveSub = this.leaveService.approveLeave(leave.id!, request).subscribe({
         next: () => {
-          this.loadLeaves();
+          if (this.selectedEmployee) {
+            this.loadLeaves(this.selectedEmployee.id!);
+          } else {
+            this.loadLeaves();
+          }
         },
         error: (err) => {
           this.error = err?.error?.error || 'Failed to approve leave. Please try again.';
@@ -207,7 +306,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
       const rejectSub = this.leaveService.rejectLeave(leave.id!, request).subscribe({
         next: () => {
-          this.loadLeaves();
+          if (this.selectedEmployee) {
+            this.loadLeaves(this.selectedEmployee.id!);
+          } else {
+            this.loadLeaves();
+          }
         },
         error: (err) => {
           this.error = err?.error?.error || 'Failed to reject leave. Please try again.';
@@ -247,7 +350,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
         const approveModalSub = this.leaveService.approveLeave(this.selectedLeave.id!, request).subscribe({
           next: () => {
             this.closeCommentModal();
-            this.loadLeaves();
+            if (this.selectedEmployee) {
+              this.loadLeaves(this.selectedEmployee.id!);
+            } else {
+              this.loadLeaves();
+            }
           },
           error: (err) => {
             this.error = err?.error?.error || 'Failed to approve leave. Please try again.';
@@ -262,7 +369,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
         const rejectModalSub = this.leaveService.rejectLeave(this.selectedLeave.id!, request).subscribe({
           next: () => {
             this.closeCommentModal();
-            this.loadLeaves();
+            if (this.selectedEmployee) {
+              this.loadLeaves(this.selectedEmployee.id!);
+            } else {
+              this.loadLeaves();
+            }
           },
           error: (err) => {
             this.error = err?.error?.error || 'Failed to reject leave. Please try again.';
@@ -286,7 +397,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     if (confirm(`Delete leave request for ${leave.employeeName}?`)) {
       const deleteSub = this.leaveService.deleteLeave(leave.id!).subscribe({
         next: () => {
-          this.loadLeaves();
+          if (this.selectedEmployee) {
+            this.loadLeaves(this.selectedEmployee.id!);
+          } else {
+            this.loadLeaves();
+          }
         },
         error: (err) => {
           this.error = 'Failed to delete leave. Please try again.';

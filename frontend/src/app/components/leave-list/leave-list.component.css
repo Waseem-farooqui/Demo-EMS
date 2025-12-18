@@ -633,52 +633,120 @@
   font-weight: 700;
 }
 
-/* Employee Table Styles */
+/* Employee Table Styles - Matching employee-list component */
 .employee-table-container {
+  width: 100%;
   overflow-x: auto;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin-top: 20px;
 }
 
 .employee-table {
   width: 100%;
-  border-collapse: collapse;
-  min-width: 600px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .employee-table thead {
-  background-color: #f8f9fa;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .employee-table th {
-  padding: 12px 15px;
+  padding: 1.25rem 1.5rem;
   text-align: left;
   font-weight: 600;
-  color: #495057;
-  border-bottom: 2px solid #dee2e6;
-  font-size: 14px;
+  color: white;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
 }
 
-.employee-table td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #dee2e6;
-  font-size: 14px;
-  color: #495057;
+.employee-table th:last-child {
+  text-align: center;
+  min-width: 150px;
+  width: 150px;
+}
+
+.employee-table tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+  transition: all 0.2s ease;
+  animation: fadeInRow 0.3s ease;
+  animation-fill-mode: both;
+}
+
+.employee-table tbody tr:nth-child(1) { animation-delay: 0.05s; }
+.employee-table tbody tr:nth-child(2) { animation-delay: 0.1s; }
+.employee-table tbody tr:nth-child(3) { animation-delay: 0.15s; }
+.employee-table tbody tr:nth-child(4) { animation-delay: 0.2s; }
+.employee-table tbody tr:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes fadeInRow {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .employee-table tbody tr:hover {
-  background-color: #f8f9fa;
-  cursor: pointer;
+  background: #f8f9fa;
+  transform: scale(1.01);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.employee-table tbody tr:last-child td {
+.employee-table tbody tr:last-child {
   border-bottom: none;
 }
 
+.employee-table td {
+  padding: 1.25rem 1.5rem;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.employee-table td:last-child {
+  text-align: center;
+  min-width: 150px;
+  width: 150px;
+}
+
 .employee-row {
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+}
+
+/* Employee Name with Icon */
+.employee-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.name-icon {
+  font-size: 1.5rem;
+  opacity: 0.7;
+}
+
+.employee-name strong {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Department Badge */
+.department-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 /* Selected Employee Info */
@@ -700,5 +768,88 @@
   margin: 0;
   color: #666;
   font-size: 14px;
+}
+
+/* Pagination Styles */
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: white;
+  border-top: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.page-size-select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-size-select:hover {
+  border-color: #667eea;
+}
+
+.page-size-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-numbers {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.page-numbers button {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0.5rem;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.page-numbers button:hover:not(:disabled) {
+  background: #f8f9fa;
+  border-color: #667eea;
+}
+
+.page-numbers button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-numbers button.btn-primary {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.page-numbers button.btn-primary:hover {
+  background: #5568d3;
 }
 
