@@ -293,14 +293,90 @@ export class LeaveListComponent implements OnInit, OnDestroy {
       showEmployeeListView: this.showEmployeeListView
     });
 
-    let observable;
+    // CRITICAL: If we have a selected employee, ONLY load their leaves
+    // NEVER call getAllLeaves or getLeavesByStatus when an employee is selected
     if (targetEmployeeId) {
-      // Load leaves for specific employee ONLY
-      console.log('Loading leaves for employee:', targetEmployeeId);
-      observable = this.leaveService.getLeavesByEmployeeId(targetEmployeeId);
-    } else if (this.isSuperAdmin) {
+      console.log('🔵 Loading leaves for specific employee:', targetEmployeeId, 'Name:', this.selectedEmployee?.fullName);
+      
+      // Ensure we're using the correct API endpoint
+      const leavesSub = this.leaveService.getLeavesByEmployeeId(targetEmployeeId).subscribe({
+        next: (data) => {
+          console.log('📥 Received leaves from API:', { 
+            count: data.length, 
+            targetEmployeeId,
+            selectedEmployeeName: this.selectedEmployee?.fullName,
+            sampleLeaves: data.slice(0, 5).map(l => ({ 
+              id: l.id, 
+              employeeId: l.employeeId, 
+              employeeName: l.employeeName 
+            }))
+          });
+          
+          // STRICT FILTERING: Only show leaves for the selected employee
+          // This is a safety check in case backend returns wrong data
+          let filteredData = data.filter(leave => {
+            const matches = leave.employeeId === targetEmployeeId;
+            if (!matches) {
+              console.error('❌ BACKEND ERROR: API returned leave for wrong employee!', { 
+                leaveId: leave.id, 
+                leaveEmployeeId: leave.employeeId, 
+                leaveEmployeeName: leave.employeeName,
+                targetEmployeeId,
+                selectedEmployeeName: this.selectedEmployee?.fullName
+              });
+            }
+            return matches;
+          });
+          
+          console.log(`✅ Filtered leaves: ${data.length} -> ${filteredData.length} for employee ${targetEmployeeId}`);
+          
+          // Then filter by status if needed
+          if (this.filterStatus !== 'ALL') {
+            const beforeStatusFilter = filteredData.length;
+            filteredData = filteredData.filter(leave => leave.status === this.filterStatus);
+            console.log(`Filtered by status ${this.filterStatus}: ${beforeStatusFilter} -> ${filteredData.length}`);
+          }
+          
+          // FINAL SAFETY CHECK: Ensure ALL leaves belong to selected employee
+          const invalidLeaves = filteredData.filter(l => l.employeeId !== targetEmployeeId);
+          if (invalidLeaves.length > 0) {
+            console.error('❌ CRITICAL ERROR: Found invalid leaves after filtering!', invalidLeaves);
+            filteredData = filteredData.filter(l => l.employeeId === targetEmployeeId);
+          }
+          
+          this.leaves = filteredData;
+          console.log('✅ Final leaves count:', this.leaves.length, 'for employee:', targetEmployeeId, this.selectedEmployee?.fullName);
+          
+          // Apply pagination
+          this.totalLeaves = this.leaves.length;
+          this.totalPages = Math.ceil(this.totalLeaves / this.pageSize);
+          this.updatePaginatedLeaves();
+          
+          // Final verification
+          const finalInvalid = this.leaves.filter(l => l.employeeId !== targetEmployeeId);
+          if (finalInvalid.length > 0) {
+            console.error('❌ CRITICAL: Invalid leaves in final array!', finalInvalid);
+            this.leaves = this.leaves.filter(l => l.employeeId === targetEmployeeId);
+            this.updatePaginatedLeaves();
+          }
+          
+          this.loading = false;
+        },
+        error: (err) => {
+          this.error = 'Failed to load leaves. Please try again.';
+          this.loading = false;
+          console.error('❌ Error loading leaves:', err);
+        }
+      });
+      this.subscriptions.push(leavesSub);
+      return; // Exit early - we've handled the employee-specific case
+    }
+
+    // Only load all leaves if NO employee is selected
+    let observable;
+    if (this.isSuperAdmin) {
       // Super admin: load all leaves (only when no employee is selected)
-      console.log('Loading all leaves (Super Admin)');
+      console.log('Loading all leaves (Super Admin - no employee selected)');
       observable = this.filterStatus === 'ALL'
         ? this.leaveService.getAllLeaves()
         : this.leaveService.getLeavesByStatus(this.filterStatus);
@@ -314,45 +390,14 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
     const leavesSub = observable.subscribe({
       next: (data) => {
-        console.log('Received leaves data:', { 
-          count: data.length, 
-          targetEmployeeId,
-          sampleLeaves: data.slice(0, 3).map(l => ({ id: l.id, employeeId: l.employeeId, employeeName: l.employeeName }))
-        });
-        
-        // If we have a selected employee, ensure we only show their leaves
         let filteredData = data;
         
-        if (targetEmployeeId) {
-          // Double-check: filter to ensure we only show leaves for the selected employee
-          const beforeFilter = filteredData.length;
-          filteredData = data.filter(leave => {
-            const matches = leave.employeeId === targetEmployeeId;
-            if (!matches) {
-              console.warn('Filtering out leave:', { 
-                leaveId: leave.id, 
-                leaveEmployeeId: leave.employeeId, 
-                leaveEmployeeName: leave.employeeName,
-                targetEmployeeId 
-              });
-            }
-            return matches;
-          });
-          console.log(`Filtered leaves for employee ${targetEmployeeId}: ${beforeFilter} -> ${filteredData.length}`);
-          
-          // Then filter by status if needed
-          if (this.filterStatus !== 'ALL') {
-            const beforeStatusFilter = filteredData.length;
-            filteredData = filteredData.filter(leave => leave.status === this.filterStatus);
-            console.log(`Filtered by status ${this.filterStatus}: ${beforeStatusFilter} -> ${filteredData.length}`);
-          }
-        } else if (this.filterStatus !== 'ALL' && !targetEmployeeId) {
-          // Only filter by status if no employee is selected
+        // Filter by status if needed
+        if (this.filterStatus !== 'ALL') {
           filteredData = data.filter(leave => leave.status === this.filterStatus);
         }
         
         this.leaves = filteredData;
-        console.log('Final leaves count:', this.leaves.length, 'for employee:', targetEmployeeId || 'ALL');
         
         // Apply pagination
         this.totalLeaves = this.leaves.length;
@@ -460,6 +505,11 @@ export class LeaveListComponent implements OnInit, OnDestroy {
       return;
     }
     
+    // Clear any existing leaves first
+    this.leaves = [];
+    this.paginatedLeaves = [];
+    
+    // Set selected employee BEFORE changing view state
     this.selectedEmployee = employee;
     this.showEmployeeListView = false;
     this.currentPage = 0; // Reset to first page when selecting employee
@@ -472,9 +522,23 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     });
     
     // Load leaves and balances for this specific employee ONLY
-    console.log('Loading leaves for employee ID:', employee.id);
-    this.loadLeaves(employee.id);
-    this.loadLeaveBalances(); // Reload balances for selected employee
+    console.log('✅ Loading leaves for employee ID:', employee.id, 'Name:', employee.fullName);
+    console.log('State before load:', {
+      showEmployeeListView: this.showEmployeeListView,
+      selectedEmployeeId: this.selectedEmployee?.id,
+      selectedEmployeeName: this.selectedEmployee?.fullName
+    });
+    
+    // Use setTimeout to ensure view state is updated before loading
+    setTimeout(() => {
+      console.log('🔄 Executing loadLeaves, state check:', {
+        showEmployeeListView: this.showEmployeeListView,
+        selectedEmployeeId: this.selectedEmployee?.id,
+        passedEmployeeId: employee.id
+      });
+      this.loadLeaves(employee.id);
+      this.loadLeaveBalances(); // Reload balances for selected employee
+    }, 10);
   }
 
   backToEmployeeList(): void {
