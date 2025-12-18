@@ -1,7 +1,7 @@
 import {Component, OnInit, OnDestroy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
-import {Router, RouterModule} from '@angular/router';
+import {Router, RouterModule, ActivatedRoute} from '@angular/router';
 import {LeaveService} from '../../services/leave.service';
 import {AuthService} from '../../services/auth.service';
 import {EmployeeService} from '../../services/employee.service';
@@ -68,7 +68,8 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     private leaveService: LeaveService,
     private authService: AuthService,
     private employeeService: EmployeeService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) { }
 
   ngOnInit(): void {
@@ -77,14 +78,52 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.isSuperAdmin = roles.includes('SUPER_ADMIN');
     this.isAdmin = roles.includes('ADMIN') || this.isSuperAdmin;
     
-    // Load employees list first (for admin/super admin)
-    if (this.isAdmin) {
-      this.loadEmployees();
-    } else {
-      // For regular users, show their own leaves directly
-      this.showEmployeeListView = false;
-      this.loadLeaves();
-    }
+    // Check for employeeId in query parameters
+    this.route.queryParams.subscribe(params => {
+      const employeeIdParam = params['employeeId'];
+      
+      if (employeeIdParam && this.isAdmin) {
+        // Load employee and show their leaves
+        const employeeId = parseInt(employeeIdParam, 10);
+        if (!isNaN(employeeId)) {
+          this.employeeService.getEmployeeById(employeeId).subscribe({
+            next: (employee) => {
+              this.selectedEmployee = employee;
+              this.showEmployeeListView = false;
+              this.loadLeaves(employeeId);
+            },
+            error: (err) => {
+              console.error('Error loading employee:', err);
+              // Fall back to employee list view
+              if (this.isAdmin) {
+                this.loadEmployees();
+              } else {
+                this.showEmployeeListView = false;
+                this.loadLeaves();
+              }
+            }
+          });
+        } else {
+          // Invalid employeeId, show employee list
+          if (this.isAdmin) {
+            this.loadEmployees();
+          } else {
+            this.showEmployeeListView = false;
+            this.loadLeaves();
+          }
+        }
+      } else {
+        // No employeeId parameter, load employees list first (for admin/super admin)
+        if (this.isAdmin) {
+          this.loadEmployees();
+        } else {
+          // For regular users, show their own leaves directly
+          this.showEmployeeListView = false;
+          this.loadLeaves();
+        }
+      }
+    });
+    
     this.loadLeaveBalances();
   }
 
@@ -110,12 +149,16 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
 
+    // Always use selectedEmployee.id if available, otherwise use passed employeeId
+    const targetEmployeeId = this.selectedEmployee?.id || employeeId;
+
     let observable;
-    if (employeeId) {
-      // Load leaves for specific employee
-      observable = this.leaveService.getLeavesByEmployeeId(employeeId);
+    if (targetEmployeeId) {
+      // Load leaves for specific employee ONLY
+      // Always get all leaves for this employee, then filter by status client-side if needed
+      observable = this.leaveService.getLeavesByEmployeeId(targetEmployeeId);
     } else if (this.isSuperAdmin) {
-      // Super admin: load all leaves
+      // Super admin: load all leaves (only when no employee is selected)
       observable = this.filterStatus === 'ALL'
         ? this.leaveService.getAllLeaves()
         : this.leaveService.getLeavesByStatus(this.filterStatus);
@@ -128,12 +171,23 @@ export class LeaveListComponent implements OnInit, OnDestroy {
 
     const leavesSub = observable.subscribe({
       next: (data) => {
-        // Filter by status if needed (for employee-specific leaves)
-        if (employeeId && this.filterStatus !== 'ALL') {
-          this.leaves = data.filter(leave => leave.status === this.filterStatus);
-        } else {
-          this.leaves = data;
+        // If we have a selected employee, ensure we only show their leaves
+        let filteredData = data;
+        
+        if (targetEmployeeId) {
+          // Double-check: filter to ensure we only show leaves for the selected employee
+          filteredData = data.filter(leave => leave.employeeId === targetEmployeeId);
+          
+          // Then filter by status if needed
+          if (this.filterStatus !== 'ALL') {
+            filteredData = filteredData.filter(leave => leave.status === this.filterStatus);
+          }
+        } else if (this.filterStatus !== 'ALL' && !targetEmployeeId) {
+          // Only filter by status if no employee is selected
+          filteredData = data.filter(leave => leave.status === this.filterStatus);
         }
+        
+        this.leaves = filteredData;
         
         // Apply pagination
         this.totalLeaves = this.leaves.length;
@@ -236,6 +290,13 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.selectedEmployee = employee;
     this.showEmployeeListView = false;
     this.currentPage = 0; // Reset to first page when selecting employee
+    
+    // Update URL with employeeId query parameter
+    this.router.navigate(['/leaves'], { 
+      queryParams: { employeeId: employee.id },
+      queryParamsHandling: 'merge'
+    });
+    
     this.loadLeaves(employee.id!);
   }
 
@@ -244,6 +305,12 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     this.showEmployeeListView = true;
     this.leaves = [];
     this.filterStatus = 'ALL';
+    
+    // Remove employeeId from URL
+    this.router.navigate(['/leaves'], { 
+      queryParams: { employeeId: null },
+      queryParamsHandling: 'merge'
+    });
   }
 
   filterByStatus(status: string): void {
