@@ -48,6 +48,18 @@
   font-weight: 600;
 }
 
+.cumulative-fy {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.leave-balances.loading .cumulative-loading {
+  margin: 0;
+  font-size: 14px;
+  text-align: center;
+}
+
 .balance-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

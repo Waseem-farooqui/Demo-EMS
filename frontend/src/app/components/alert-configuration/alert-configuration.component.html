@@ -156,190 +156,173 @@
     <p>Loading configurations...</p>
   </div>
 
-  <!-- Configurations List -->
-  <div class="configurations-grid" *ngIf="!loading || editingConfig">
-    <div class="config-card" *ngFor="let config of configurations">
-      <!-- View Mode -->
-      <div class="card-content" *ngIf="editingConfig?.id !== config.id">
-        <div class="card-header">
-          <div class="doc-type">
-            <span class="doc-icon">📄</span>
-            <h3>{{ getDocumentTypeLabel(config.documentType) }}</h3>
-          </div>
-          <div class="status-badge" [ngClass]="getStatusClass(config)">
-            {{ getAlertStatus(config) }}
-          </div>
-        </div>
-
-        <div class="card-body">
-          <div class="info-row">
-            <span class="label">Priority:</span>
-            <span class="value priority-badge" [ngClass]="'priority-' + config.alertPriority.toLowerCase()">
-              {{ getPriorityLabel(config.alertPriority) }}
-            </span>
-          </div>
-          <div class="info-row">
-            <span class="label">Alert Before:</span>
-            <span class="value">{{ config.alertDaysBefore }} days</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Notification:</span>
-            <span class="value">{{ getNotificationTypeLabel(config.notificationType) }}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Frequency:</span>
-            <span class="value">{{ getFrequencyLabel(config.alertFrequency) }}</span>
-          </div>
-          <div class="info-row" *ngIf="config.repeatUntilResolved">
-            <span class="label">Repeat:</span>
-            <span class="value">🔄 Until resolved</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Alert Email:</span>
-            <span class="value email-text">{{ config.alertEmail }}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Status:</span>
-            <span class="value">
-              <span class="toggle-badge" [class.active]="config.enabled">
-                {{ config.enabled ? '✅ Enabled' : '❌ Disabled' }}
-              </span>
-            </span>
-          </div>
-        </div>
-
-        <div class="card-actions">
-          <button class="btn btn-sm btn-secondary" (click)="editConfiguration(config)">
-            ✏️ Edit
-          </button>
-          <button
-            class="btn btn-sm"
-            [class.btn-success]="!config.enabled"
-            [class.btn-warning]="config.enabled"
-            (click)="toggleEnabled(config)">
-            {{ config.enabled ? '🔕 Disable' : '🔔 Enable' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Edit Mode -->
-      <div class="card-content editing" *ngIf="editingConfig?.id === config.id">
-        <div class="card-header">
-          <h3>✏️ Edit Configuration</h3>
-          <button class="btn-close-small" (click)="cancelEdit()">✕</button>
-        </div>
-
-        <form (ngSubmit)="updateConfiguration()">
-          <div class="form-group">
-            <label>Document Type</label>
-            <input
-              type="text"
-              class="form-control"
-              [value]="getDocumentTypeLabel(editingConfig!.documentType)"
-              disabled>
-          </div>
-
-          <div class="form-group">
-            <label for="editPriority">Alert Priority *</label>
-            <select
-              id="editPriority"
-              [(ngModel)]="editingConfig!.alertPriority"
-              name="editPriority"
-              class="form-control"
-              required>
-              <option *ngFor="let priority of alertPriorities" [value]="priority.value">
-                {{ priority.label }} ({{ priority.days }} days)
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="editAlertDays">Alert Days Before Expiry *</label>
-            <input
-              type="number"
-              id="editAlertDays"
-              [(ngModel)]="editingConfig!.alertDaysBefore"
-              name="editAlertDays"
-              class="form-control"
-              min="0"
-              max="365"
-              required>
-          </div>
-
-          <div class="form-group">
-            <label for="editNotificationType">Notification Type *</label>
-            <select
-              id="editNotificationType"
-              [(ngModel)]="editingConfig!.notificationType"
-              name="editNotificationType"
-              class="form-control"
-              required>
-              <option *ngFor="let type of notificationTypes" [value]="type.value">
-                {{ type.label }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="editAlertFrequency">Alert Frequency *</label>
-            <select
-              id="editAlertFrequency"
-              [(ngModel)]="editingConfig!.alertFrequency"
-              name="editAlertFrequency"
-              class="form-control"
-              required>
-              <option *ngFor="let freq of alertFrequencies" [value]="freq.value">
-                {{ freq.label }}
-              </option>
-            </select>
-            <small class="form-text">{{ getFrequencyDescription(editingConfig!.alertFrequency) }}</small>
-          </div>
-
-          <div class="form-group">
-            <label for="editEmail">Alert Email *</label>
-            <input
-              type="email"
-              id="editEmail"
-              [(ngModel)]="editingConfig!.alertEmail"
-              name="editEmail"
-              class="form-control"
-              required>
-          </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input
-                type="checkbox"
-                [(ngModel)]="editingConfig!.repeatUntilResolved"
-                name="editRepeatUntilResolved">
-              <span>Continue alerts even after expiry</span>
-            </label>
-          </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input
-                type="checkbox"
-                [(ngModel)]="editingConfig!.enabled"
-                name="editEnabled">
-              <span>Enabled</span>
-            </label>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-sm btn-secondary" (click)="cancelEdit()">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-sm btn-primary" [disabled]="loading">
-              <span *ngIf="!loading">💾 Update</span>
-              <span *ngIf="loading">⏳ Updating...</span>
-            </button>
-          </div>
-        </form>
-      </div>
+  <!-- Configurations table -->
+  <div class="config-table-panel" *ngIf="!loading || editingConfig">
+    <div class="table-scroll" *ngIf="configurations.length > 0">
+      <table class="config-table">
+        <thead>
+          <tr>
+            <th>Document type</th>
+            <th>Urgency</th>
+            <th>Priority</th>
+            <th>Days before</th>
+            <th>Notification</th>
+            <th>Frequency</th>
+            <th>Repeat after expiry</th>
+            <th>Alert email</th>
+            <th>Enabled</th>
+            <th class="actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let config of configurations">
+            <tr *ngIf="editingConfig?.id !== config.id" class="data-row">
+              <td class="cell-strong">{{ getDocumentTypeLabel(config.documentType) }}</td>
+              <td>
+                <span class="status-badge" [ngClass]="getStatusClass(config)">{{ getAlertStatus(config) }}</span>
+              </td>
+              <td>
+                <span class="priority-badge" [ngClass]="'priority-' + (config.alertPriority || 'WARNING').toLowerCase()">
+                  {{ getPriorityLabel(config.alertPriority) }}
+                </span>
+              </td>
+              <td>{{ config.alertDaysBefore }}</td>
+              <td class="cell-wrap">{{ getNotificationTypeLabel(config.notificationType) }}</td>
+              <td class="cell-wrap cell-muted">{{ getFrequencyLabel(config.alertFrequency) }}</td>
+              <td>{{ config.repeatUntilResolved ? 'Yes' : 'No' }}</td>
+              <td class="cell-email">{{ config.alertEmail }}</td>
+              <td>
+                <span class="toggle-badge" [class.active]="config.enabled">
+                  {{ config.enabled ? 'On' : 'Off' }}
+                </span>
+              </td>
+              <td class="actions-col">
+                <button type="button" class="btn btn-sm btn-secondary" (click)="editConfiguration(config)">Edit</button>
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [class.btn-success]="!config.enabled"
+                  [class.btn-warning]="config.enabled"
+                  (click)="toggleEnabled(config)">
+                  {{ config.enabled ? 'Disable' : 'Enable' }}
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="editingConfig?.id === config.id" class="edit-row">
+              <td colspan="10">
+                <div class="inline-edit">
+                  <div class="inline-edit-header">
+                    <h3>Edit configuration — {{ getDocumentTypeLabel(editingConfig!.documentType) }}</h3>
+                    <button type="button" class="btn-close-small" (click)="cancelEdit()" aria-label="Close">✕</button>
+                  </div>
+                  <form (ngSubmit)="updateConfiguration()" class="inline-edit-form">
+                    <div class="edit-form-grid">
+                      <div class="form-group">
+                        <label for="editDocType-{{ config.id }}">Document type</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          [id]="'editDocType-' + config.id"
+                          [value]="getDocumentTypeLabel(editingConfig!.documentType)"
+                          disabled>
+                      </div>
+                      <div class="form-group">
+                        <label [for]="'editPriority-' + config.id">Alert priority *</label>
+                        <select
+                          [id]="'editPriority-' + config.id"
+                          [(ngModel)]="editingConfig!.alertPriority"
+                          [name]="'editPriority-' + config.id"
+                          class="form-control"
+                          required>
+                          <option *ngFor="let priority of alertPriorities" [value]="priority.value">
+                            {{ priority.label }} ({{ priority.days }} days)
+                          </option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label [for]="'editAlertDays-' + config.id">Days before expiry *</label>
+                        <input
+                          type="number"
+                          [id]="'editAlertDays-' + config.id"
+                          [(ngModel)]="editingConfig!.alertDaysBefore"
+                          [name]="'editAlertDays-' + config.id"
+                          class="form-control"
+                          min="0"
+                          max="365"
+                          required>
+                      </div>
+                      <div class="form-group">
+                        <label [for]="'editNotificationType-' + config.id">Notification type *</label>
+                        <select
+                          [id]="'editNotificationType-' + config.id"
+                          [(ngModel)]="editingConfig!.notificationType"
+                          [name]="'editNotificationType-' + config.id"
+                          class="form-control"
+                          required>
+                          <option *ngFor="let type of notificationTypes" [value]="type.value">
+                            {{ type.label }}
+                          </option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label [for]="'editAlertFrequency-' + config.id">Alert frequency *</label>
+                        <select
+                          [id]="'editAlertFrequency-' + config.id"
+                          [(ngModel)]="editingConfig!.alertFrequency"
+                          [name]="'editAlertFrequency-' + config.id"
+                          class="form-control"
+                          required>
+                          <option *ngFor="let freq of alertFrequencies" [value]="freq.value">
+                            {{ freq.label }}
+                          </option>
+                        </select>
+                        <small class="form-text">{{ getFrequencyDescription(editingConfig!.alertFrequency) }}</small>
+                      </div>
+                      <div class="form-group">
+                        <label [for]="'editEmail-' + config.id">Alert email *</label>
+                        <input
+                          type="email"
+                          [id]="'editEmail-' + config.id"
+                          [(ngModel)]="editingConfig!.alertEmail"
+                          [name]="'editEmail-' + config.id"
+                          class="form-control"
+                          required>
+                      </div>
+                      <div class="form-group form-group-check">
+                        <label class="checkbox-label">
+                          <input
+                            type="checkbox"
+                            [(ngModel)]="editingConfig!.repeatUntilResolved"
+                            [name]="'editRepeatUntilResolved-' + config.id">
+                          <span>Continue alerts after expiry</span>
+                        </label>
+                      </div>
+                      <div class="form-group form-group-check">
+                        <label class="checkbox-label">
+                          <input
+                            type="checkbox"
+                            [(ngModel)]="editingConfig!.enabled"
+                            [name]="'editEnabled-' + config.id">
+                          <span>Enabled</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-sm btn-secondary" (click)="cancelEdit()">Cancel</button>
+                      <button type="submit" class="btn btn-sm btn-primary" [disabled]="loading">
+                        <span *ngIf="!loading">Save changes</span>
+                        <span *ngIf="loading">Saving…</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
     </div>
 
-    <!-- Empty State -->
     <div class="empty-state" *ngIf="configurations.length === 0 && !loading">
       <div class="empty-icon">📭</div>
       <h3>No Alert Configurations</h3>

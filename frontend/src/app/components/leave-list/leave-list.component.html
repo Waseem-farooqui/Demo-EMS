@@ -7,8 +7,8 @@
       <button *ngIf="!showEmployeeListView && isAdmin" (click)="backToEmployeeList()" class="btn btn-secondary">
         <span>←</span> Back to Employees
       </button>
-      <!-- Apply Leave button (for regular users or when not in employee list view) -->
-      <a *ngIf="!isSuperAdmin && (!isAdmin || !showEmployeeListView)" routerLink="/leaves/apply" class="btn btn-primary">
+      <!-- Apply Leave button -->
+      <a *ngIf="!isAdmin || !showEmployeeListView" routerLink="/leaves/apply" class="btn btn-primary">
         <span>📝</span> Apply Leave
       </a>
     </div>
@@ -75,6 +75,9 @@
             <td>
               <button (click)="selectEmployee(employee)" class="btn btn-sm btn-primary">
                 View Leaves
+              </button>
+              <button (click)="applyLeaveForEmployee(employee, $event)" class="btn btn-sm btn-success">
+                Apply Leave
               </button>
             </td>
           </tr>

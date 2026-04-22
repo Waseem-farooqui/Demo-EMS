@@ -3,6 +3,7 @@ package com.was.employeemanagementsystem.controller;
 import com.was.employeemanagementsystem.constants.AppConstants;
 import com.was.employeemanagementsystem.dto.LeaveBalanceDTO;
 import com.was.employeemanagementsystem.dto.LeaveDTO;
+import com.was.employeemanagementsystem.dto.OnBehalfCumulativeLeaveDTO;
 import com.was.employeemanagementsystem.service.LeaveService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -211,6 +212,22 @@ public class LeaveController {
             return ResponseEntity.ok(balances);
         } catch (RuntimeException e) {
             log.error("Error fetching leave balances: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Cumulative approved leave days for the current financial year (on-behalf cap),
+     * for display when an admin applies leave for another employee.
+     */
+    @GetMapping("/on-behalf-cumulative/employee/{employeeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<?> getOnBehalfCumulativeLeaveSummary(@PathVariable Long employeeId) {
+        try {
+            OnBehalfCumulativeLeaveDTO summary = leaveService.getOnBehalfCumulativeLeaveSummary(employeeId);
+            return ResponseEntity.ok(summary);
+        } catch (RuntimeException e) {
+            log.error("Error fetching on-behalf cumulative leave summary: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

@@ -1,7 +1,7 @@
 import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
-import {Leave, LeaveApprovalRequest, LeaveBalance, BlockedDate} from '../models/leave.model';
+import {Leave, LeaveApprovalRequest, LeaveBalance, BlockedDate, OnBehalfCumulativeLeaveSummary} from '../models/leave.model';
 import {environment} from '../../environments/environment';
 
 @Injectable({
@@ -25,6 +25,14 @@ export class LeaveService {
    */
   getLeaveBalances(employeeId: number): Observable<LeaveBalance[]> {
     return this.http.get<LeaveBalance[]>(`${this.apiUrl}/balances/employee/${employeeId}`);
+  }
+
+  /**
+   * Cumulative approved leave days vs cap (admin/super-admin applying for someone else).
+   */
+  getOnBehalfCumulativeLeaveSummary(employeeId: number): Observable<OnBehalfCumulativeLeaveSummary> {
+    return this.http.get<OnBehalfCumulativeLeaveSummary>(
+      `${this.apiUrl}/on-behalf-cumulative/employee/${employeeId}`);
   }
 
   /**

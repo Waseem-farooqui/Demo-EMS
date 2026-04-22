@@ -1,10 +1,11 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormArray, FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators} from '@angular/forms';
 import {Router} from '@angular/router';
 import {RotaService, RotaUploadPreview} from '../../services/rota.service';
 import {EmployeeService} from '../../services/employee.service';
 import {ToastService} from '../../services/toast.service';
+import {Subscription} from 'rxjs';
 
 @Component({
   selector: 'app-rota-upload',
@@ -13,7 +14,7 @@ import {ToastService} from '../../services/toast.service';
   templateUrl: './rota-upload.component.html',
   styleUrls: ['./rota-upload.component.css']
 })
-export class RotaUploadComponent implements OnInit {
+export class RotaUploadComponent implements OnInit, OnDestroy {
   // Upload mode selection
   uploadMode: 'select' | 'excel' | 'image' | 'manual' | 'preview' = 'select';
 
@@ -35,6 +36,7 @@ export class RotaUploadComponent implements OnInit {
   manualForm!: FormGroup;
   employees: any[] = [];
   weekDates: Date[] = [];
+  private subscriptions: Subscription[] = [];
 
   constructor(
     private rotaService: RotaService,
@@ -47,6 +49,11 @@ export class RotaUploadComponent implements OnInit {
   ngOnInit(): void {
     this.loadEmployees();
     this.initializeManualForm();
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
   }
 
   // ==================== Mode Selection ====================
@@ -269,6 +276,8 @@ export class RotaUploadComponent implements OnInit {
       endDate: [this.formatDate(this.weekDates[6]), Validators.required],
       schedules: this.fb.array([])
     });
+
+    this.setupDateRangeWatcher();
   }
 
   get schedules(): FormArray {
@@ -340,6 +349,70 @@ export class RotaUploadComponent implements OnInit {
   }
 
   // ==================== Utilities ====================
+
+  private setupDateRangeWatcher(): void {
+    const startDateControl = this.manualForm.get('startDate');
+    const endDateControl = this.manualForm.get('endDate');
+    if (!startDateControl || !endDateControl) {
+      return;
+    }
+
+    // Initial sync with current start/end values.
+    this.updateDateRangeAndSyncSchedules(startDateControl.value, endDateControl.value);
+
+    const dateRangeSub = this.manualForm.valueChanges.subscribe(() => {
+      const startDate = startDateControl.value;
+      const endDate = endDateControl.value;
+      this.updateDateRangeAndSyncSchedules(startDate, endDate);
+    });
+    this.subscriptions.push(dateRangeSub);
+  }
+
+  private updateDateRangeAndSyncSchedules(startDateValue: string, endDateValue: string): void {
+    if (!startDateValue || !endDateValue) {
+      return;
+    }
+
+    const startDate = new Date(startDateValue);
+    const endDate = new Date(endDateValue);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate < startDate) {
+      return;
+    }
+
+    const newDates: Date[] = [];
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      newDates.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    // No-op if range has not changed.
+    if (
+      this.weekDates.length === newDates.length &&
+      this.weekDates.every((d, i) => this.formatDate(d) === this.formatDate(newDates[i]))
+    ) {
+      return;
+    }
+
+    this.weekDates = newDates;
+
+    // Keep existing entered shifts where dates overlap, fill new dates with sensible defaults.
+    this.schedules.controls.forEach(scheduleControl => {
+      const shifts = scheduleControl.get('shifts') as FormArray;
+      const existingValues = shifts.getRawValue() as string[];
+
+      while (shifts.length > 0) {
+        shifts.removeAt(shifts.length - 1);
+      }
+
+      this.weekDates.forEach((date, index) => {
+        const existing = existingValues[index];
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+        const defaultValue = (dayOfWeek === 0 || dayOfWeek === 6) ? 'OFF' : '08:00-18:00';
+        shifts.push(this.fb.control(existing ?? defaultValue));
+      });
+    });
+  }
 
   formatDate(date: Date): string {
     return date.toISOString().split('T')[0];

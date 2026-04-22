@@ -436,6 +436,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.router.navigate(['/documents']);
   }
 
+  navigateToExpiredDocuments(): void {
+    this.router.navigate(['/documents'], {
+      queryParams: { expiryFilter: 'expired' }
+    });
+  }
+
   navigateToAttendance(): void {
     this.router.navigate(['/attendance']);
   }

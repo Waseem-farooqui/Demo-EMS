@@ -42,7 +42,7 @@
           <div class="stat-label">On Leave</div>
         </div>
       </div>
-      <div class="stat-card warning">
+      <div class="stat-card warning" (click)="navigateToExpiredDocuments()" title="View expired documents">
         <div class="stat-icon">⚠️</div>
         <div class="stat-content">
           <div class="stat-value">{{ dashboardStats.documentsExpired }}</div>

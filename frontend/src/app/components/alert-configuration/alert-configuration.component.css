@@ -227,58 +227,121 @@
   100% { transform: rotate(360deg); }
 }
 
-/* Configurations Grid */
-.configurations-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 25px;
-  margin-bottom: 30px;
-}
-
-.config-card {
+/* Configurations table */
+.config-table-panel {
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s, box-shadow 0.3s;
+  margin-bottom: 30px;
   overflow: hidden;
 }
 
-.config-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+.table-scroll {
+  overflow-x: auto;
 }
 
-.card-content {
-  padding: 25px;
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
 }
 
-.card-content.editing {
+.config-table thead th {
+  text-align: left;
+  padding: 14px 16px;
+  background: #f1f3f5;
+  color: #333;
+  font-weight: 600;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.config-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: middle;
+  color: #333;
+}
+
+.config-table tbody tr.data-row:hover {
+  background: #f8f9ff;
+}
+
+.config-table .actions-col {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.config-table .actions-col .btn {
+  margin-left: 8px;
+}
+
+.config-table .actions-col .btn:first-child {
+  margin-left: 0;
+}
+
+.cell-strong {
+  font-weight: 600;
+  color: #222;
+}
+
+.cell-wrap {
+  max-width: 200px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.cell-muted {
+  color: #555;
+  font-size: 13px;
+}
+
+.cell-email {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  color: #495057;
+  max-width: 220px;
+  word-break: break-all;
+}
+
+tr.edit-row td {
+  padding: 0;
+  border-bottom: 1px solid #dee2e6;
   background: #f8f9fa;
 }
 
-.card-header {
+.inline-edit {
+  padding: 20px 24px;
+}
+
+.inline-edit-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 2px solid #f0f0f0;
+  margin-bottom: 16px;
 }
 
-.doc-type {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.doc-icon {
-  font-size: 32px;
-}
-
-.doc-type h3 {
+.inline-edit-header h3 {
   margin: 0;
+  font-size: 1.1rem;
   color: #333;
-  font-size: 20px;
+}
+
+.inline-edit-form .edit-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.inline-edit-form .form-group-check {
+  align-self: end;
+}
+
+.inline-edit-form .form-actions {
+  border-top: 1px solid #dee2e6;
+  margin-top: 0;
+  padding-top: 16px;
 }
 
 .status-badge {
@@ -348,38 +411,6 @@
   color: white;
 }
 
-.email-text {
-  font-size: 13px;
-  color: #667eea;
-  font-family: monospace;
-}
-
-.card-body {
-  margin-bottom: 20px;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.info-row:last-child {
-  border-bottom: none;
-}
-
-.info-row .label {
-  font-weight: 600;
-  color: #666;
-  font-size: 14px;
-}
-
-.info-row .value {
-  color: #333;
-  font-size: 14px;
-}
-
 .toggle-badge {
   padding: 4px 12px;
   border-radius: 12px;
@@ -391,12 +422,6 @@
 
 .toggle-badge.active {
   background: #28a745;
-}
-
-.card-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
 }
 
 .btn-close-small {
@@ -419,12 +444,8 @@
 
 /* Empty State */
 .empty-state {
-  background: white;
   padding: 80px 40px;
-  border-radius: 12px;
   text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  grid-column: 1 / -1;
 }
 
 .empty-icon {
@@ -540,16 +561,19 @@
     grid-template-columns: 1fr;
   }
 
-  .configurations-grid {
-    grid-template-columns: 1fr;
+  .config-table .actions-col {
+    white-space: normal;
+    text-align: left;
   }
 
-  .card-actions {
-    flex-direction: column;
-  }
-
-  .card-actions button {
+  .config-table .actions-col .btn {
+    display: block;
     width: 100%;
+    margin: 6px 0 0 0;
+  }
+
+  .inline-edit-form .edit-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -158,7 +158,7 @@
       </table>
 
       <!-- Pagination Controls -->
-      <div class="pagination-container" *ngIf="usePagination && totalElements > 0">
+      <div class="pagination-container" *ngIf="usePagination && expiryFilter === 'all' && totalElements > 0">
         <div class="pagination-left">
           <label for="itemsPerPage" class="pagination-label">Items per page:</label>
           <select 

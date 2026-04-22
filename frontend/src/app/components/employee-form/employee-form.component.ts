@@ -14,6 +14,12 @@ import {DocumentService} from '../../services/document.service';
 import {Employee, EmploymentRecord} from '../../models/employee.model';
 import {HttpClient} from '@angular/common/http';
 import {environment} from '../../../environments/environment';
+import {
+  normalizeNationalInsuranceNumber,
+  normalizeWorkEmail,
+  toProperAddressBlock,
+  toProperNameCase
+} from '../../utils/text-format';
 
 @Component({
   selector: 'app-employee-form',
@@ -191,6 +197,7 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
         });
         this.resetEmploymentRecords(employmentRecords);
         this.resetNextOfKin(nextOfKinList);
+        this.applyReadableFormatting();
         this.loading = false;
       },
       error: (err) => {
@@ -314,6 +321,7 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
     
     this.loading = true;
     this.error = null;
+    this.applyReadableFormatting();
     const sanitizedRecords = this.getSanitizedEmploymentRecords();
     const sanitizedNextOfKin = this.getSanitizedNextOfKin();
     const formValue = this.employeeForm.value;
@@ -576,6 +584,81 @@ export class EmployeeFormComponent implements OnInit, OnDestroy {
   isFieldInvalid(fieldName: string): boolean {
     const field = this.employeeForm.get(fieldName);
     return !!(field && field.invalid && field.touched);
+  }
+
+  /**
+   * Normalises free-text fields for tidy display and storage (title-style names, tidy addresses, email/NI).
+   */
+  private applyReadableFormatting(): void {
+    const patchIfString = (path: string, fn: (v: string) => string): void => {
+      const c = this.employeeForm.get(path);
+      if (!c || typeof c.value !== 'string') {
+        return;
+      }
+      const next = fn(c.value);
+      if (next !== c.value) {
+        c.setValue(next, {emitEvent: false});
+      }
+    };
+
+    patchIfString('fullName', toProperNameCase);
+    patchIfString('nationality', toProperNameCase);
+    patchIfString('jobTitle', toProperNameCase);
+    patchIfString('allottedOrganization', toProperNameCase);
+    patchIfString('bankAccountHolderName', toProperNameCase);
+    patchIfString('bankName', toProperNameCase);
+    patchIfString('nextOfKinName', toProperNameCase);
+    patchIfString('presentAddress', toProperAddressBlock);
+    patchIfString('previousAddress', toProperAddressBlock);
+    patchIfString('workEmail', normalizeWorkEmail);
+    patchIfString('nationalInsuranceNumber', normalizeNationalInsuranceNumber);
+    patchIfString('shareCode', v => v.trim().toUpperCase());
+
+    this.nextOfKinList.controls.forEach(ctrl => {
+      if (!(ctrl instanceof FormGroup)) {
+        return;
+      }
+      const g = ctrl as FormGroup;
+      ['name', 'relationship'].forEach(key => {
+        const c = g.get(key);
+        if (c && typeof c.value === 'string') {
+          const next = toProperNameCase(c.value);
+          if (next !== c.value) {
+            c.setValue(next, {emitEvent: false});
+          }
+        }
+      });
+      const addr = g.get('address');
+      if (addr && typeof addr.value === 'string') {
+        const next = toProperAddressBlock(addr.value);
+        if (next !== addr.value) {
+          addr.setValue(next, {emitEvent: false});
+        }
+      }
+    });
+
+    this.employmentRecords.controls.forEach(ctrl => {
+      if (!(ctrl instanceof FormGroup)) {
+        return;
+      }
+      const g = ctrl as FormGroup;
+      const pairs: [string, (v: string) => string][] = [
+        ['jobTitle', toProperNameCase],
+        ['employerName', toProperNameCase],
+        ['employerAddress', toProperAddressBlock],
+        ['contactPersonName', toProperNameCase],
+        ['contactPersonEmail', normalizeWorkEmail]
+      ];
+      pairs.forEach(([key, fn]) => {
+        const c = g.get(key);
+        if (c && typeof c.value === 'string') {
+          const next = fn(c.value);
+          if (next !== c.value) {
+            c.setValue(next, {emitEvent: false});
+          }
+        }
+      });
+    });
   }
 }
 

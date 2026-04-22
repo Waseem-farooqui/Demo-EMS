@@ -24,5 +24,12 @@ public interface LeaveRepository extends JpaRepository<Leave, Long> {
            "WHERE l.status = 'APPROVED' " +
            "AND :date BETWEEN l.startDate AND l.endDate")
     Long countEmployeesOnLeaveToday(@Param("date") LocalDate date);
+
+    @Query("SELECT COALESCE(SUM(l.numberOfDays), 0) FROM Leave l " +
+           "WHERE l.employee.id = :employeeId " +
+           "AND l.financialYear = :financialYear " +
+           "AND l.status = 'APPROVED'")
+    Integer getApprovedLeaveDaysForFinancialYear(@Param("employeeId") Long employeeId,
+                                                 @Param("financialYear") String financialYear);
 }
 

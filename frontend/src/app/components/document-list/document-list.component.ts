@@ -112,11 +112,13 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     const queryParamsSub = this.route.queryParams.subscribe(params => {
       if (params['expiryFilter']) {
         this.expiryFilter = params['expiryFilter'];
+      } else {
+        this.expiryFilter = 'all';
       }
+      this.currentPage = 0;
+      this.loadDocuments();
     });
     this.subscriptions.push(queryParamsSub);
-
-    this.loadDocuments();
   }
 
   ngOnDestroy(): void {
@@ -128,13 +130,15 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
 
-    if (this.usePagination) {
+    if (this.usePagination && this.expiryFilter === 'all') {
       this.loadDocumentsPaginated();
     } else {
       this.documentService.getAllDocuments().subscribe({
         next: (data) => {
           this.allDocuments = data;
           this.documents = data;
+          this.totalElements = data.length;
+          this.totalPages = 1;
           this.applyFilters();
           this.loading = false;
         },
@@ -167,11 +171,17 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   }
 
   onPageChange(page: number): void {
+    if (this.expiryFilter !== 'all') {
+      return;
+    }
     this.currentPage = page;
     this.loadDocumentsPaginated();
   }
 
   onPageSizeChange(size: number): void {
+    if (this.expiryFilter !== 'all') {
+      return;
+    }
     this.pageSize = size;
     this.currentPage = 0;
     this.loadDocumentsPaginated();
@@ -374,7 +384,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
       queryParamsHandling: 'merge'
     });
     // Reload if using pagination
-    if (this.usePagination) {
+    if (this.usePagination && this.expiryFilter === 'all') {
       this.loadDocumentsPaginated();
     } else {
       this.applyFilters();
@@ -383,7 +393,6 @@ export class DocumentListComponent implements OnInit, OnDestroy {
 
   clearExpiryFilter(): void {
     this.currentPage = 0; // Reset to first page when filter changes
-    this.expiryFilter = 'all';
     // Clear query params
     this.router.navigate([], {
       relativeTo: this.route,

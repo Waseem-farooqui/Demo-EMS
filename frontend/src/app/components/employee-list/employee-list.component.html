@@ -2,6 +2,13 @@
   <div class="page-header">
     <h2>Employees</h2>
     <div class="header-actions">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="downloadEmployeesCsv()"
+        [disabled]="csvExporting || loading">
+        {{ csvExporting ? 'Preparing…' : 'Download CSV' }}
+      </button>
       <a routerLink="/users/create" class="btn btn-success" *ngIf="currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('SUPER_ADMIN')">
         <span>👤</span> Create User
       </a>
@@ -51,6 +58,18 @@
               <span>Username</span>
               <span class="sort-icon">{{ getSortIcon('username') }}</span>
             </th>
+            <th (click)="onSort('phoneNumber')" class="sortable">
+              <span>Mobile Number</span>
+              <span class="sort-icon">{{ getSortIcon('phoneNumber') }}</span>
+            </th>
+            <th (click)="onSort('bankAccountNumber')" class="sortable">
+              <span>Bank Account Number</span>
+              <span class="sort-icon">{{ getSortIcon('bankAccountNumber') }}</span>
+            </th>
+            <th (click)="onSort('nationalInsuranceNumber')" class="sortable">
+              <span>NI Number</span>
+              <span class="sort-icon">{{ getSortIcon('nationalInsuranceNumber') }}</span>
+            </th>
             <th (click)="onSort('position')" class="sortable">
               <span>Position</span>
               <span class="sort-icon">{{ getSortIcon('position') }}</span>
@@ -62,6 +81,10 @@
             <th (click)="onSort('allottedOrganization')" class="sortable">
               <span>Allotted Organization</span>
               <span class="sort-icon">{{ getSortIcon('allottedOrganization') }}</span>
+            </th>
+            <th (click)="onSort('passportNumber')" class="sortable">
+              <span>Passport Number</span>
+              <span class="sort-icon">{{ getSortIcon('passportNumber') }}</span>
             </th>
             <th>Actions</th>
           </tr>
@@ -80,6 +103,9 @@
               </span>
               <span class="no-user" *ngIf="!employee.username">-</span>
             </td>
+            <td data-label="Mobile Number">{{ employee.phoneNumber || '-' }}</td>
+            <td data-label="Bank Account Number">{{ employee.bankAccountNumber || '-' }}</td>
+            <td data-label="NI Number">{{ employee.nationalInsuranceNumber || '-' }}</td>
             <td data-label="Position">{{ employee.jobTitle || '-' }}</td>
             <td data-label="Department">
               <span class="department-badge" *ngIf="employee.departmentName">
@@ -92,6 +118,12 @@
                 {{ employee.allottedOrganization }}
               </span>
               <span *ngIf="!employee.allottedOrganization">-</span>
+            </td>
+            <td data-label="Passport Number">
+              <span *ngIf="getPassportNumber(employee.id); else noPassportNumber">
+                {{ getPassportNumber(employee.id) }}
+              </span>
+              <ng-template #noPassportNumber>-</ng-template>
             </td>
             <td class="actions" data-label="">
               <button (click)="viewEmployeeDetails(employee.id!)" class="btn btn-details btn-sm" title="View Full Details">

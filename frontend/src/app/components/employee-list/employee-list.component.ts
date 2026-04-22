@@ -12,7 +12,7 @@ import {ToastService} from '../../services/toast.service';
 import {Employee} from '../../models/employee.model';
 import {EmployeeWorkSummary} from '../../models/attendance.model';
 import {Document} from '../../models/document.model';
-import {Subscription} from 'rxjs';
+import {Subscription, forkJoin} from 'rxjs';
 
 interface User {
   id?: number;
@@ -74,6 +74,8 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
   employeeWorkSummary: EmployeeWorkSummary | null = null;
   employeeRotaSchedule: Array<{date: string; dayOfWeek?: string; scheduleDate?: string; duty?: string; startTime?: string; endTime?: string}> = [];
   employeeDocuments: Document[] = [];
+  passportNumbersByEmployeeId: { [employeeId: number]: string } = {};
+  csvExporting = false;
 
   // Document Viewer
   selectedDocumentId: number | null = null;
@@ -152,6 +154,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
           
           // Extract unique departments and job titles for filters
           this.extractFilterOptions();
+          this.loadPassportNumbers();
           
           this.loading = false;
         },
@@ -182,6 +185,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
         // Extract unique departments and job titles for filters (from current page)
         // Note: For better filter options, consider loading all employees separately
         this.extractFilterOptions();
+        this.loadPassportNumbers();
         
         // Apply search and filters to current page
         this.applyFilters();
@@ -279,6 +283,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
           const phone = (emp.phoneNumber || '').toLowerCase();
           const department = (emp.departmentName || '').toLowerCase();
           const allottedOrg = (emp.allottedOrganization || '').toLowerCase();
+          const passportNumber = this.getPassportNumber(emp.id).toLowerCase();
           
           return fullName.includes(query) ||
                  workEmail.includes(query) ||
@@ -286,7 +291,8 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
                  username.includes(query) ||
                  phone.includes(query) ||
                  department.includes(query) ||
-                 allottedOrg.includes(query);
+                 allottedOrg.includes(query) ||
+                 passportNumber.includes(query);
         });
       }
 
@@ -301,6 +307,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
           const phone = (emp.phoneNumber || '').toLowerCase();
           const department = (emp.departmentName || '').toLowerCase();
           const allottedOrg = (emp.allottedOrganization || '').toLowerCase();
+          const passportNumber = this.getPassportNumber(emp.id).toLowerCase();
           
           return fullName.includes(query) ||
                  workEmail.includes(query) ||
@@ -308,7 +315,8 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
                  username.includes(query) ||
                  phone.includes(query) ||
                  department.includes(query) ||
-                 allottedOrg.includes(query);
+                 allottedOrg.includes(query) ||
+                 passportNumber.includes(query);
         });
       }
 
@@ -346,6 +354,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
           const phone = (emp.phoneNumber || '').toLowerCase();
           const department = (emp.departmentName || '').toLowerCase();
           const allottedOrg = (emp.allottedOrganization || '').toLowerCase();
+          const passportNumber = this.getPassportNumber(emp.id).toLowerCase();
           
           return fullName.includes(query) ||
                  workEmail.includes(query) ||
@@ -353,7 +362,8 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
                  username.includes(query) ||
                  phone.includes(query) ||
                  department.includes(query) ||
-                 allottedOrg.includes(query);
+                 allottedOrg.includes(query) ||
+                 passportNumber.includes(query);
         });
       }
 
@@ -436,6 +446,18 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
           aValue = (a.jobTitle || '').toLowerCase();
           bValue = (b.jobTitle || '').toLowerCase();
           break;
+        case 'phoneNumber':
+          aValue = (a.phoneNumber || '').toLowerCase();
+          bValue = (b.phoneNumber || '').toLowerCase();
+          break;
+        case 'bankAccountNumber':
+          aValue = (a.bankAccountNumber || '').toLowerCase();
+          bValue = (b.bankAccountNumber || '').toLowerCase();
+          break;
+        case 'nationalInsuranceNumber':
+          aValue = (a.nationalInsuranceNumber || '').toLowerCase();
+          bValue = (b.nationalInsuranceNumber || '').toLowerCase();
+          break;
         case 'department':
           aValue = (a.departmentName || '').toLowerCase();
           bValue = (b.departmentName || '').toLowerCase();
@@ -443,6 +465,10 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
         case 'allottedOrganization':
           aValue = (a.allottedOrganization || '').toLowerCase();
           bValue = (b.allottedOrganization || '').toLowerCase();
+          break;
+        case 'passportNumber':
+          aValue = this.getPassportNumber(a.id).toLowerCase();
+          bValue = this.getPassportNumber(b.id).toLowerCase();
           break;
         default:
           return 0;
@@ -479,6 +505,135 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
 
   onGlobalSearchChange(): void {
     this.applyFilters();
+  }
+
+  loadPassportNumbers(): void {
+    this.documentService.getAllDocuments().subscribe({
+      next: (documents) => {
+        const passportNumbers: { [employeeId: number]: string } = {};
+        documents
+          .filter(doc => doc.documentType === 'PASSPORT' && !!doc.employeeId && !!doc.documentNumber)
+          .forEach(doc => {
+            // Keep the first non-empty passport number found per employee.
+            if (!passportNumbers[doc.employeeId]) {
+              passportNumbers[doc.employeeId] = doc.documentNumber!.trim();
+            }
+          });
+        this.passportNumbersByEmployeeId = passportNumbers;
+        this.applyFilters();
+      },
+      error: (err) => {
+        console.error('Error loading passport numbers:', err);
+        this.passportNumbersByEmployeeId = {};
+      }
+    });
+  }
+
+  getPassportNumber(employeeId: number | undefined): string {
+    if (!employeeId) {
+      return '';
+    }
+    return this.passportNumbersByEmployeeId[employeeId] || '';
+  }
+
+  downloadEmployeesCsv(): void {
+    if (this.csvExporting) {
+      return;
+    }
+    this.csvExporting = true;
+    const currentUserEmail = this.currentUser?.email;
+    const sub = forkJoin({
+      employees: this.employeeService.getAllEmployees(),
+      documents: this.documentService.getAllDocuments()
+    }).subscribe({
+      next: ({employees, documents}) => {
+        const passportMap: Record<number, string> = {};
+        for (const doc of documents) {
+          if (doc.documentType === 'PASSPORT' && doc.employeeId != null && doc.documentNumber?.trim()) {
+            const eid = doc.employeeId;
+            if (passportMap[eid] == null) {
+              passportMap[eid] = doc.documentNumber.trim();
+            }
+          }
+        }
+        const filtered = employees.filter(emp => emp.workEmail !== currentUserEmail);
+        const header = [
+          'name',
+          'date of birth',
+          'email',
+          'role',
+          'present address',
+          'next of kin info',
+          'nationality',
+          'NI number',
+          'passport number'
+        ];
+        const lines: string[] = [header.map(h => this.escapeCsvField(h)).join(',')];
+        for (const emp of filtered) {
+          const passport = emp.id != null ? (passportMap[emp.id] ?? '') : '';
+          lines.push([
+            this.escapeCsvField(emp.fullName ?? ''),
+            this.escapeCsvField(emp.dateOfBirth ?? ''),
+            this.escapeCsvField(emp.workEmail ?? ''),
+            this.escapeCsvField(emp.role ?? ''),
+            this.escapeCsvField(emp.presentAddress ?? ''),
+            this.escapeCsvField(this.formatNextOfKinForCsv(emp)),
+            this.escapeCsvField(emp.nationality ?? ''),
+            this.escapeCsvField(emp.nationalInsuranceNumber ?? ''),
+            this.escapeCsvField(passport)
+          ].join(','));
+        }
+        const csv = lines.join('\r\n');
+        const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `employees_${this.filenameDateStamp(new Date())}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.csvExporting = false;
+        this.toastService.success('CSV downloaded');
+      },
+      error: (err) => {
+        console.error('CSV export failed:', err);
+        this.csvExporting = false;
+        this.toastService.error('Could not download CSV. Please try again.');
+      }
+    });
+    this.subscriptions.push(sub);
+  }
+
+  private filenameDateStamp(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+  }
+
+  private escapeCsvField(value: string): string {
+    const v = String(value ?? '').replace(/\r\n|\r|\n/g, ' ');
+    return '"' + v.replace(/"/g, '""') + '"';
+  }
+
+  private formatNextOfKinForCsv(emp: Employee): string {
+    const blocks: string[] = [];
+    if (emp.nextOfKinList?.length) {
+      for (const k of emp.nextOfKinList) {
+        const bits = [k.title, k.name, k.relationship, k.contact, k.address]
+          .filter(x => !!x && String(x).trim());
+        if (bits.length) {
+          blocks.push(bits.join(', '));
+        }
+      }
+    }
+    if (blocks.length === 0) {
+      const legacy = [emp.nextOfKinName, emp.nextOfKinContact, emp.nextOfKinAddress]
+        .filter(x => !!x && String(x).trim());
+      if (legacy.length) {
+        blocks.push(legacy.join(', '));
+      }
+    }
+    return blocks.join(' | ');
   }
 
   get hasActiveFilters(): boolean {

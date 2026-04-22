@@ -2,6 +2,7 @@ package com.was.employeemanagementsystem.service;
 
 import com.was.employeemanagementsystem.dto.LeaveBalanceDTO;
 import com.was.employeemanagementsystem.dto.LeaveDTO;
+import com.was.employeemanagementsystem.dto.OnBehalfCumulativeLeaveDTO;
 import com.was.employeemanagementsystem.entity.Employee;
 import com.was.employeemanagementsystem.entity.Leave;
 import com.was.employeemanagementsystem.entity.LeaveBalance;
@@ -17,7 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -43,6 +43,8 @@ public class LeaveService {
                                                        SICK_LEAVE_ALLOCATION +
                                                        CASUAL_LEAVE_ALLOCATION +
                                                        OTHER_LEAVE_ALLOCATION;
+    private static final int MAX_LEAVE_DAYS_EXCLUDING_HOLIDAYS = 28;
+    private static final int ON_BEHALF_CUMULATIVE_ANNUAL_CAP = 28;
 
     private final LeaveRepository leaveRepository;
     private final LeaveBalanceRepository leaveBalanceRepository;
@@ -321,10 +323,17 @@ public class LeaveService {
             throw new RuntimeException("Cannot update leave that is not pending");
         }
 
+        int leaveDays = calculateLeaveDays(leaveDTO.getStartDate(), leaveDTO.getEndDate());
+        if (leaveDays > MAX_LEAVE_DAYS_EXCLUDING_HOLIDAYS) {
+            throw new RuntimeException(String.format(
+                    "Leave days (excluding holidays/weekends) cannot exceed %d days",
+                    MAX_LEAVE_DAYS_EXCLUDING_HOLIDAYS));
+        }
+
         leave.setLeaveType(leaveDTO.getLeaveType());
         leave.setStartDate(leaveDTO.getStartDate());
         leave.setEndDate(leaveDTO.getEndDate());
-        leave.setNumberOfDays(calculateLeaveDays(leaveDTO.getStartDate(), leaveDTO.getEndDate()));
+        leave.setNumberOfDays(leaveDays);
         leave.setReason(leaveDTO.getReason());
 
         Leave updatedLeave = leaveRepository.save(leave);
@@ -350,7 +359,16 @@ public class LeaveService {
     }
 
     private int calculateLeaveDays(LocalDate startDate, LocalDate endDate) {
-        return (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        int workingDays = 0;
+        LocalDate current = startDate;
+        while (!current.isAfter(endDate)) {
+            // Exclude Saturday and Sunday as holidays
+            if (current.getDayOfWeek().getValue() < 6) {
+                workingDays++;
+            }
+            current = current.plusDays(1);
+        }
+        return workingDays;
     }
 
     LeaveDTO convertToDTO(Leave leave) {
@@ -514,6 +532,30 @@ public class LeaveService {
     }
 
     /**
+     * Cumulative approved leave days for the current financial year (all leave types),
+     * matching the on-behalf admin/super-admin cap logic in applyLeaveWithValidation.
+     */
+    public OnBehalfCumulativeLeaveDTO getOnBehalfCumulativeLeaveSummary(Long employeeId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        if (!canAccessEmployee(employee)) {
+            throw new RuntimeException("Access denied");
+        }
+
+        String financialYear = getCurrentFinancialYear();
+        Integer usedApproved = leaveRepository.getApprovedLeaveDaysForFinancialYear(employeeId, financialYear);
+        int usedDays = usedApproved != null ? usedApproved : 0;
+        int remaining = Math.max(0, ON_BEHALF_CUMULATIVE_ANNUAL_CAP - usedDays);
+
+        return new OnBehalfCumulativeLeaveDTO(
+                financialYear,
+                usedDays,
+                ON_BEHALF_CUMULATIVE_ANNUAL_CAP,
+                remaining);
+    }
+
+    /**
      * Apply leave with comprehensive validation
      */
     public LeaveDTO applyLeaveWithValidation(LeaveDTO leaveDTO, MultipartFile medicalCertificate, MultipartFile holidayForm) throws IOException {
@@ -545,6 +587,12 @@ public class LeaveService {
         int leaveDays = calculateLeaveDays(leaveDTO.getStartDate(), leaveDTO.getEndDate());
         log.info("📊 Calculated leave days: {}", leaveDays);
 
+        if (leaveDays > MAX_LEAVE_DAYS_EXCLUDING_HOLIDAYS) {
+            throw new RuntimeException(String.format(
+                    "Leave days (excluding holidays/weekends) cannot exceed %d days",
+                    MAX_LEAVE_DAYS_EXCLUDING_HOLIDAYS));
+        }
+
         // Initialize leave balance if not exists
         if (!leaveBalanceRepository.existsByEmployeeIdAndFinancialYear(employee.getId(), financialYear)) {
             log.info("🔄 Leave balances not found, initializing...");
@@ -557,28 +605,57 @@ public class LeaveService {
         validateLeaveType(leaveDTO.getLeaveType());
         log.info("✅ Leave type validated: {}", leaveDTO.getLeaveType());
 
-        // Check leave balance
-        LeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndFinancialYearAndLeaveType(
-                employee.getId(), financialYear, leaveDTO.getLeaveType())
-                .orElseThrow(() -> {
-                    log.error("❌ Leave balance not found - Employee: {}, FY: {}, Type: {}", 
-                            employee.getId(), financialYear, leaveDTO.getLeaveType());
-                    return new RuntimeException("Leave balance not found");
-                });
+        // Rule: Holiday form required for USER leave applications
+        // - USER applying for their own leave: required
+        // - ADMIN applying for their own leave: not required
+        // - ADMIN applying for USER's leave: required
+        User currentUser = securityUtils.getCurrentUser();
+        boolean isCurrentUserAdmin = securityUtils.isAdminOrSuperAdmin();
+        boolean isApplyingForOwnLeave = currentUser != null && employee.getUserId() != null
+                && employee.getUserId().equals(currentUser.getId());
+        boolean autoApproveOnBehalf = isCurrentUserAdmin && !isApplyingForOwnLeave;
 
-        log.info("💰 Leave balance found - Total: {}, Used: {}, Remaining: {}", 
-                balance.getTotalAllocated(), balance.getUsedLeaves(), balance.getRemainingLeaves());
+        // For on-behalf admin/super-admin applications:
+        // - treat everything as annual leave
+        // - apply cumulative annual cap of 28 days irrespective of selected type
+        if (autoApproveOnBehalf) {
+            Integer usedApprovedDays = leaveRepository.getApprovedLeaveDaysForFinancialYear(employee.getId(), financialYear);
+            int cumulativeAfterApply = (usedApprovedDays != null ? usedApprovedDays : 0) + leaveDays;
+            if (cumulativeAfterApply > ON_BEHALF_CUMULATIVE_ANNUAL_CAP) {
+                throw new RuntimeException(String.format(
+                        "Cannot apply leave. Cumulative annual leaves for this employee would exceed %d days (current approved: %d, requested: %d).",
+                        ON_BEHALF_CUMULATIVE_ANNUAL_CAP,
+                        usedApprovedDays != null ? usedApprovedDays : 0,
+                        leaveDays));
+            }
+        }
+        final String effectiveLeaveType = autoApproveOnBehalf ? LEAVE_TYPE_ANNUAL : leaveDTO.getLeaveType();
 
-        if (balance.getRemainingLeaves() < leaveDays) {
-            log.error("❌ Insufficient leave balance - Available: {}, Requested: {}", 
-                    balance.getRemainingLeaves(), leaveDays);
-            throw new RuntimeException(String.format(
-                    "Insufficient %s leave balance. Available: %d days, Requested: %d days",
-                    leaveDTO.getLeaveType(), balance.getRemainingLeaves(), leaveDays));
+        // Check leave balance only for normal (non on-behalf) applications
+        LeaveBalance balance = null;
+        if (!autoApproveOnBehalf) {
+            balance = leaveBalanceRepository.findByEmployeeIdAndFinancialYearAndLeaveType(
+                    employee.getId(), financialYear, effectiveLeaveType)
+                    .orElseThrow(() -> {
+                        log.error("❌ Leave balance not found - Employee: {}, FY: {}, Type: {}",
+                                employee.getId(), financialYear, effectiveLeaveType);
+                        return new RuntimeException("Leave balance not found");
+                    });
+
+            log.info("💰 Leave balance found - Total: {}, Used: {}, Remaining: {}",
+                    balance.getTotalAllocated(), balance.getUsedLeaves(), balance.getRemainingLeaves());
+
+            if (balance.getRemainingLeaves() < leaveDays) {
+                log.error("❌ Insufficient leave balance - Available: {}, Requested: {}",
+                        balance.getRemainingLeaves(), leaveDays);
+                throw new RuntimeException(String.format(
+                        "Insufficient %s leave balance. Available: %d days, Requested: %d days",
+                        effectiveLeaveType, balance.getRemainingLeaves(), leaveDays));
+            }
         }
 
-        // Rule: Sick leave > 2 days requires medical certificate
-        if (LEAVE_TYPE_SICK.equals(leaveDTO.getLeaveType()) && leaveDays > 2) {
+        // Rule: Sick leave > 2 days requires medical certificate (skip for on-behalf annualized flow)
+        if (!autoApproveOnBehalf && LEAVE_TYPE_SICK.equals(effectiveLeaveType) && leaveDays > 2) {
             if (medicalCertificate == null || medicalCertificate.isEmpty()) {
                 log.error("❌ Medical certificate required for sick leave > 2 days");
                 throw new RuntimeException(
@@ -586,15 +663,6 @@ public class LeaveService {
             }
             log.info("✅ Medical certificate validated");
         }
-
-        // Rule: Holiday form required for USER leave applications
-        // - USER applying for their own leave: required
-        // - ADMIN applying for their own leave: not required
-        // - ADMIN applying for USER's leave: required
-        User currentUser = securityUtils.getCurrentUser();
-        boolean isCurrentUserAdmin = securityUtils.isAdminOrSuperAdmin();
-        boolean isApplyingForOwnLeave = currentUser != null && employee.getUserId() != null 
-                && employee.getUserId().equals(currentUser.getId());
         
         // Check if the employee (for whom leave is being applied) is a USER
         boolean isEmployeeUser = false;
@@ -635,7 +703,7 @@ public class LeaveService {
         }
 
         // Rule: Casual leave cannot be consecutive
-        if (LEAVE_TYPE_CASUAL.equals(leaveDTO.getLeaveType())) {
+        if (!autoApproveOnBehalf && LEAVE_TYPE_CASUAL.equals(effectiveLeaveType)) {
             if (leaveDays > 1) {
                 log.error("❌ Casual leave cannot be > 1 day");
                 throw new RuntimeException(
@@ -655,15 +723,20 @@ public class LeaveService {
         log.info("🔨 Creating Leave entity...");
         Leave leave = new Leave();
         leave.setEmployee(employee);
-        leave.setLeaveType(leaveDTO.getLeaveType());
+        leave.setLeaveType(effectiveLeaveType);
         leave.setStartDate(leaveDTO.getStartDate());
         leave.setEndDate(leaveDTO.getEndDate());
         leave.setNumberOfDays(leaveDays);
         leave.setReason(leaveDTO.getReason());
-        leave.setStatus("PENDING");
+        leave.setStatus(autoApproveOnBehalf ? "APPROVED" : "PENDING");
         leave.setAppliedDate(LocalDate.now());
         leave.setFinancialYear(financialYear);
         leave.setOrganizationId(employee.getOrganizationId());
+        if (autoApproveOnBehalf) {
+            leave.setApprovedBy(currentUser);
+            leave.setApprovalDate(LocalDate.now());
+            leave.setRemarks("Auto-approved (applied by " + currentUser.getUsername() + " on behalf of employee)");
+        }
 
         log.info("📋 Leave entity created with values:");
         log.info("  - Employee ID: {}", leave.getEmployee() != null ? leave.getEmployee().getId() : "NULL");
@@ -702,13 +775,26 @@ public class LeaveService {
             log.info("💾 Attempting to save Leave entity to database...");
             Leave savedLeave = leaveRepository.save(leave);
             log.info("✅ Leave saved successfully - ID: {}", savedLeave.getId());
-            log.info("✅ Leave application submitted - Employee: {}, Type: {}, Days: {}",
-                    employee.getFullName(), leaveDTO.getLeaveType(), leaveDays);
+            log.info("✅ Leave application saved - Employee: {}, Type: {}, Days: {}, Status: {}",
+                    employee.getFullName(), effectiveLeaveType, leaveDays, savedLeave.getStatus());
+
+            // On-behalf applications skip PENDING + approveLeaveAndDeduct; deduct balance here (same as approval path).
+            if (autoApproveOnBehalf) {
+                LeaveBalance balanceAfter = deductApprovedDaysFromBalance(
+                        employee.getId(), financialYear, effectiveLeaveType, leaveDays);
+                log.info("✅ On-behalf auto-approved leave deducted from balance - Type: {}, Days: {}, Remaining: {}",
+                        effectiveLeaveType, leaveDays, balanceAfter.getRemainingLeaves());
+            }
 
             // Create notification
             try {
-                notificationService.createLeaveRequestNotification(savedLeave);
-                log.info("✅ Notification created");
+                if (autoApproveOnBehalf) {
+                    notificationService.createLeaveApprovalNotification(savedLeave, currentUser.getUsername());
+                    log.info("✅ Auto-approval notification created");
+                } else {
+                    notificationService.createLeaveRequestNotification(savedLeave);
+                    log.info("✅ Leave request notification created");
+                }
             } catch (Exception e) {
                 log.warn("⚠️ Failed to create notification: {}", e.getMessage());
                 // Don't fail the leave creation if notification fails
@@ -729,6 +815,18 @@ public class LeaveService {
             
             throw e;
         }
+    }
+
+    /**
+     * Increments used and decrements remaining for an approved leave (single leave-type bucket).
+     */
+    private LeaveBalance deductApprovedDaysFromBalance(Long employeeId, String financialYear, String leaveType, int days) {
+        LeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndFinancialYearAndLeaveType(
+                employeeId, financialYear, leaveType)
+                .orElseThrow(() -> new RuntimeException("Leave balance not found"));
+        balance.setUsedLeaves(balance.getUsedLeaves() + days);
+        balance.setRemainingLeaves(balance.getRemainingLeaves() - days);
+        return leaveBalanceRepository.save(balance);
     }
 
     /**
@@ -753,14 +851,11 @@ public class LeaveService {
         leave.setApprovalDate(LocalDate.now());
         leave.setRemarks(remarks);
 
-        // Deduct from leave balance
-        LeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndFinancialYearAndLeaveType(
-                leave.getEmployee().getId(), leave.getFinancialYear(), leave.getLeaveType())
-                .orElseThrow(() -> new RuntimeException("Leave balance not found"));
-
-        balance.setUsedLeaves(balance.getUsedLeaves() + leave.getNumberOfDays());
-        balance.setRemainingLeaves(balance.getRemainingLeaves() - leave.getNumberOfDays());
-        leaveBalanceRepository.save(balance);
+        LeaveBalance balance = deductApprovedDaysFromBalance(
+                leave.getEmployee().getId(),
+                leave.getFinancialYear(),
+                leave.getLeaveType(),
+                leave.getNumberOfDays());
 
         Leave savedLeave = leaveRepository.save(leave);
 

@@ -38,6 +38,14 @@ export interface LeaveBalance {
   remainingLeaves: number;
 }
 
+/** Matches backend on-behalf cumulative cap (approved days, all types, current FY). */
+export interface OnBehalfCumulativeLeaveSummary {
+  financialYear: string;
+  approvedDaysThisFinancialYear: number;
+  cumulativeCap: number;
+  remainingDaysUnderCap: number;
+}
+
 export interface BlockedDate {
   startDate: string;
   endDate: string;

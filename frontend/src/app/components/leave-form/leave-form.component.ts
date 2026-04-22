@@ -6,7 +6,8 @@ import {LeaveService} from '../../services/leave.service';
 import {EmployeeService} from '../../services/employee.service';
 import {AuthService} from '../../services/auth.service';
 import {ToastService} from '../../services/toast.service';
-import {Leave, LeaveBalance, BlockedDate} from '../../models/leave.model';
+import {AttendanceService} from '../../services/attendance.service';
+import {Leave, LeaveBalance, BlockedDate, OnBehalfCumulativeLeaveSummary} from '../../models/leave.model';
 import {Employee} from '../../models/employee.model';
 import {Subscription} from 'rxjs';
 
@@ -38,9 +39,12 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
 
   employees: Employee[] = [];
   leaveBalances: LeaveBalance[] = [];
+  onBehalfCumulativeSummary: OnBehalfCumulativeLeaveSummary | null = null;
   blockedDates: BlockedDate[] = [];
   selectedFile: File | null = null;
   selectedHolidayFormFile: File | null = null;
+  currentlyWorkingOnly = false;
+  currentlyWorkingEmployeeIds = new Set<number>();
 
   leaveTypes = [
     {value: 'ANNUAL', label: 'Annual Leave'},
@@ -65,6 +69,7 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
     private employeeService: EmployeeService,
     private authService: AuthService,
     private toastService: ToastService,
+    private attendanceService: AttendanceService,
     private router: Router,
     private route: ActivatedRoute
   ) {
@@ -79,13 +84,6 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
     const isSuperAdmin = roles.includes('SUPER_ADMIN');
     this.isAdmin = roles.includes('ADMIN') || isSuperAdmin;
 
-    // SUPER_ADMIN (CEO) cannot apply for leaves - redirect to leave list
-    if (isSuperAdmin && !this.route.snapshot.params['id']) {
-      this.toastService.info('As SUPER_ADMIN, you can review and manage leaves but cannot apply for leaves.');
-      this.router.navigate(['/leaves']);
-      return;
-    }
-
     this.leaveId = this.route.snapshot.params['id'];
     this.isEditMode = !!this.leaveId;
 
@@ -99,7 +97,24 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
     } else {
       // For new leave, load all employees
       this.loadEmployees();
+      this.prefillEmployeeFromQueryParams();
     }
+  }
+
+  prefillEmployeeFromQueryParams(): void {
+    const queryParamsSub = this.route.queryParams.subscribe(params => {
+      const employeeIdParam = params['employeeId'];
+      if (!employeeIdParam || this.isEditMode || !this.isAdmin) {
+        return;
+      }
+
+      const employeeId = Number(employeeIdParam);
+      if (!isNaN(employeeId) && employeeId > 0) {
+        this.leave.employeeId = employeeId;
+        this.onEmployeeChange();
+      }
+    });
+    this.subscriptions.push(queryParamsSub);
   }
 
   loadEmployees(): void {
@@ -114,8 +129,17 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
             employeeId: this.leave.employeeId,
             employeeName: leaveOwner?.fullName
           });
+          if (this.isAdmin && this.leave.employeeId) {
+            this.loadOnBehalfCumulativeSummary(this.leave.employeeId);
+          }
         } else {
           this.employees = data;
+          if (this.isAdmin) {
+            this.loadCurrentlyWorkingEmployees();
+            if (this.leave.employeeId && this.leave.employeeId > 0) {
+              this.onEmployeeChange();
+            }
+          }
           // For non-admin users, auto-select their employee
           if (!this.isAdmin && data.length > 0) {
             this.leave.employeeId = data[0].id!;
@@ -134,8 +158,85 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
 
   onEmployeeChange(): void {
     if (this.leave.employeeId) {
+      const selectedEmployee = this.employees.find(emp => emp.id === this.leave.employeeId);
+      const currentUserId = this.currentUser?.id ?? this.currentUser?.userId ?? this.currentUser?.user?.id;
+      const applyingOnBehalf = !!(this.isAdmin && selectedEmployee?.userId && currentUserId && selectedEmployee.userId !== currentUserId);
+
+      // Admin/Super Admin applying on behalf: force annual leave rule.
+      if (applyingOnBehalf) {
+        this.leave.leaveType = 'ANNUAL';
+      }
+
+      if (this.isAdmin && this.currentlyWorkingOnly && !this.isEmployeeCurrentlyWorking(this.leave.employeeId)) {
+        this.toastService.error('Selected employee is not currently working');
+        this.leave.employeeId = 0;
+        this.onBehalfCumulativeSummary = null;
+        return;
+      }
       this.loadLeaveBalances(this.leave.employeeId);
       this.loadBlockedDates(this.leave.employeeId);
+      this.loadOnBehalfCumulativeSummary(this.leave.employeeId);
+    } else {
+      this.onBehalfCumulativeSummary = null;
+    }
+  }
+
+  loadCurrentlyWorkingEmployees(): void {
+    const activeTodaySub = this.attendanceService.getTodayActiveCheckIns().subscribe({
+      next: (activeCheckIns) => {
+        this.currentlyWorkingEmployeeIds = new Set(
+          activeCheckIns
+            .map(att => att.employeeId)
+            .filter((id): id is number => id !== undefined && id !== null)
+        );
+      },
+      error: (err) => {
+        console.error('Error loading currently working employees:', err);
+        this.currentlyWorkingEmployeeIds = new Set<number>();
+      }
+    });
+    this.subscriptions.push(activeTodaySub);
+  }
+
+  get visibleEmployees(): Employee[] {
+    if (!this.isAdmin || !this.currentlyWorkingOnly) {
+      return this.employees;
+    }
+    return this.employees.filter(emp => this.isEmployeeCurrentlyWorking(emp.id));
+  }
+
+  /** Options for the leave-type control (per-type balances, or single cumulative row when applying on behalf). */
+  get leaveTypeSelectOptions(): { value: string; label: string }[] {
+    if (this.isApplyingOnBehalf()) {
+      const rem = this.onBehalfCumulativeSummary?.remainingDaysUnderCap;
+      const remStr = rem != null ? String(rem) : '—';
+      return [{
+        value: 'ANNUAL',
+        label: `Annual Leave (${remStr} days remaining under cumulative cap)`
+      }];
+    }
+    return this.leaveTypes.map(t => ({
+      value: t.value,
+      label: `${t.label} (${this.getBalance(t.value)} days remaining)`
+    }));
+  }
+
+  isEmployeeCurrentlyWorking(employeeId: number | undefined): boolean {
+    if (!employeeId) {
+      return false;
+    }
+    return this.currentlyWorkingEmployeeIds.has(employeeId);
+  }
+
+  onWorkingFilterToggle(): void {
+    if (!this.currentlyWorkingOnly) {
+      return;
+    }
+    // Refresh active list when enabling this filter.
+    this.loadCurrentlyWorkingEmployees();
+    if (this.leave.employeeId && !this.isEmployeeCurrentlyWorking(this.leave.employeeId)) {
+      this.leave.employeeId = 0;
+      this.onBehalfCumulativeSummary = null;
     }
   }
 
@@ -149,6 +250,23 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
       }
     });
     this.subscriptions.push(balancesSub);
+  }
+
+  loadOnBehalfCumulativeSummary(employeeId: number): void {
+    if (!this.isApplyingOnBehalf()) {
+      this.onBehalfCumulativeSummary = null;
+      return;
+    }
+    const cumulativeSub = this.leaveService.getOnBehalfCumulativeLeaveSummary(employeeId).subscribe({
+      next: (summary) => {
+        this.onBehalfCumulativeSummary = summary;
+      },
+      error: (err) => {
+        console.error('Error loading on-behalf cumulative leave summary:', err);
+        this.onBehalfCumulativeSummary = null;
+      }
+    });
+    this.subscriptions.push(cumulativeSub);
   }
 
   loadBlockedDates(employeeId: number): void {
@@ -343,12 +461,26 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
     }
 
     const days = this.calculateDays();
-
-    // Check balance
-    const balance = this.leaveBalances.find(b => b.leaveType === this.leave.leaveType);
-    if (balance && balance.remainingLeaves < days) {
-      this.toastService.error(`Insufficient ${this.leave.leaveType} leave balance. Available: ${balance.remainingLeaves} days`);
+    if (days > 28) {
+      this.toastService.error('Leave days (excluding holidays/weekends) cannot exceed 28 days');
       return;
+    }
+
+    // Check balance (on-behalf uses cumulative approved days cap, not per-type buckets)
+    if (this.isApplyingOnBehalf()) {
+      const summary = this.onBehalfCumulativeSummary;
+      if (summary && summary.approvedDaysThisFinancialYear + days > summary.cumulativeCap) {
+        this.toastService.error(
+          `Cannot apply: cumulative approved leave for this financial year would exceed ${summary.cumulativeCap} days (already approved: ${summary.approvedDaysThisFinancialYear}, requested: ${days}).`
+        );
+        return;
+      }
+    } else {
+      const balance = this.leaveBalances.find(b => b.leaveType === this.leave.leaveType);
+      if (balance && balance.remainingLeaves < days) {
+        this.toastService.error(`Insufficient ${this.leave.leaveType} leave balance. Available: ${balance.remainingLeaves} days`);
+        return;
+      }
     }
 
     // Check if SICK > 2 days requires certificate
@@ -429,11 +561,27 @@ export class LeaveFormComponent implements OnInit, OnDestroy {
     if (this.leave.startDate && this.leave.endDate) {
       const start = new Date(this.leave.startDate);
       const end = new Date(this.leave.endDate);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      return diffDays;
+      let workingDays = 0;
+      const current = new Date(start);
+      while (current <= end) {
+        const day = current.getDay(); // 0 Sunday, 6 Saturday
+        if (day !== 0 && day !== 6) {
+          workingDays++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      return workingDays;
     }
     return 0;
+  }
+
+  isApplyingOnBehalf(): boolean {
+    if (!this.isAdmin || !this.leave.employeeId) {
+      return false;
+    }
+    const selectedEmployee = this.employees.find(emp => emp.id === this.leave.employeeId);
+    const currentUserId = this.currentUser?.id ?? this.currentUser?.userId ?? this.currentUser?.user?.id;
+    return !!(selectedEmployee?.userId && currentUserId && selectedEmployee.userId !== currentUserId);
   }
 
   ngOnDestroy(): void {

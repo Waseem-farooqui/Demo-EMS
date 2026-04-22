@@ -5,8 +5,30 @@
       <p class="subtitle">{{ isEditMode ? 'Update your leave details' : 'Submit a new leave request' }}</p>
     </div>
 
-    <!-- Leave Balance Cards -->
-    <div class="leave-balances" *ngIf="leaveBalances.length > 0 && !isEditMode">
+    <div class="leave-balances on-behalf-cumulative loading" *ngIf="isApplyingOnBehalf() && !isEditMode && !onBehalfCumulativeSummary">
+      <p class="cumulative-loading">Loading cumulative leave usage…</p>
+    </div>
+
+    <!-- On-behalf: cumulative approved days (matches backend auto-approve flow) -->
+    <div class="leave-balances on-behalf-cumulative" *ngIf="isApplyingOnBehalf() && !isEditMode && onBehalfCumulativeSummary">
+      <h3>Approved leave this financial year (cumulative)</h3>
+      <p class="cumulative-fy">Financial year {{ onBehalfCumulativeSummary.financialYear }}</p>
+      <div class="balance-cards">
+        <div class="balance-card cumulative-card">
+          <div class="balance-type">All approved types combined</div>
+          <div class="balance-info">
+            <span class="balance-remaining">{{ onBehalfCumulativeSummary.approvedDaysThisFinancialYear }}</span>
+            <span class="balance-total">/ {{ onBehalfCumulativeSummary.cumulativeCap }} days used</span>
+          </div>
+          <div class="balance-used">
+            Remaining under on-behalf cap: <strong>{{ onBehalfCumulativeSummary.remainingDaysUnderCap }}</strong> days
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leave Balance Cards (per type — not used for admin on-behalf) -->
+    <div class="leave-balances" *ngIf="leaveBalances.length > 0 && !isEditMode && !isApplyingOnBehalf()">
       <h3>Your Leave Balance</h3>
       <div class="balance-cards">
         <div class="balance-card" *ngFor="let balance of leaveBalances">
@@ -26,6 +48,15 @@
     <form (ngSubmit)="onSubmit()" #leaveFormRef="ngForm">
       <div class="form-group">
         <label for="employee">Employee *</label>
+        <div class="form-check" *ngIf="isAdmin && !isEditMode">
+          <input
+            type="checkbox"
+            id="currentlyWorkingOnly"
+            name="currentlyWorkingOnly"
+            [(ngModel)]="currentlyWorkingOnly"
+            (change)="onWorkingFilterToggle()">
+          <label for="currentlyWorkingOnly">Show currently working employees only</label>
+        </div>
         <select
           id="employee"
           name="employee"
@@ -36,7 +67,7 @@
           [disabled]="!isAdmin || isEditMode"
           class="form-control">
           <option value="0" disabled>Select Employee</option>
-          <option *ngFor="let emp of employees" [value]="emp.id">
+          <option *ngFor="let emp of visibleEmployees" [value]="emp.id">
             {{ emp.fullName }} ({{ emp.jobTitle }})
           </option>
         </select>
@@ -52,17 +83,19 @@
           id="leaveType"
           name="leaveType"
           [(ngModel)]="leave.leaveType"
+          [disabled]="isApplyingOnBehalf()"
           required
           #leaveTypeField="ngModel"
           class="form-control">
           <option value="" disabled>Select Leave Type</option>
-          <option *ngFor="let type of leaveTypes" [value]="type.value">
-            {{ type.label }} ({{ getBalance(type.value) }} days remaining)
-          </option>
+          <option *ngFor="let type of leaveTypeSelectOptions" [value]="type.value">{{ type.label }}</option>
         </select>
         <div class="field-error" *ngIf="leaveTypeField.invalid && leaveTypeField.touched">
           Please select a leave type
         </div>
+        <small class="form-text" *ngIf="isApplyingOnBehalf()">
+          On-behalf applications are recorded as annual leave and limited by cumulative approved days (max {{ onBehalfCumulativeSummary?.cumulativeCap ?? 28 }} per financial year, all types combined).
+        </small>
       </div>
 
       <!-- Warnings based on leave type -->
@@ -124,8 +157,11 @@
 
       <div class="form-group" *ngIf="leave.startDate && leave.endDate">
         <div class="days-info">
-          <span class="days-label">Total Days:</span>
+          <span class="days-label">Total Leave Days (excluding weekends/holidays):</span>
           <span class="days-value">{{ calculateDays() }} day(s)</span>
+        </div>
+        <div class="alert alert-error" *ngIf="calculateDays() > 28">
+          ❌ Leave days cannot exceed 28 days.
         </div>
       </div>
 

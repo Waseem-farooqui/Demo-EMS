@@ -541,6 +541,18 @@ export class LeaveListComponent implements OnInit, OnDestroy {
     }, 10);
   }
 
+  applyLeaveForEmployee(employee: Employee, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!employee?.id) {
+      return;
+    }
+    this.router.navigate(['/leaves/apply'], {
+      queryParams: { employeeId: employee.id }
+    });
+  }
+
   backToEmployeeList(): void {
     this.selectedEmployee = null;
     this.showEmployeeListView = true;
